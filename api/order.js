@@ -1,5 +1,5 @@
 // api/order.js
-export async function orderRoutes(req, res) {
+export default async function orderRoutes(req, res) {
   const { items } = req.body;
 
   if (!items || items.length === 0) return res.status(400).json({ message: '장바구니가 비어 있습니다' });
