@@ -196,10 +196,47 @@ export default function App() {
 }
 
 /* ---------------- 스타일 ---------------- */
+/* ---------------- 스타일 ---------------- */
 const styles = {
-  container: { width: '100%', maxWidth: 420, background: '#fff', padding: 24, borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: 16 },
-  card: { border: '1px solid #e0e0e0', padding: 12, borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' },
-  buttonPrimary: { padding: '10px 12px', background: '#3f51b5', color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer' },
-  buttonSecondary: { padding: '8px 10px', background: '#eee', border: 'none', borderRadius: 4, cursor: 'pointer' },
-  input: { padding: 10, borderRadius: 4, border: '1px solid #ccc', fontSize: 14 },
+  container: {
+    width: '100%',
+    maxWidth: 420,
+    background: '#fff',
+    padding: 24,
+    borderRadius: 8,
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 16,
+  },
+  card: {
+    border: '1px solid #e0e0e0',
+    padding: 12,
+    borderRadius: 6,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  buttonPrimary: {
+    padding: '10px 12px',
+    background: '#3f51b5',
+    color: '#fff',
+    border: 'none',
+    borderRadius: 4,
+    cursor: 'pointer',
+  },
+  buttonSecondary: {
+    padding: '8px 10px',
+    background: '#eee',
+    border: 'none',
+    borderRadius: 4,
+    cursor: 'pointer',
+  },
+  input: {
+    padding: 10,
+    borderRadius: 4,
+    border: '1px solid #ccc',
+    fontSize: 14,
+  },
 };
+
