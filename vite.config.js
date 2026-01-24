@@ -1,9 +1,10 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+// vite.config.js
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  base: './', // 빌드 시 경로 문제 방지
+  base: './',
   server: {
     proxy: {
       '/api': {
@@ -13,4 +14,4 @@ export default defineConfig({
       },
     },
   },
-});
+})
