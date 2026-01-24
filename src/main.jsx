@@ -1,10 +1,7 @@
 import { StrictMode } from 'react';
-import { ReactDOM, createRoot } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import App from './App.jsx';
 import './index.css';
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-
 
 // Vercel 배포 환경에서도 Mock API 동작하도록 fetch 가로채기
 async function enableMocking() {
@@ -67,3 +64,15 @@ async function enableMocking() {
     window.fetch.isMocked = true;
   }
 }
+
+const container = document.getElementById('root');
+
+enableMocking().then(() => {
+  if (!container) return;
+
+  createRoot(container).render(
+    <StrictMode>
+      <App />
+    </StrictMode>
+  );
+});
