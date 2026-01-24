@@ -1,7 +1,6 @@
 // api/cart.js
-export default async function cartRoutes(req, res) {
-const body = await req.json();
-  const { action, index, cart } = body;
+export async function cartRoutes(req, res) {
+  const { action, index, cart } = req.body;
 
   if (action === 'remove') {
     const newCart = cart.filter((_, i) => i !== index);
