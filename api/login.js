@@ -1,5 +1,5 @@
 // api/login.js
-export default async function loginRoutes(req, res) {
+export async function loginRoutes(req, res) {
   const body = req.body;  // 여기서 req.body를 바로 사용
   const { username, password } = body;
 

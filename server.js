@@ -1,10 +1,10 @@
 import express from 'express';
 import cors from 'cors';
-import loginRoutes from './api/login.js';
-import productsRoutes from './api/products.js';
-import orderRoutes from './api/order.js';
-import productDetailRoutes from './api/productDetail.js';
-import cartRoutes from './api/cart.js';
+import {loginRoutes} from './api/login.js';
+import {productsRoutes} from './api/products.js';
+import {orderRoutes} from './api/order.js';
+import {productDetailRoutes} from './api/productDetail.js';
+import {cartRoutes} from './api/cart.js';
 
 
 const app = express();
