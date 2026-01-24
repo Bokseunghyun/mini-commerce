@@ -196,7 +196,6 @@ export default function App() {
 }
 
 /* ---------------- 스타일 ---------------- */
-/* ---------------- 스타일 ---------------- */
 const styles = {
   container: {
     width: '100%',
