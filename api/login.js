@@ -1,5 +1,10 @@
 // api/login.js
 export async function loginRoutes(req, res) {
+    // CORS 헤더
+  res.setHeader('Access-Control-Allow-Origin', '*'); // 모든 도메인 허용
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   const body = req.body;  // 여기서 req.body를 바로 사용
   const { username, password } = body;
 
