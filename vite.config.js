@@ -3,12 +3,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: './',          // 상대 경로
-  build: {
-    outDir: 'dist',    // 기본값, 확인용
-    rollupOptions: {
-      input: '/src/main.jsx'  // 명시적 입력점 확인
-    }
+  base: './', // 중요: 빌드 시 경로 문제 방지
+  server: {
+    proxy: process.env.NODE_ENV === 'development' ? {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    } : {}
   }
-})
+});
 
