@@ -67,15 +67,3 @@ async function enableMocking() {
     window.fetch.isMocked = true;
   }
 }
-
-const container = document.getElementById('root');
-
-enableMocking().then(() => {
-  if (!container) return;
-
-  createRoot(container).render(
-    <StrictMode>
-      <App />
-    </StrictMode>
-  );
-});
