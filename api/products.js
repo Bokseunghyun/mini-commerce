@@ -1,4 +1,4 @@
-export async function productsRoutes(req, res) {
+export default async function productsRoutes(req, res) {
   const PRODUCTS = [
     { id: 1, name: '무선 마우스', price: 25000 },
     { id: 2, name: '기계식 키보드', price: 89000 },

@@ -1,5 +1,5 @@
 // api/cart.js
-export async function cartRoutes(req, res) {
+export default async function cartRoutes(req, res) {
   const { action, index, cart } = req.body;
 
   if (action === 'remove') {
