@@ -20,7 +20,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: userId, password }),
-      });
+      }); 
 
       if (!res.ok) {
         const err = await res.json();
