@@ -8,7 +8,7 @@ async function enableMocking() {
   await worker.start({
     onUnhandledRequest: 'bypass', // 처리 안된 요청은 그냥 브라우저로 전달
     serviceWorker: {
-      url: 'public/mockServiceWorker.js', // Vercel 배포용 경로
+      url: '/mockServiceWorker.js', // Vercel 배포용 경로
     },
   });
 }
