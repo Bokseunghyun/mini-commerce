@@ -1,17 +1,16 @@
-// vite.config.js
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
-  base: './',
+  base: './', // 배포 시 상대경로 처리
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
+        target: 'http://localhost:3000', 
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api/, '/api'),
       },
     },
   },
-})
+});
