@@ -1,14 +1,16 @@
-// vite.config.js
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
+
 export default defineConfig({
   plugins: [react()],
-  base: '/', // 유지
-  build: {
-    target: 'esnext',
-    sourcemap: true, // 문제 추적용
-    rollupOptions: {
-      output: {
-        manualChunks: undefined // 자동 chunk 나누기 방지
-      }
-    }
+  base: '/', // 중요: 빌드 시 경로 문제 방지
+  server: {
+    proxy: process.env.NODE_ENV === 'development' ? {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+      },
+    } : {}
   }
 });
+
