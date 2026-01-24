@@ -1,7 +1,6 @@
-export default async function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
-
-  const { items } = JSON.parse(req.body);
+// api/order.js
+export async function orderRoutes(req, res) {
+  const { items } = req.body;
 
   if (!items || items.length === 0) return res.status(400).json({ message: '장바구니가 비어 있습니다' });
 
@@ -9,5 +8,5 @@ export default async function handler(req, res) {
   if (hasErrorProduct) return res.status(500).json({ message: '주문불가 상품이 포함되어 있습니다' });
 
   const total = items.reduce((sum, p) => sum + p.price, 0);
-  res.status(200).json({ message: '주문 성공', total, orderId: `ORDER-${Date.now()}` });
+  return res.status(200).json({ message: '주문 성공', total, orderId: Math.floor(Math.random() * 1000000) });
 }

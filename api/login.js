@@ -1,7 +1,7 @@
-export default function handler(req, res) {
-  if (req.method !== 'POST') return res.status(405).json({ message: 'Method not allowed' });
-
-  const { username, password } = JSON.parse(req.body);
+// api/login.js
+export async function loginRoutes(req, res) {
+  const body = req.body;  // 여기서 req.body를 바로 사용
+  const { username, password } = body;
 
   const USERS = [
     { username: 'test', password: '1234', role: 'USER', status: 'ACTIVE' },
@@ -14,8 +14,10 @@ export default function handler(req, res) {
   if (!user) return res.status(401).json({ message: '아이디 또는 비밀번호 오류' });
   if (user.status === 'BLOCKED') return res.status(403).json({ message: '차단된 계정입니다' });
 
-  res.status(200).json({
+  return res.status(200).json({
     token: `mock-token-${user.username}`,
-    user: { username: user.username, role: user.role },
+    user: { username: user.username, role: user.role }
   });
 }
+
+
