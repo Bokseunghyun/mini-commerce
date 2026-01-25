@@ -144,7 +144,7 @@ console.log(localStorage.getItem('token'))
       },
       body: JSON.stringify({ items: cart }),
     });
-
+console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     if (!res.ok) {
       const err = await res.json();
       alert(err.message);

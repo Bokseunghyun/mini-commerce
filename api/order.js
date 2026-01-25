@@ -33,7 +33,7 @@ export default function handler(req, res) {
     const prod = PRODUCTS.find(p => p.id === item.id);
     return prod && !prod.orderable;
   });
-  if (hasUnorderable) return res.status(400).json({ message: '주문불가 상품 포함' });
+  if (hasUnorderable) return res.status(500).json({ message: '주문불가 상품 포함' });
 
   const totalPrice = items.reduce((sum, item) => sum + item.price * (item.quantity || 1), 0);
   const order = {
