@@ -140,7 +140,7 @@ console.log(localStorage.getItem('token'))
         },
         body: JSON.stringify({ items: cart }),
         });
-
+console.log('주문: '+localStorage.getItem('token'))
       if (!res.ok) {
         const err = await res.json();
         alert(err.message); // 400, 500 모두 처리
