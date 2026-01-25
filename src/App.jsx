@@ -103,7 +103,7 @@ export default function App() {
     if (!res.ok) {
       const err = await res.json();
       alert(err.message);
-      return;
+      return; 
     }
 
     const data = await res.json();
