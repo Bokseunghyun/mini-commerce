@@ -77,7 +77,7 @@ const viewProduct = async id => {
       throw new Error(msg);
     }
     const data = await res.json();
-    setSelectedProduct(data);
+    setSelectedProduct(data.products);
     setPage('productDetail');
   } catch (err) {
     alert(err.message);
@@ -226,6 +226,7 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
       </div>
     );
   }
+
 
   /* ---------------- 상품 상세 ---------------- */
 if (page === 'productDetail' && selectedProduct) {
