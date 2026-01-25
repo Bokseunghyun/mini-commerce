@@ -1,6 +1,6 @@
 import express from 'express';
 import cors from 'cors';
-
+import serverless from 'serverless-http';
 import loginRoutes from './api/login.js';
 import productsRoutes from './api/products.js';
 import productDetailRoutes from './api/productDetail.js'; // 기존 유지
