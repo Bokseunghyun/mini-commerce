@@ -141,33 +141,45 @@ console.log(localStorage.getItem('token'))
   const total = cart.reduce((sum, p) => sum + p.price, 0);
 
   /* ---------------- 주문 API ---------------- */
-  const order = async () => {
-    try {
-      
-      const res = await fetch(`${API_BASE}/api/order`, {
-        method: 'POST',
-          headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ items: cart }),
-        mode: 'cors'
-        });
-console.log('주문: '+localStorage.getItem('token'))
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.message); // 400, 500 모두 처리
-        return;
-      }
+ const order = async () => {
+  if (!cart || cart.length === 0) {
+    alert('장바구니가 비어 있습니다');
+    return;
+  }
 
-      const data = await res.json();
-      alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
-      setCart([]);
-      setPage('checkout');
-    } catch {
-      alert('주문 중 오류 발생');
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      alert('로그인 후 주문 가능합니다');
+      return;
     }
-  };
+
+    const res = await fetch(`${API_BASE}/api/order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`, // 기존 그대로
+      },
+      body: JSON.stringify({ items: cart }),
+      mode: 'cors', // Vercel preflight 대응
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      alert(`주문 실패: ${err.message}`);
+      return;
+    }
+
+    const data = await res.json();
+    alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
+    setCart([]);
+    setPage('checkout');
+  } catch (err) {
+    console.error('주문 fetch 에러:', err);
+    alert('주문 중 오류 발생');
+  }
+};
+
 
   /* ---------------- 로그인 페이지 ---------------- */
   if (page === 'login') {
