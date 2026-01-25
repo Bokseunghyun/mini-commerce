@@ -5,6 +5,21 @@ export async function loginRoutes(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
+  // 2️⃣ Preflight 요청 처리
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  // 3️⃣ 실제 API 로직
+  if (req.method === 'POST') {
+    const { email, password } = req.body;
+    // 로그인 로직 처리
+    res.status(200).json({ success: true });
+  } else {
+    res.status(405).json({ error: '로그인 오류' });
+  }
+
   const body = req.body;  // 여기서 req.body를 바로 사용
   const { username, password } = body;
 
