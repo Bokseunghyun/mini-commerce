@@ -68,16 +68,21 @@ export default function App() {
 
  /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
- try {
-      const res = await fetch(`${API_BASE}/api/products/${id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setSelectedProduct(data);
-      setPage('productDetail');
-    } catch {
-      alert(`상품 ${id} 조회 실패`);
+  try {
+    const res = await fetch(`/api/products/${id}`);
+
+    if (!res.ok) {
+      let msg = '상품 조회 실패';
+      try { msg = (await res.json()).message || msg } catch {}
+      throw new Error(msg);
     }
-  };
+    const data = await res.json();
+    setSelectedProduct(data);
+    setPage('productDetail');
+  } catch (err) {
+    alert(err.message);
+  }
+};
 
 
 
