@@ -1,9 +1,10 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET = 'demo-secret-key';
+const SECRET = process.env.JWT_SECRET;
 
 export default function verifyToken(req, res, next) {
-  
+  console.log('JWT_SECRET:', SECRET);               // 배포 시 로그 확인
+  console.log('Authorization 헤더:', req.headers.authorization); // 헤더 확인
   const publicPaths = [
     '/api/login',
     '/api/products'
