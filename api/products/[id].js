@@ -7,10 +7,7 @@ const PRODUCTS = [
 ];
 
 export default function handler(req, res) {
-  // URL 마지막 segment에서 id 추출
-  const parts = req.url.split('/');
-  const id = Number(parts[parts.length - 1]);
-
+  const id = Number(req.query.id); // URL split 대신 query 사용
   const product = PRODUCTS.find(p => p.id === id);
   if (!product) return res.status(404).json({ message: '상품 없음' });
   if (id === 3 || id === 4)
