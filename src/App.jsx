@@ -13,7 +13,7 @@ export default function App() {
 
   /* ---------------- 로그인 ---------------- */
   const login = async () => {
-    setError('');
+    setError(''); 
 
     try {
       const res = await fetch(`${API_BASE}/api/login`, {
