@@ -69,33 +69,21 @@ export default function App() {
 /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {
-    // fetch 호출
-    const res = await fetch(`${API_BASE}/api/products/${id}`);
-
-    // 서버에서 에러 반환 시
+    const res = await fetch(`${API_BASE}/api/products/${id}`); // path 기반 호출
     if (!res.ok) {
-      let msg = '상품 조회 실패';
-      try { msg = (await res.json()).message || msg } catch {}
-      setSelectedProduct(null);  // 화면에 상품 안 보이게 초기화
-      throw new Error(msg);      // catch에서 alert
-    }
-
-    const data = await res.json();
-    const product = data.products.find(p => p.id === Number(id));
-
-    if (!product) {
       setSelectedProduct(null);
-      throw new Error('상품 없음');
+      const msg = (await res.json()).message || '상품 조회 실패';
+      throw new Error(msg);
     }
 
-    // 정상 상품만 세팅
+    const product = await res.json(); // 단일 객체 반환
     setSelectedProduct(product);
     setPage('productDetail');
   } catch (err) {
-    setSelectedProduct(null);
-    alert(err.message);  // 3,4번 클릭 시 alert 발생
+    alert(err.message);
   }
 };
+
 
 
 
