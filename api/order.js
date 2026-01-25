@@ -1,5 +1,6 @@
 export default async function orderRoutes(req, res) {
   try {
+    console.log('Authorization 헤더:', req.headers.authorization)
     // 인증
     const user = req.user;
     if (!user) {

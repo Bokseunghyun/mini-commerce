@@ -67,17 +67,24 @@ export default function App() {
 
 
   /* ---------------- 상품 상세 ---------------- */
-  const viewProduct = async (id) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/products/${id}`);
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      setSelectedProduct(data);
-      setPage('productDetail');
-    } catch {
-      alert(`상품 ${id} 조회 실패`);
+ const viewProduct = async (id) => {
+  try {
+    const res = await fetch(`${API_BASE}/api/products/${id}`);
+    const data = await res.json();
+
+    if (!data.success) {
+      alert(`상품 ${id} 조회 실패: ${data.message}`);
+      return;
     }
-  };
+
+    setSelectedProduct(data.product);
+    setPage('productDetail');
+  } catch (err) {
+    alert(`상품 ${id} 조회 중 오류 발생`);
+    console.error(err);
+  }
+};
+
 
   /* ---------------- 장바구니 ---------------- */
   const addToCart = product => setCart([...cart, product]);
