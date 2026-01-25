@@ -6,6 +6,7 @@ import  orderRoutes  from './api/order.js';
 import  productDetailRoutes from './api/productDetail.js';
 import  cartRoutes  from './api/cart.js';
 import verifyToken from './api/_utils/auth.js';
+import serverless from 'serverless-http';
 
 const app = express();
 
@@ -15,22 +16,16 @@ const allowedOrigins = [
   'https://mini-commerce.vercel.app',
 ];
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      // server-to-server, curl 등
-      if (!origin) return callback(null, true);
+app.use(cors({
+  origin(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('CORS 허용 안됨'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Demo-Mode', 'X-Demo-Case'],
+}));
 
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error('CORS 허용 안됨'));
-    },
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Demo-Mode', 'X-Demo-Case'],
-  })
-);
 
 app.use(express.json());
 
@@ -49,11 +44,4 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
-app.options('*', cors({
-  origin: allowedOrigins,
-  methods: ['GET','POST','OPTIONS'],
-  allowedHeaders: ['Content-Type','Authorization','X-Demo-Mode','X-Demo-Case']
-}));
-
-/* Vercel Serverless용 export */
-export default app;
+export const handler = serverless(app);

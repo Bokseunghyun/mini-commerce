@@ -1,6 +1,6 @@
+// 기존 코드 유지 + req.query.id 사용
 export default async function productDetailRoutes(req, res) {
-  // Vercel serverless에서는 req.query 사용
-  const id = req.query?.id || req.params?.id;
+  const id = req.query?.id || req.params?.id; // req.query 우선
 
   const PRODUCTS = [
     { id: 1, name: '무선 마우스', price: 25000, description: '정상 상품' },
@@ -16,5 +16,5 @@ export default async function productDetailRoutes(req, res) {
     return res.status(500).json({ message: '상품 조회 실패 (의도적 장애)' });
   }
 
-  return res.status(200).json({ success: true, product });
+  return res.status(200).json(product);
 }
