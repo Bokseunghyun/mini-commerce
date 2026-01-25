@@ -67,37 +67,25 @@ export default function App() {
 
 
  /* ---------------- 상품 상세 ---------------- */
-const viewProduct = async (id) => {
+const viewProduct = async id => {
   try {
     const res = await fetch(`${API_BASE}/api/products/${id}`);
-
-    // res.ok 체크
     if (!res.ok) {
-      let errMsg = '상품 조회 실패';
+      let msg = '상품 조회 실패';
       try {
         const errData = await res.json();
-        errMsg = errData.message || errMsg;
-      } catch {
-        // JSON 파싱 실패 시 기본 메시지 사용
-      }
-      throw new Error(errMsg);
+        msg = errData.message || msg;
+      } catch {}
+      throw new Error(msg);
     }
-
-    // 정상 JSON 파싱
     const data = await res.json();
-
-    // API 구조에 맞게 product만 set
-    if (!data.success) {
-      throw new Error(data.message || '상품 조회 실패');
-    }
-
-    setSelectedProduct(data.product);
+    setSelectedProduct(data);
     setPage('productDetail');
   } catch (err) {
-    alert(`상품 ${id} 조회 실패: ${err.message}`);
-    console.error(err);
+    alert(err.message);
   }
 };
+
 
 
 
@@ -147,31 +135,19 @@ console.log(localStorage.getItem('token'))
 
   /* ---------------- 주문 API ---------------- */
  const order = async () => {
-  if (!cart || cart.length === 0) {
-    alert('장바구니가 비어 있습니다');
-    return;
-  }
-
   try {
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('로그인 후 주문 가능합니다');
-      return;
-    }
-
     const res = await fetch(`${API_BASE}/api/order`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`, // 기존 그대로
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
       body: JSON.stringify({ items: cart }),
-      mode: 'cors', // Vercel preflight 대응
     });
 
     if (!res.ok) {
       const err = await res.json();
-      alert(`주문 실패: ${err.message}`);
+      alert(err.message);
       return;
     }
 
@@ -179,11 +155,11 @@ console.log(localStorage.getItem('token'))
     alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
     setCart([]);
     setPage('checkout');
-  } catch (err) {
-    console.error('주문 fetch 에러:', err);
+  } catch {
     alert('주문 중 오류 발생');
   }
 };
+
 
 
   /* ---------------- 로그인 페이지 ---------------- */
