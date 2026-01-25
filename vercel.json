@@ -11,13 +11,6 @@
     { "src": "/assets/(.*)", "dest": "/assets/$1" },
 
     { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "headers": [
-    {
-        "source": "/assets/(.*)",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-cache, max-age=0, must-revalidate" }
-      ] 
-    } 
-  ]
+  ]  
+  
 }
