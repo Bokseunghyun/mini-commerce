@@ -9,7 +9,7 @@ export default function App() {
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+  const API_BASE = import.meta.env.VITE_API_BASE_URL;
 
   /* ---------------- 로그인 ---------------- */
   const login = async () => {
