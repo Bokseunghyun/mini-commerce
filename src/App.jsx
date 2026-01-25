@@ -69,13 +69,10 @@ export default function App() {
  /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {
-    const res = await fetch(`/api/products/${id}`);
+    const res = await fetch(`${API_BASE}/api/products/${id}`); // id 동적
     if (!res.ok) {
       let msg = '상품 조회 실패';
-      try {
-        const errData = await res.json();
-        msg = errData.message || msg;
-      } catch {}
+      try { msg = (await res.json()).message || msg } catch {}
       throw new Error(msg);
     }
     const data = await res.json();
@@ -85,7 +82,6 @@ const viewProduct = async id => {
     alert(err.message);
   }
 };
-
 
 
 

@@ -7,7 +7,7 @@ const PRODUCTS = [
 ];
 
 export default function handler(req, res) {
-  const id = Number(req.query.id); // Express req.params 대신 req.query 사용
+  const id = Number(req.query.id); // Express req.params 대신 req.query
   const product = PRODUCTS.find(p => p.id === id);
 
   if (!product) return res.status(404).json({ message: '상품 없음' });
