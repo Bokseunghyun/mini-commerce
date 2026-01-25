@@ -77,7 +77,7 @@ const viewProduct = async id => {
       throw new Error(msg);
     }
     const data = await res.json();
-    setSelectedProduct(data.products);
+    setSelectedProduct(data.product);
     setPage('productDetail');
   } catch (err) {
     alert(err.message);
