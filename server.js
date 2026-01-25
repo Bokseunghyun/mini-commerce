@@ -8,7 +8,9 @@ import {cartRoutes} from './api/cart.js';
 
 
 const app = express();
-app.use(cors());
+app.use(cors({  origin: 'https://mini-commerce-cfpe87iqu-bokseunghyeons-projects.vercel.app',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'] }));
 app.use(express.json());
 
 app.post('/api/login', loginRoutes);
