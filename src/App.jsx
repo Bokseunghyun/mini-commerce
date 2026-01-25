@@ -99,14 +99,16 @@ export default function App() {
     }
 
     const res = await fetch(`${API_BASE}/api/cart`, {
+      
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${localStorage.getItem('token')}`,
       },
       body: JSON.stringify({ action: 'remove', index, cart }),
+      
     });
-
+console.log(localStorage.getItem('token'))
     if (!res.ok) {
       const err = await res.json();
       alert(err.message);
