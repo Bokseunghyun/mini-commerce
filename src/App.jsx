@@ -227,20 +227,34 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     );
   }
 
- if (page === 'productDetail') {
+ /* ---------------- 상품 상세 ---------------- */
+if (page === 'productDetail') {
+  // selectedProduct가 아직 없으면 로딩 표시
+  if (!selectedProduct) {
+    return (
+      <div style={styles.container}>
+        <h2>상품 상세</h2>
+        <div>상품 정보를 불러오는 중...</div>
+      </div>
+    );
+  }
+
   return (
     <div style={styles.container}>
       <h2>상품 상세</h2>
       <div style={styles.card}>
+        {/* 이름 */}
         <div style={{ fontWeight: 600 }}>
-          {selectedProduct?.name || '상품명 없음'}
+          {selectedProduct.name || '상품명 없음'}
         </div>
+        {/* 가격 */}
         <div>
-          {selectedProduct?.price != null
+          {selectedProduct.price != null
             ? selectedProduct.price.toLocaleString() + '원'
             : '가격 정보 없음'}
         </div>
-        {selectedProduct?.description && (
+        {/* 설명 */}
+        {selectedProduct.description && (
           <div style={{ fontSize: 13, color: '#555' }}>
             {selectedProduct.description}
           </div>
@@ -267,6 +281,7 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     </div>
   );
 }
+
 
 
 
