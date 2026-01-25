@@ -66,7 +66,6 @@ export default function App() {
 
 
 
- /* ---------------- 상품 상세 ---------------- */
 /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {

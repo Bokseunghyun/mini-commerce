@@ -6,18 +6,23 @@ export default function handler(req, res) {
     { id: 4, name: '주문불가 상품', price: 40000 },
   ];
 
-  // URL segment에서 id 추출
+  // 1URL segment에서 id 추출 (Vercel /api/products/3)
   let id = Number(req.url.split('/').pop());
 
-  //  query id fallback
+  // query id fallback (프론트 /api/products?id=3)
   if (!id || isNaN(id)) {
     id = Number(req.query.id);
   }
 
+  //  의도적 장애 체크
+  if (id === 3 || id === 4) {
+    return res.status(500).json({ message: '상품 조회 실패 (의도적 장애)' });
+  }
+
+  //  상품 찾기
   const product = PRODUCTS.find(p => p.id === id);
   if (!product) return res.status(404).json({ message: '상품 없음' });
-  if (id === 3 || id === 4)
-    return res.status(500).json({ message: '상품 조회 실패 (의도적 장애)' });
 
+  // 상품 정상 반환
   return res.status(200).json(product);
 }
