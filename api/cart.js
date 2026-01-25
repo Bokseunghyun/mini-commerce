@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET = 'demo-secret-key';
+const SECRET = process.env.JWT_SECRET;
 
 export default async function cartRoutes(req, res) {
   if (req.method !== 'POST') {
