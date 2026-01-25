@@ -4,6 +4,7 @@ import serverless from 'serverless-http';
 import loginRoutes from './api/login.js';
 import productsRoutes from './api/products.js';
 import productDetailRoutes from './api/productDetail.js'; // 기존 유지
+import handler from './api/products/[id].js';
 import orderRoutes from './api/order.js';
 import cartRoutes from './api/cart.js';
 import verifyToken from './api/_utils/auth.js'; // 기존 verifyToken 그대로
@@ -31,7 +32,7 @@ app.use(express.json());
 // ---------------- Routes ----------------
 app.post('/api/login', loginRoutes);
 app.get('/api/products', productsRoutes);                  // public
-app.get('/api/products/:id', productDetailRoutes);         // public
+app.get('/api/products/:id', handler);         // public
 app.post('/api/order', verifyToken, orderRoutes);          // JWT 필요
 app.post('/api/cart', verifyToken, cartRoutes);            // JWT 필요
 
