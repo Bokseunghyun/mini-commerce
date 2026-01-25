@@ -1,18 +1,12 @@
-
-const PRODUCTS = [
-  { id: 1, name: '무선 마우스', price: 25000, orderable: true },
-  { id: 2, name: '기계식 키보드', price: 89000, orderable: true },
-  { id: 3, name: '주문불가 상품', price: 30000, orderable: false },
-  { id: 4, name: '주문불가 상품', price: 40000, orderable: false },
-];
-
-// 임시 서버 CART
-let CART = {};
-
 export default async function orderRoutes(req, res) {
   try {
     // 인증
     const user = req.user;
+    if (!user) {
+      // req.user 없으면 인증 문제
+      return res.status(401).json({ message: '인증 실패: req.user 없음' });
+    }
+
     const userKey = user.username;
 
     if (req.method !== 'POST') {
@@ -22,7 +16,7 @@ export default async function orderRoutes(req, res) {
     // 프론트에서 보내온 cart items
     const { items } = req.body;
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ message: '장바구니가 비어 있습니다' });
+      return res.status(400).json({ message: '장바구니가 비어 있습니다', body: req.body });
     }
 
     // 서버에서 orderable 체크
@@ -32,7 +26,7 @@ export default async function orderRoutes(req, res) {
     });
 
     if (hasUnorderable) {
-      return res.status(500).json({ message: '주문불가 상품이 포함되어 있습니다' });
+      return res.status(400).json({ message: '주문불가 상품이 포함되어 있습니다', items });
     }
 
     // 총 금액 계산
@@ -47,7 +41,7 @@ export default async function orderRoutes(req, res) {
       orderedAt: new Date().toISOString(),
     };
 
-    // 서버 CART 초기화
+    // 서버 CART 초기화 (테스트용)
     CART[userKey] = [];
 
     return res.status(201).json({
@@ -56,6 +50,8 @@ export default async function orderRoutes(req, res) {
       total: totalPrice,
     });
   } catch (err) {
-    return res.status(401).json({ message: '인증 실패' });
+    console.error('Order API 에러:', err);
+    // 인증 외 오류는 500으로 구분
+    return res.status(500).json({ message: '서버 에러', error: err.message });
   }
 }

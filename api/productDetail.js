@@ -1,5 +1,5 @@
 export default async function productDetailRoutes(req, res) {
-  const { id } = req.params;
+  const { id } = req.query;
   const PRODUCTS = [
     { id: 1, name: '무선 마우스', price: 25000, description: '정상 상품' },
     { id: 2, name: '기계식 키보드', price: 89000, description: '정상 상품' },
