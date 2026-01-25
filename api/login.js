@@ -1,42 +1,66 @@
-// api/login.js
-export async function loginRoutes(req, res) {
-    // CORS 헤더
-  res.setHeader('Access-Control-Allow-Origin', '*'); // 모든 도메인 허용
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+import jwt from 'jsonwebtoken';
 
-  // 2️⃣ Preflight 요청 처리
+const SECRET = 'demo-secret-key';
+
+export default async function loginRoutes(req, res) {
+  // CORS
+  const allowedOrigins = [
+    'http://localhost:5173',
+    'https://mini-commerce.vercel.app'
+  ];
+
+  const origin = req.headers.origin;
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
+
+  res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
-  // 3️⃣ 실제 API 로직
-  if (req.method === 'POST') {
-    const { email, password } = req.body;
-    // 로그인 로직 처리
-    res.status(200).json({ success: true });
-  } else {
-    res.status(405).json({ error: '로그인 오류' });
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: '허용되지 않은 요청' });
   }
- 
-  const body = req.body;  // 여기서 req.body를 바로 사용
-  const { username, password } = body;
+
+  
+  const { username, password } = req.body || {};
+
+  if (!username || !password) {
+    return res.status(400).json({ message: 'username, password 필수' });
+  }
 
   const USERS = [
     { username: 'test', password: '1234', role: 'USER', status: 'ACTIVE' },
     { username: 'admin', password: '1234', role: 'ADMIN', status: 'ACTIVE' },
     { username: 'test2', password: '1234', role: 'USER', status: 'BLOCKED' },
   ];
- 
-  const user = USERS.find(u => u.username === username && u.password === password);
 
-  if (!user) return res.status(401).json({ message: '아이디 또는 비밀번호 오류' });
-  if (user.status === 'BLOCKED') return res.status(403).json({ message: '차단된 계정입니다' });
+  const user = USERS.find(
+    u => u.username === username && u.password === password
+  );
+
+  if (!user) {
+    return res.status(401).json({ message: '아이디 또는 비밀번호 오류' });
+  }
+
+  if (user.status === 'BLOCKED') {
+    return res.status(403).json({ message: '차단된 계정입니다' });
+  }
+
+  const token = jwt.sign(
+    { username: user.username, role: user.role },
+    SECRET,
+    { expiresIn: '1h' }
+  );
 
   return res.status(200).json({
-    token: `mock-token-${user.username}`,
-    user: { username: user.username, role: user.role }
+    token,
+    user: {
+      username: user.username,
+      role: user.role
+    }
   });
 }
-

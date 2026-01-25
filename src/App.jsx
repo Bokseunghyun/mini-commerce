@@ -40,11 +40,31 @@ export default function App() {
   /* ---------------- 상품 목록 조회 ---------------- */
   useEffect(() => {
     if (page === 'products') {
-      fetch(`${API_BASE}/api/products`)
-        .then(res => res.json())
-        .then(data => setProducts(data));
+      fetch(`${API_BASE}/api/products`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
+      })
+        .then(res => {
+          if (!res.ok) {
+            throw new Error('상품 목록 조회 실패');
+          }
+          return res.json();
+        })
+        .then(data => {
+          if (Array.isArray(data.products)) {
+            setProducts(data.products);
+          } else {
+            setProducts([]);
+          }
+        })
+        .catch(() => {
+          setProducts([]);
+        });
     }
   }, [page]);
+
+
 
   /* ---------------- 상품 상세 ---------------- */
   const viewProduct = async (id) => {
@@ -62,22 +82,39 @@ export default function App() {
   /* ---------------- 장바구니 ---------------- */
   const addToCart = product => setCart([...cart, product]);
 
- const removeFromCart = async (index) => {
+  /* ---------------- 장바구니 삭제 ---------------- */
+  const removeFromCart = async (index) => {
   try {
+    // cart state가 배열인지 확인
+    if (!Array.isArray(cart)) {
+      alert('장바구니 데이터 오류');
+      return;
+    }
+
     const res = await fetch(`${API_BASE}/api/cart`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
       body: JSON.stringify({ action: 'remove', index, cart }),
     });
 
-    if (!res.ok) throw new Error('삭제 실패');
+    if (!res.ok) {
+      const err = await res.json();
+      alert(err.message);
+      return;
+    }
 
     const data = await res.json();
     setCart(data.cart); // UI 갱신
-  } catch {
+  } catch (err) {
     alert('삭제 중 오류 발생');
+    console.error(err);
   }
 };
+
+
 
 
   const total = cart.reduce((sum, p) => sum + p.price, 0);
@@ -85,11 +122,15 @@ export default function App() {
   /* ---------------- 주문 API ---------------- */
   const order = async () => {
     try {
+      
       const res = await fetch(`${API_BASE}/api/order`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+          headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
         body: JSON.stringify({ items: cart }),
-      });
+        });
 
       if (!res.ok) {
         const err = await res.json();
@@ -98,7 +139,7 @@ export default function App() {
       }
 
       const data = await res.json();
-      alert(`주문 성공\n총 금액: ${data.total}`);
+      alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
       setCart([]);
       setPage('checkout');
     } catch {
@@ -138,7 +179,7 @@ export default function App() {
       <div style={styles.container}>
         <h2 style={{ textAlign: 'center' }}>상품 목록</h2>
 
-        {products.map(p => (
+        {Array.isArray(products) && products.map(p => (
           <div key={p.id} style={styles.card}>
             <div>
               <div style={{ fontWeight: 600 }}>{p.name}</div>
