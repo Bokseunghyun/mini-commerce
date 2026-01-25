@@ -151,6 +151,7 @@ console.log(localStorage.getItem('token'))
         Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({ items: cart }),
+        mode: 'cors'
         });
 console.log('주문: '+localStorage.getItem('token'))
       if (!res.ok) {
