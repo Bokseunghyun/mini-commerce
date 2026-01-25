@@ -49,5 +49,11 @@ if (process.env.NODE_ENV !== 'production') {
   });
 }
 
+app.options('*', cors({
+  origin: allowedOrigins,
+  methods: ['GET','POST','OPTIONS'],
+  allowedHeaders: ['Content-Type','Authorization','X-Demo-Mode','X-Demo-Case']
+}));
+
 /* Vercel Serverless용 export */
 export default app;
