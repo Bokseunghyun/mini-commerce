@@ -5,8 +5,9 @@ export default function handler(req, res) {
     { id: 3, name: '주문불가 상품', price: 30000 },
     { id: 4, name: '주문불가 상품', price: 40000 },
   ];
- const pathSegments = req.url.split('/');
-  let id = Number(pathSegments[pathSegments.length - 1].split('?')[0]); // 마지막 segment
+
+  const id = Number(req.query.id);
+
   if (!id || isNaN(id)) return res.status(400).json({ message: 'id 필요' });
 
   // 3,4번 의도적 차단
