@@ -69,7 +69,7 @@ export default function App() {
  /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {
-    const res = await fetch(`${API_BASE}/api/products/${id}`); // id 동적
+    const res = await fetch(`${API_BASE}/api/products?id=${id}`); // id 동적
     if (!res.ok) {
       let msg = '상품 조회 실패';
       setSelectedProduct(null); // 반드시 초기화
