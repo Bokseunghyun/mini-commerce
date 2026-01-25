@@ -7,7 +7,10 @@ const PRODUCTS = [
 ];
 
 export default function handler(req, res) {
-  const id = Number(req.query.id); // URL split 대신 query 사용
+  // Vercel serverless에서 URL 마지막 segment 추출
+  const urlParts = req.url.split('/');
+  const id = Number(urlParts[urlParts.length - 1]);
+
   const product = PRODUCTS.find(p => p.id === id);
   if (!product) return res.status(404).json({ message: '상품 없음' });
   if (id === 3 || id === 4)

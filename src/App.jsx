@@ -69,7 +69,7 @@ export default function App() {
  /* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {
-    const res = await fetch(`${API_BASE}/api/products?id=${id}`); // id 동적
+    const res = await fetch(`${API_BASE}/api/products/${id}`); // id 동적
     if (!res.ok) {
       let msg = '상품 조회 실패';
       setSelectedProduct(null); // 반드시 초기화
@@ -227,23 +227,19 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     );
   }
 
- /* ---------------- 상품 상세 ---------------- */
-if (page === 'productDetail') {
+ if (page === 'productDetail') {
   return (
     <div style={styles.container}>
       <h2>상품 상세</h2>
       <div style={styles.card}>
-        {/* 이름 */}
         <div style={{ fontWeight: 600 }}>
           {selectedProduct?.name || '상품명 없음'}
         </div>
-        {/* 가격 */}
         <div>
-          {selectedProduct?.price
+          {selectedProduct?.price != null
             ? selectedProduct.price.toLocaleString() + '원'
             : '가격 정보 없음'}
         </div>
-        {/* 설명 */}
         {selectedProduct?.description && (
           <div style={{ fontSize: 13, color: '#555' }}>
             {selectedProduct.description}
@@ -261,7 +257,7 @@ if (page === 'productDetail') {
         <button
           style={styles.buttonPrimary}
           onClick={() => {
-            addToCart(selectedProduct);
+            if (selectedProduct) addToCart(selectedProduct);
             setPage('products');
           }}
         >
@@ -271,8 +267,6 @@ if (page === 'productDetail') {
     </div>
   );
 }
-
-
 
 
 
