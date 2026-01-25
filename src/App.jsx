@@ -72,6 +72,7 @@ const viewProduct = async id => {
     const res = await fetch(`${API_BASE}/api/products?id=${id}`); // id 동적
     if (!res.ok) {
       let msg = '상품 조회 실패';
+      setSelectedProduct(null); // 반드시 초기화
       try { msg = (await res.json()).message || msg } catch {}
       throw new Error(msg);
     }
@@ -227,40 +228,47 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
   }
 
   /* ---------------- 상품 상세 ---------------- */
-  if (page === 'productDetail' && selectedProduct) {
-    return (
-      <div style={styles.container}>
-        <h2>상품 상세</h2>
-        <div style={styles.card}>
-          <div style={{ fontWeight: 600 }}>{selectedProduct.name}</div>
-          <div>{selectedProduct.price.toLocaleString()}원</div>
-          {selectedProduct.description && (
-            <div style={{ fontSize: 13, color: '#555' }}>
-              {selectedProduct.description}
-            </div>
-          )}
+  /* ---------------- 상품 상세 ---------------- */
+if (page === 'productDetail' && selectedProduct) {
+  return (
+    <div style={styles.container}>
+      <h2>상품 상세</h2>
+      <div style={styles.card}>
+        <div style={{ fontWeight: 600 }}>{selectedProduct.name}</div>
+        {/* price가 undefined일 경우를 대비한 안전 처리 */}
+        <div>
+          {selectedProduct.price != null
+            ? selectedProduct.price.toLocaleString() + '원'
+            : '가격 정보 없음'}
         </div>
-
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            style={styles.buttonSecondary}
-            onClick={() => setPage('products')}
-          >
-            목록으로 돌아가기
-          </button>
-          <button
-            style={styles.buttonPrimary}
-            onClick={() => {
-              addToCart(selectedProduct);
-              setPage('products');
-            }}
-          >
-            장바구니 담기
-          </button>
-        </div>
+        {selectedProduct.description && (
+          <div style={{ fontSize: 13, color: '#555' }}>
+            {selectedProduct.description}
+          </div>
+        )}
       </div>
-    );
-  }
+
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button
+          style={styles.buttonSecondary}
+          onClick={() => setPage('products')}
+        >
+          목록으로 돌아가기
+        </button>
+        <button
+          style={styles.buttonPrimary}
+          onClick={() => {
+            if (selectedProduct) addToCart(selectedProduct); // 안전 체크
+            setPage('products');
+          }}
+        >
+          장바구니 담기
+        </button>
+      </div>
+    </div>
+  );
+}
+
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {
