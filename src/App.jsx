@@ -227,20 +227,20 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     );
   }
 
- if (page === 'productDetail') {
+  /* ---------------- 상품 상세 ---------------- */
+if (page === 'productDetail' && selectedProduct) {
   return (
     <div style={styles.container}>
       <h2>상품 상세</h2>
       <div style={styles.card}>
-        <div style={{ fontWeight: 600 }}>
-          {selectedProduct?.name || '상품명 없음'}
-        </div>
+        <div style={{ fontWeight: 600 }}>{selectedProduct.name}</div>
+        {/* price가 undefined일 경우를 대비한 안전 처리 */}
         <div>
-          {selectedProduct?.price != null
+          {selectedProduct.price != null
             ? selectedProduct.price.toLocaleString() + '원'
             : '가격 정보 없음'}
         </div>
-        {selectedProduct?.description && (
+        {selectedProduct.description && (
           <div style={{ fontSize: 13, color: '#555' }}>
             {selectedProduct.description}
           </div>
@@ -257,7 +257,7 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
         <button
           style={styles.buttonPrimary}
           onClick={() => {
-            if (selectedProduct) addToCart(selectedProduct);
+            if (selectedProduct) addToCart(selectedProduct); // 안전 체크
             setPage('products');
           }}
         >
@@ -267,7 +267,6 @@ console.log('주문할 때 토큰 유지 확인'+localStorage.getItem('token'))
     </div>
   );
 }
-
 
 
   /* ---------------- 장바구니 ---------------- */
