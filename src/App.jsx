@@ -67,22 +67,34 @@ export default function App() {
 
 
  /* ---------------- 상품 상세 ---------------- */
+/* ---------------- 상품 상세 ---------------- */
 const viewProduct = async id => {
   try {
-    const res = await fetch(`${API_BASE}/api/products?id=${id}`); // id 동적
+    const res = await fetch(`${API_BASE}/api/products?id=${id}`);
     if (!res.ok) {
       let msg = '상품 조회 실패';
-      setSelectedProduct(null); // 반드시 초기화
+      setSelectedProduct(null); // 초기화
       try { msg = (await res.json()).message || msg } catch {}
       throw new Error(msg);
     }
+
     const data = await res.json();
-    setSelectedProduct(data.product);
+
+    // products 배열에서 id에 맞는 상품 찾기
+    const product = data.products.find(p => p.id === Number(id));
+
+    if (!product) {
+      setSelectedProduct(null);
+      throw new Error('상품 없음');
+    }
+
+    setSelectedProduct(product); // selectedProduct에 단일 객체 저장
     setPage('productDetail');
   } catch (err) {
     alert(err.message);
   }
 };
+
 
 
 
