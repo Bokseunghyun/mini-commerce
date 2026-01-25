@@ -28,7 +28,7 @@ export async function loginRoutes(req, res) {
     { username: 'admin', password: '1234', role: 'ADMIN', status: 'ACTIVE' },
     { username: 'test2', password: '1234', role: 'USER', status: 'BLOCKED' },
   ];
-
+ 
   const user = USERS.find(u => u.username === username && u.password === password);
 
   if (!user) return res.status(401).json({ message: '아이디 또는 비밀번호 오류' });
