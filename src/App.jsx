@@ -70,7 +70,7 @@ export default function App() {
 const viewProduct = async id => {
   try {
     // fetch 호출
-    const res = await fetch(`${API_BASE}/api/products?id=${id}`);
+    const res = await fetch(`${API_BASE}/api/products/${id}`);
 
     // 서버에서 에러 반환 시
     if (!res.ok) {
