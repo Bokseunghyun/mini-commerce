@@ -1,5 +1,7 @@
 export default async function productDetailRoutes(req, res) {
-  const id = req.params?.id || req.query?.id; // 둘 다 확인
+  // Vercel 환경에서는 req.query로 id 접근
+  const id = req.query?.id || req.params?.id;
+
   const PRODUCTS = [
     { id: 1, name: '무선 마우스', price: 25000, description: '정상 상품' },
     { id: 2, name: '기계식 키보드', price: 89000, description: '정상 상품' },
@@ -14,5 +16,5 @@ export default async function productDetailRoutes(req, res) {
     return res.status(500).json({ message: '상품 조회 실패 (의도적 장애)' });
   }
 
-  return res.status(200).json(product); // 정상 상품 처리
+  return res.status(200).json(product);
 }
