@@ -19,7 +19,7 @@ export async function loginRoutes(req, res) {
   } else {
     res.status(405).json({ error: '로그인 오류' });
   }
-
+ 
   const body = req.body;  // 여기서 req.body를 바로 사용
   const { username, password } = body;
 
