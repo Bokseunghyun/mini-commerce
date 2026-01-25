@@ -71,9 +71,8 @@ const viewProduct = async (id) => {
   try {
     const res = await fetch(`${API_BASE}/api/products/${id}`);
 
-    // res.ok 체크 후 처리
+    // res.ok 체크
     if (!res.ok) {
-      // 서버가 json을 보내지 않을 수도 있으니 안전하게 처리
       let errMsg = '상품 조회 실패';
       try {
         const errData = await res.json();
@@ -84,16 +83,22 @@ const viewProduct = async (id) => {
       throw new Error(errMsg);
     }
 
+    // 정상 JSON 파싱
     const data = await res.json();
 
-    // 정상 상품만 set
-    setSelectedProduct(data);
+    // API 구조에 맞게 product만 set
+    if (!data.success) {
+      throw new Error(data.message || '상품 조회 실패');
+    }
+
+    setSelectedProduct(data.product);
     setPage('productDetail');
   } catch (err) {
     alert(`상품 ${id} 조회 실패: ${err.message}`);
     console.error(err);
   }
 };
+
 
 
 
