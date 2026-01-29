@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
-
 import ProductListPage from './pages/ProductList';
-import ProductDetailPage from './pages/ProductDetail.jsx';
-import CartPage from './pages/cart.jsx';
+import ProductDetailPage from './pages/ProductDetail';
+import CartPage from './pages/Cart';
 
 export default function App() {
   const [page, setPage] = useState('login');
@@ -11,11 +10,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [products, setProducts] = useState([]);
-
-  /**
-   * cart 구조: [{ id, name, price, imageUrl?, quantity }]
-   * - addToCart에서 id 중복이면 quantity +1
-   */
   const [cart, setCart] = useState([]);
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
@@ -38,7 +32,6 @@ export default function App() {
         return;
       }
 
-      // token/role 저장
       localStorage.setItem('token', data.token || '');
       localStorage.setItem('role', data.user?.role || '');
 
@@ -50,64 +43,75 @@ export default function App() {
 
   /* ---------------- 상품 목록 조회 ---------------- */
   useEffect(() => {
-    if (page !== 'products') return;
-
-    fetch(`${API_BASE}/api/products`, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
-      },
-    })
-      .then(async (res) => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) throw new Error(data.message || '상품 목록 조회 실패');
-        return data;
+    if (page === 'products') {
+      fetch(`${API_BASE}/api/products`, {
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
+        },
       })
-      .then((data) => {
-        setProducts(Array.isArray(data.products) ? data.products : []);
-      })
-      .catch(() => {
-        setProducts([]);
-      });
+        .then(async (res) => {
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.message || '상품 목록 조회 실패');
+          return data;
+        })
+        .then((data) => {
+          if (Array.isArray(data.products)) setProducts(data.products);
+          else setProducts([]);
+        })
+        .catch(() => setProducts([]));
+    }
   }, [page, API_BASE]);
 
   /* ---------------- 상품 상세 ---------------- */
   const viewProduct = async (id) => {
     try {
       const res = await fetch(`${API_BASE}/api/products/${id}`);
-      const data = await res.json().catch(() => ({}));
+      const product = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(product.message || '상품 조회 실패');
 
-      if (!res.ok) throw new Error(data.message || '상품 조회 실패');
-
-      setSelectedProduct(data);
+      setSelectedProduct(product);
       setPage('productDetail');
     } catch (e) {
-      alert(e.message || '상품 조회 실패');
+      alert(e.message);
     }
   };
 
   /* ---------------- 장바구니 담기 ---------------- */
-  const addToCart = (product) => {
-    setCart((prev) => {
-      if (!product) return prev;
+  /* ---------------- 장바구니 담기 ---------------- */
+const addToCart = (product) => {
+  setCart((prev) => {
+    if (!product) return prev;
 
-      const idx = prev.findIndex((p) => p?.id === product.id);
-      if (idx >= 0) {
-        const next = prev.slice();
-        next[idx] = { ...next[idx], quantity: (next[idx].quantity || 1) + 1 };
-        return next;
-      }
+    //  price 보정 (상세 응답에 price가 없거나 0으로 오면 discountedPrice로 대체)
+    const safePrice =
+      Number(product.price) ||
+      Number(product.discountedPrice) ||
+      Number(product.originalPrice) ||
+      0;
 
-      return [
-        ...prev,
-        {
-          ...product,
-          quantity: 1,
-        },
-      ];
-    });
-  };
+    const normalizedProduct = {
+      ...product,
+      price: safePrice,
+    };
 
-  /* ---------------- 장바구니 삭제---------------- */
+    const idx = prev.findIndex((p) => p.id === normalizedProduct.id);
+    if (idx >= 0) {
+      const next = prev.slice();
+      next[idx] = {
+        ...next[idx],
+        // price도 혹시 기존 0이 있으면 정상값으로 교정
+        price: Number(next[idx].price) || safePrice,
+        quantity: (next[idx].quantity || 1) + 1,
+      };
+      return next;
+    }
+
+    return [...prev, { ...normalizedProduct, quantity: 1 }];
+  });
+};
+
+
+  /* ---------------- 장바구니 삭제 (기존 index 기반 유지) ---------------- */
   const removeFromCart = async (index) => {
     try {
       if (!Array.isArray(cart)) {
@@ -119,7 +123,7 @@ export default function App() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
         body: JSON.stringify({ action: 'remove', index, cart }),
       });
@@ -131,56 +135,35 @@ export default function App() {
         return;
       }
 
-      setCart(Array.isArray(data.cart) ? data.cart : cart);
+      setCart(Array.isArray(data.cart) ? data.cart : []);
     } catch (err) {
       alert('삭제 중 오류 발생');
       console.error(err);
     }
   };
 
-  /* ---------------- CartPage 호환용 어댑터 (id 기반) ----------------
-  */
-  const increaseQtyById = (id) => {
-    setCart((prev) =>
-      prev.map((p) =>
-        p?.id === id ? { ...p, quantity: (p.quantity || 1) + 1 } : p
-      )
-    );
-  };
+  const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
 
-  const decreaseQtyById = (id) => {
-    setCart((prev) =>
-      prev.map((p) =>
-        p?.id === id
-          ? { ...p, quantity: Math.max(1, (p.quantity || 1) - 1) }
-          : p
-      )
-    );
-  };
+  /* ---------------- 주문 API ----------------
+     - 기존: cart로 주문
+     - 추가: 상세에서 바로구매 시 itemsOverride로 주문 (order와 동일 API 사용)
+  ---------------- */
+  const order = async (itemsOverride) => {
+    const items = Array.isArray(itemsOverride) ? itemsOverride : cart;
 
+    if (!Array.isArray(items) || items.length === 0) {
+      alert('주문할 상품이 없습니다');
+      return;
+    }
 
-  const removeFromCartById = async (id) => {
-    const index = cart.findIndex((p) => p?.id === id);
-    if (index === -1) return;
-    await removeFromCart(index);
-  };
-
-  const total = cart.reduce(
-    (sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1),
-    0
-  );
-
-  /* ---------------- 주문 API ---------------- */
-  const order = async () => {
     try {
       const res = await fetch(`${API_BASE}/api/order`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token') || ''}`,
+          Authorization: `Bearer ${localStorage.getItem('token')}`,
         },
-      
-        body: JSON.stringify({ items: cart }),
+        body: JSON.stringify({ items }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -190,8 +173,11 @@ export default function App() {
         return;
       }
 
-      alert(`주문 성공\n총 금액: ${(data.order?.totalPrice ?? total).toLocaleString()}원`);
-      setCart([]);
+      alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
+
+      //  장바구니에서 주문이면 cart 비움
+      if (!itemsOverride) setCart([]);
+
       setPage('checkout');
     } catch {
       alert('주문 중 오류 발생');
@@ -240,40 +226,41 @@ export default function App() {
   }
 
   /* ---------------- 상품 상세 ---------------- */
-if (page === 'productDetail') {
-  return (
-    <ProductDetailPage
-      product={selectedProduct}
-      onBack={() => setPage('products')}
-      onGoCart={() => setPage('cart')}
-      onAddToCart={(product, quantity = 1) => {
-        // quantity만큼 addToCart 호출
-        for (let i = 0; i < Math.max(1, Number(quantity) || 1); i++) {
-          addToCart(product);
-        }
-        setPage('cart');
-      }}
-      onBuyNow={(product, quantity = 1) => {
-        // 장바구니에 담고 바로 주문 흐름
-        for (let i = 0; i < Math.max(1, Number(quantity) || 1); i++) {
-          addToCart(product);
-        }
-        setPage('cart');
-      }}
-    />
-  );
-}
-
+  if (page === 'productDetail') {
+    return (
+      <ProductDetailPage
+        product={selectedProduct}
+        apiBase={API_BASE}
+        onBack={() => setPage('products')}
+        onGoCart={() => setPage('cart')}
+        onAddToCart={addToCart}
+        onBuyNow={(items) => order(items)} //  바로구매 = order와 동일 API 호출
+      />
+    );
+  }
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {
     return (
       <CartPage
         cartItems={cart}
-        onIncrease={increaseQtyById}
-        onDecrease={decreaseQtyById}
-        onRemove={removeFromCartById}
-        onCheckout={order}
+        onIncrease={(id) => addToCart(cart.find((p) => p.id === id))}
+        onDecrease={(id) =>
+          setCart((prev) =>
+            prev
+              .map((item) =>
+                item.id === id
+                  ? { ...item, quantity: Math.max(1, (item.quantity || 1) - 1) }
+                  : item
+              )
+              .filter((x) => (x.quantity || 1) > 0)
+          )
+        }
+        onRemove={(id) => {
+          const idx = cart.findIndex((p) => p.id === id);
+          if (idx >= 0) removeFromCart(idx);
+        }}
+        onCheckout={() => order()} //  장바구니 주문도 기존 order 사용
         onBack={() => setPage('products')}
       />
     );
