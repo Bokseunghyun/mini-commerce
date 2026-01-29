@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 // ============================================
 // 가격 포맷 함수
@@ -15,7 +15,18 @@ const formatPrice = (price) => {
 // ============================================
 function ShoppingCartIcon({ className }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <circle cx="8" cy="21" r="1" />
       <circle cx="19" cy="21" r="1" />
       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
@@ -25,7 +36,18 @@ function ShoppingCartIcon({ className }) {
 
 function MinusIcon({ className }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d="M5 12h14" />
     </svg>
   );
@@ -33,7 +55,18 @@ function MinusIcon({ className }) {
 
 function PlusIcon({ className }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d="M5 12h14" />
       <path d="M12 5v14" />
     </svg>
@@ -42,7 +75,18 @@ function PlusIcon({ className }) {
 
 function ChevronLeftIcon({ className }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d="m15 18-6-6 6-6" />
     </svg>
   );
@@ -50,103 +94,79 @@ function ChevronLeftIcon({ className }) {
 
 function CheckIcon({ className }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
       <path d="M20 6 9 17l-5-5" />
     </svg>
   );
 }
 
 // ============================================
-// 상품 상세 페이지 컴포넌트
-// - App.jsx에서 selectedProduct를 내려주면 그걸 사용
-// - 없으면 productId로 fetch해서 보완(안전장치)
-// - 바로구매 버튼은 onBuyNow(items) 호출 -> App.jsx order()로 연결
+// 상품 상세 페이지
 // ============================================
 export default function ProductDetailPage({
-  productId,
-  product,
-  apiBase = "",
-  onBack,
-  onGoCart,
+  product = null,
+  cartItems = [],
   onAddToCart,
   onBuyNow,
+  onBack,
+  onGoCart,
 }) {
   const [quantity, setQuantity] = useState(1);
-  const [loadedProduct, setLoadedProduct] = useState(product || null);
-  const [loading, setLoading] = useState(false);
 
-  const effectiveId = useMemo(() => {
-    return product?.id ?? productId;
-  }, [product, productId]);
+  const cartCount = useMemo(() => {
+    if (!Array.isArray(cartItems)) return 0;
+    // "수량 합"으로 카운트
+    return cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  }, [cartItems]);
 
-  //  기존 App.jsx 흐름 유지: selectedProduct가 내려오면 그걸로 렌더
-  //  안전장치: product가 없고 id가 있으면 API로 한번 가져옴
-  useEffect(() => {
-    let ignore = false;
-    async function fetchDetail() {
-      if (product) {
-        setLoadedProduct(product);
-        return;
-      }
-      if (!effectiveId) return;
+  const safeProduct = useMemo(() => {
+    if (!product) return null;
+    const price =
+      Number(product.price) ||
+      Number(product.discountedPrice) ||
+      Number(product.originalPrice) ||
+      0;
 
-      try {
-        setLoading(true);
-        const res = await fetch(`${apiBase}/api/products/${effectiveId}`);
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok) {
-          alert(data.message || "상품 조회 실패");
-          return;
-        }
-        if (!ignore) setLoadedProduct(data);
-      } catch (e) {
-        alert("상품 조회 중 오류 발생");
-      } finally {
-        if (!ignore) setLoading(false);
-      }
-    }
-    fetchDetail();
-    return () => {
-      ignore = true;
+    return {
+      ...product,
+      price,
+      discountedPrice: Number(product.discountedPrice) || price,
+      originalPrice: Number(product.originalPrice) || price,
+      discountRate: Number(product.discountRate) || 0,
+      description: product.description || "",
+      details: Array.isArray(product.details) ? product.details : [],
     };
-  }, [product, effectiveId, apiBase]);
-
-  const p = loadedProduct;
+  }, [product]);
 
   const handleQuantityDecrease = () => {
-    if (quantity > 1) setQuantity((q) => q - 1);
+    if (quantity > 1) setQuantity(quantity - 1);
   };
 
   const handleQuantityIncrease = () => {
-    if (quantity < 99) setQuantity((q) => q + 1);
+    if (quantity < 99) setQuantity(quantity + 1);
   };
 
-  const handleAddToCart = () => {
-    if (!p) return;
-    // App.jsx의 cart state를 쓰도록 위임
-    if (typeof onAddToCart === "function") {
-      // quantity 만큼 담기
-      for (let i = 0; i < quantity; i++) onAddToCart(p);
-      alert(`${p.name} ${quantity}개가 장바구니에 담겼습니다.`);
-      return;
-    }
-    alert("장바구니 기능이 연결되지 않았습니다.");
-  };
+  if (!safeProduct) {
+    return (
+      <div style={{ padding: 24 }}>
+        <p>상품 정보가 없습니다</p>
+        <button onClick={onBack}>목록으로</button>
+      </div>
+    );
+  }
 
-  //  바로구매 = App.jsx의 order()와 동일하게 /api/order 호출되도록 위임
-  const handleBuyNow = () => {
-    if (!p) return;
-
-    if (typeof onBuyNow === "function") {
-      // order API는 items 배열을 받으므로 cart item처럼 quantity 포함해서 전달
-      onBuyNow([{ ...p, quantity }]);
-      return;
-    }
-
-    alert("바로 구매 기능이 연결되지 않았습니다.");
-  };
-
-  const totalPrice = (Number(p?.discountedPrice) || Number(p?.price) || 0) * quantity;
+  const totalPrice = (Number(safeProduct.discountedPrice) || safeProduct.price) * quantity;
 
   return (
     <>
@@ -190,23 +210,45 @@ export default function ProductDetailPage({
         }
         .back-button:hover { background-color: #f5f5f5; }
         .back-icon { width: 16px; height: 16px; }
+
+        
         .cart-button {
-          display: flex;
+          position: relative;
+          display: inline-flex;
           align-items: center;
           gap: 8px;
           padding: 10px 16px;
           background-color: #1a1a1a;
           color: #ffffff;
-          text-decoration: none;
+          border: none;
           border-radius: 8px;
           font-size: 0.875rem;
           font-weight: 500;
-          transition: background-color 0.2s ease;
-          border: none;
           cursor: pointer;
+          transition: background-color 0.2s ease;
         }
         .cart-button:hover { background-color: #333333; }
         .cart-icon { width: 18px; height: 18px; }
+
+        .cart-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          min-width: 22px;
+          height: 22px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #dc2626;
+          color: #fff;
+          font-size: 12px;
+          font-weight: 700;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+          border: 2px solid #fff;
+        }
+
         .main-content {
           max-width: 1280px;
           margin: 0 auto;
@@ -438,105 +480,139 @@ export default function ProductDetailPage({
       <div className="page-container" data-testid="product-detail">
         <header className="page-header">
           <nav className="header-content">
-            <button type="button" className="back-button" aria-label="상품 목록으로 돌아가기" onClick={onBack}>
+            <button
+              type="button"
+              className="back-button"
+              aria-label="상품 목록으로 돌아가기"
+              onClick={onBack}
+            >
               <ChevronLeftIcon className="back-icon" />
               <span>목록</span>
             </button>
-            <button type="button" className="cart-button" aria-label="장바구니로 이동" onClick={onGoCart}>
+
+            <button
+              type="button"
+              className="cart-button"
+              aria-label="장바구니로 이동"
+              onClick={onGoCart}
+            >
               <ShoppingCartIcon className="cart-icon" />
-              <span>장바구니 ({cart.length})</span>
+              <span>장바구니</span>
+              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
           </nav>
         </header>
 
         <main className="main-content">
-          {!p && loading && <div>로딩중...</div>}
-          {!p && !loading && <div>상품 정보 없음</div>}
+          <article className="product-layout">
+            <section className="image-section" aria-label="상품 이미지">
+              <div className="image-wrapper">
+                <img
+                  src={safeProduct.imageUrl || "/placeholder.svg"}
+                  alt={safeProduct.name}
+                  className="product-image"
+                />
+                {safeProduct.discountRate > 0 && (
+                  <span className="discount-badge">{safeProduct.discountRate}% OFF</span>
+                )}
+              </div>
+            </section>
 
-          {p && (
-            <>
-              <article className="product-layout">
-                <section className="image-section" aria-label="상품 이미지">
-                  <div className="image-wrapper">
-                    <img src={p.imageUrl || "/placeholder.svg"} alt={p.name} className="product-image" />
-                    {Number(p.discountRate) > 0 && (
-                      <span className="discount-badge">{p.discountRate}% OFF</span>
-                    )}
+            <section className="info-section" aria-label="상품 정보">
+              <h1 className="product-title" data-testid="product-title">
+                {safeProduct.name}
+              </h1>
+              <p className="product-description">{safeProduct.description}</p>
+
+              <div className="price-section" data-testid="product-price" aria-label="가격 정보">
+                <div className="price-row">
+                  {safeProduct.discountRate > 0 && (
+                    <span className="discount-rate">{safeProduct.discountRate}%</span>
+                  )}
+                  <span className="discounted-price">
+                    {formatPrice(safeProduct.discountedPrice)}원
+                  </span>
+                </div>
+                {safeProduct.discountRate > 0 && (
+                  <div className="price-row">
+                    <span className="original-price">{formatPrice(safeProduct.originalPrice)}원</span>
+                    <span className="savings">
+                      {formatPrice(safeProduct.originalPrice - safeProduct.discountedPrice)}원 할인
+                    </span>
                   </div>
-                </section>
+                )}
+              </div>
 
-                <section className="info-section" aria-label="상품 정보">
-                  <h1 className="product-title" data-testid="product-title">{p.name}</h1>
-                  <p className="product-description">{p.description}</p>
+              <div className="quantity-section" role="group" aria-label="수량 선택">
+                <span className="quantity-label">수량</span>
+                <div className="quantity-controls">
+                  <button
+                    className="quantity-btn"
+                    onClick={handleQuantityDecrease}
+                    disabled={quantity <= 1}
+                    data-testid="quantity-decrease"
+                    aria-label="수량 감소"
+                    type="button"
+                  >
+                    <MinusIcon className="quantity-btn-icon" />
+                  </button>
+                  <span className="quantity-value" aria-live="polite" aria-atomic="true">
+                    {quantity}
+                  </span>
+                  <button
+                    className="quantity-btn"
+                    onClick={handleQuantityIncrease}
+                    disabled={quantity >= 99}
+                    data-testid="quantity-increase"
+                    aria-label="수량 증가"
+                    type="button"
+                  >
+                    <PlusIcon className="quantity-btn-icon" />
+                  </button>
+                </div>
+              </div>
 
-                  <div className="price-section" data-testid="product-price" aria-label="가격 정보">
-                    <div className="price-row">
-                      {Number(p.discountRate) > 0 && <span className="discount-rate">{p.discountRate}%</span>}
-                      <span className="discounted-price">{formatPrice(p.discountedPrice ?? p.price)}원</span>
-                    </div>
-                    {Number(p.discountRate) > 0 && (
-                      <div className="price-row">
-                        <span className="original-price">{formatPrice(p.originalPrice)}원</span>
-                        <span className="savings">{formatPrice((Number(p.originalPrice) || 0) - (Number(p.discountedPrice) || 0))}원 할인</span>
-                      </div>
-                    )}
-                  </div>
+              <div className="total-section">
+                <span className="total-label">총 상품금액</span>
+                <span className="total-price">{formatPrice(totalPrice)}원</span>
+              </div>
 
-                  <div className="quantity-section" role="group" aria-label="수량 선택">
-                    <span className="quantity-label">수량</span>
-                    <div className="quantity-controls">
-                      <button
-                        className="quantity-btn"
-                        onClick={handleQuantityDecrease}
-                        disabled={quantity <= 1}
-                        data-testid="quantity-decrease"
-                        aria-label="수량 감소"
-                      >
-                        <MinusIcon className="quantity-btn-icon" />
-                      </button>
-                      <span className="quantity-value" aria-live="polite" aria-atomic="true">{quantity}</span>
-                      <button
-                        className="quantity-btn"
-                        onClick={handleQuantityIncrease}
-                        disabled={quantity >= 99}
-                        data-testid="quantity-increase"
-                        aria-label="수량 증가"
-                      >
-                        <PlusIcon className="quantity-btn-icon" />
-                      </button>
-                    </div>
-                  </div>
+              <div className="button-section">
+                <button
+                  className="btn btn-cart"
+                  onClick={() => onAddToCart?.(safeProduct, quantity)}
+                  data-testid="add-to-cart-button"
+                  aria-label="장바구니에 담기"
+                  type="button"
+                >
+                  <ShoppingCartIcon className="btn-icon" />
+                  장바구니 담기
+                </button>
 
-                  <div className="total-section">
-                    <span className="total-label">총 상품금액</span>
-                    <span className="total-price">{formatPrice(totalPrice)}원</span>
-                  </div>
+                <button
+                  className="btn btn-buy"
+                  onClick={() => onBuyNow?.(safeProduct, quantity)}
+                  data-testid="buy-now-button"
+                  aria-label="바로 구매하기"
+                  type="button"
+                >
+                  바로 구매
+                </button>
+              </div>
+            </section>
+          </article>
 
-                  <div className="button-section">
-                    <button className="btn btn-cart" onClick={handleAddToCart} data-testid="add-to-cart-button" aria-label="장바구니에 담기">
-                      <ShoppingCartIcon className="btn-icon" />
-                      장바구니 담기
-                    </button>
-                    <button className="btn btn-buy" onClick={handleBuyNow} data-testid="buy-now-button" aria-label="바로 구매하기">
-                      바로 구매
-                    </button>
-                  </div>
-                </section>
-              </article>
-
-              <section className="details-section" aria-label="상품 상세 정보">
-                <h2 className="details-title">상품 상세 정보</h2>
-                <ul className="details-list">
-                  {(Array.isArray(p.details) ? p.details : ["상세 정보 준비중"]).map((detail, index) => (
-                    <li key={index} className="details-item">
-                      <CheckIcon className="check-icon" />
-                      <span className="details-text">{detail}</span>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </>
-          )}
+          <section className="details-section" aria-label="상품 상세 정보">
+            <h2 className="details-title">상품 상세 정보</h2>
+            <ul className="details-list">
+              {safeProduct.details.map((detail, index) => (
+                <li key={index} className="details-item">
+                  <CheckIcon className="check-icon" />
+                  <span className="details-text">{detail}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </main>
       </div>
     </>

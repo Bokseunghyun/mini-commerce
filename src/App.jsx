@@ -226,18 +226,57 @@ const addToCart = (product) => {
   }
 
   /* ---------------- 상품 상세 ---------------- */
-  if (page === 'productDetail') {
-    return (
-      <ProductDetailPage
-        product={selectedProduct}
-        apiBase={API_BASE}
-        onBack={() => setPage('products')}
-        onGoCart={() => setPage('cart')}
-        onAddToCart={addToCart}
-        onBuyNow={(items) => order(items)} //  바로구매 = order와 동일 API 호출
-      />
-    );
-  }
+  /* ---------------- 상품 상세 (UI 페이지 컴포넌트 사용) ---------------- */
+if (page === 'productDetail') {
+  return (
+    <ProductDetailPage
+      product={selectedProduct}
+      cartItems={cart}
+      onBack={() => setPage('products')}
+      onGoCart={() => setPage('cart')}
+      onAddToCart={(p, qty) => {
+        // qty 만큼 담기
+        if (!p) return;
+        const n = Math.max(1, Number(qty) || 1);
+        for (let i = 0; i < n; i++) addToCart(p);
+      }}
+      onBuyNow={(p, qty) => {
+        // 바로구매 = order와 동일하게 동작 (qty 반영)
+        if (!p) return;
+        const n = Math.max(1, Number(qty) || 1);
+        const items = [{ ...p, quantity: n }];
+        // 기존 order 함수가 items: cart 형태면 여기서 직접 호출
+        // order()가 cart를 쓰는 구조면 임시로 cart를 바꾸지 말고 API만 호출하는 별도 함수로 분리하는게 깔끔하지만,
+        // 지금은 최소 변경: API 호출만 수행
+        (async () => {
+          try {
+            const res = await fetch(`${API_BASE}/api/order`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${localStorage.getItem('token')}`,
+              },
+              body: JSON.stringify({ items }),
+            });
+
+            const data = await res.json().catch(() => ({}));
+
+            if (!res.ok) {
+              alert(data.message || '주문 실패');
+              return;
+            }
+
+            alert(`주문 성공\n총 금액: ${data.order.totalPrice.toLocaleString()}원`);
+            setPage('checkout');
+          } catch {
+            alert('주문 중 오류 발생');
+          }
+        })();
+      }}
+    />
+  );
+}
+
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {
