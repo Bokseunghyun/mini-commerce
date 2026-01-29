@@ -124,38 +124,55 @@ const handleLogin = async ({ username, password }) => {
   }, [page]);
 
   /* ---------------- 상품 상세 ---------------- */
-  const viewProduct = async (id) => {
-    //  3,4번 상세 진입 차단
-    if (BLOCKED_DETAIL_IDS.has(Number(id))) {
-      setSelectedProduct(null);
-      alert('상세 페이지 진입 불가(의도적 오류)');
-      return;
+
+class HttpError extends Error {
+  constructor(status, message, code) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
+const viewProduct = async (id) => {
+  const pid = Number(id);
+
+  try {
+    // 3,4번도 "status를 받기 위해" 일부러 API 호출은 한다
+    const res = await fetch(`${API_BASE}/api/products/${pid}`);
+    const data = await res.json().catch(() => ({}));
+
+    // 여기서 서버 status를 그대로 에러로 던짐 (500/404/400 등)
+    if (!res.ok) {
+      throw new HttpError(
+        res.status,
+        data.message || '상품 조회 실패',
+        data.code || 'PRODUCT_FETCH_FAILED'
+      );
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/api/products/${id}`);
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data.message || '상품 조회 실패');
-      }
-
-      const product = normalizeProduct(data);
-      setSelectedProduct(product);
-      setPage('productDetail');
-    } catch (e) {
-      alert(e.message);
+   
+    if (BLOCKED_DETAIL_IDS.has(pid)) {
+      throw new HttpError(
+        500,
+        '상품 조회 실패 (의도적 장애)',
+        'PRODUCT_INTENTIONAL_FAIL'
+      );
     }
-  };
 
-  //  ProductListPage에서 호출하는 진입 함수 (차단 포함)
-  const handleView = async (id) => {
-    if (BLOCKED_DETAIL_IDS.has(Number(id))) {
-      alert('상세 페이지 진입 불가(의도적 오류)');
-      return;
+    const product = normalizeProduct(data);
+    setSelectedProduct(product);
+    setPage('productDetail');
+  } catch (e) {
+    
+    if (e?.status) {
+      alert(`${e.status} (${e.code || 'ERROR'})\n${e.message}`);
+    } else {
+      alert(e?.message || '알 수 없는 오류');
     }
-    await viewProduct(id);
-  };
+    setSelectedProduct(null);
+  }
+};
 
   /* ---------------- 장바구니 ---------------- */
 const addToCart = (product, qty = 1) => {
