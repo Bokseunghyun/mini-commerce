@@ -591,15 +591,17 @@ export default function ProductDetailPage({
               </div>
 
               <div className="button-section">
-                <button
-                  className="btn btn-cart"
-                  onClick={handleAddToCart}
-                  data-testid="add-to-cart-button"
-                  aria-label="장바구니에 담기"
+               <button
+                type="button"
+                      className="cart-button"
+                         aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
+                         onClick={onGoCart}
                 >
-                  <ShoppingCartIcon className="btn-icon" />
-                  장바구니 담기
+                  <ShoppingCartIcon className="cart-icon" />
+                  <span>장바구니</span>
+                  {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
                 </button>
+
 
                 <button
                   className="btn btn-buy"

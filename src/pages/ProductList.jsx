@@ -116,16 +116,12 @@ function ProductGrid({ products, onView, onAdd }) {
 // ============================================
 // 메인 페이지 컴포넌트
 // ============================================
-export default function ProductListPage({
-  products,
-  onView,
-  cart,
-  setCart,
-  setPage,
-}) {
+export default function ProductListPage({ products, onView, cart, cartCount, setCart, setPage, onAddToCart }) {
+
   const addToCart = (product) => {
-    setCart((prev) => [...prev, product]);
-  };
+  if (onAddToCart) onAddToCart(product, 1);
+};
+
 
   return (
     <>
@@ -338,18 +334,15 @@ export default function ProductListPage({
 
               <button
                 type="button"
-                className="go-to-cart-btn"
-                onClick={() => setPage("cart")}
-                aria-label="장바구니로 이동"
+                 className="go-to-cart-btn"
+                   onClick={() => setPage("cart")}
+                 aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
               >
-                <ShoppingCartIcon className="cart-icon-large" />
-                <span>장바구니</span>
-                {cart.length > 0 ? (
-                  <span className="cart-badge" aria-label={`장바구니 ${cart.length}개`}>
-                    {cart.length}
-                  </span>
-                ) : null}
-              </button>
+                      <ShoppingCartIcon className="cart-icon-large" />
+                   {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+               <span>장바구니</span>
+                </button>
+
             </div>
           </div>
         </header>

@@ -127,23 +127,36 @@ export default function App() {
   };
 
   /* ---------------- 장바구니 ---------------- */
-  const addToCart = (product, qty = 1) => {
-  const q = Math.max(1, Number(qty) || 1);
-
+  /* ---------------- 장바구니 ---------------- */
+const addToCart = (product, quantity = 1) => {
   setCart((prev) => {
     if (!product) return prev;
 
-    const p = normalizeProduct(product);
+    const qty = Math.max(1, Number(quantity) || 1);
 
-    const idx = prev.findIndex((x) => x.id === p.id);
+    // price가 0으로 들어가는 케이스 방지 (discountedPrice/price 둘 중 있는 값 사용)
+    const normalized = {
+      ...product,
+      price: Number(product.price ?? product.discountedPrice ?? 0),
+      quantity: qty,
+    };
+
+    const idx = prev.findIndex((p) => Number(p.id) === Number(normalized.id));
     if (idx >= 0) {
       const next = prev.slice();
-      next[idx] = { ...next[idx], quantity: (Number(next[idx].quantity) || 1) + q };
+      const prevQty = Math.max(1, Number(next[idx].quantity) || 1);
+      next[idx] = { ...next[idx], ...normalized, quantity: prevQty + qty };
       return next;
     }
-    return [...prev, { ...p, quantity: q }];
+
+    return [...prev, normalized];
   });
 };
+const cartCount = cart.reduce(
+  (sum, item) => sum + Math.max(1, Number(item.quantity) || 1),
+  0
+);
+
 
 
   //  Cart UI(아이템 id 기반)와 App(기존 index 기반 삭제)을 모두 만족시키기 위해 id삭제 래퍼 제공
@@ -243,41 +256,33 @@ export default function App() {
 
 
   /* ---------------- 상품 목록 ---------------- */
-  if (page === 'products') {
-    return (
-      <ProductListPage
-        products={products}
-        cart={cart}
-        setCart={setCart}
-        setPage={setPage}
-        onView={handleView}
-        onAdd={(p) => addToCart(p, 1)}
-        onGoCart={() => setPage('cart')}
-      />
-    );
-  }
+ if (page === 'products') {
+  return (
+    <ProductListPage
+      products={products}
+      onView={handleView}
+      cart={cart}
+      cartCount={cartCount}
+      setCart={setCart}
+      setPage={setPage}
+      onAddToCart={(product, qty = 1) => addToCart(product, qty)}
+    />
+  );
+}
 
   /* ---------------- 상품 상세 ---------------- */
 if (page === 'productDetail' && selectedProduct) {
   return (
     <ProductDetailPage
       product={selectedProduct}
-      cartCount={cart.length}
+      cartCount={cartCount}
       onBack={() => setPage('products')}
       onGoCart={() => setPage('cart')}
-
-      // 담기만 하고, 페이지 이동 없음
-      onAddToCart={(product, qty) => {
-        addToCart(product, qty);
-        // setPage('products'); <-- 삭제
-      }}
-
-      //  바로구매 = order 동일(그대로)
-      onBuyNow={(product, qty) => buyNow(product, qty)}
+      onAddToCart={(qty) => addToCart(selectedProduct, qty)}
+      onBuyNow={(qty) => buyNow(selectedProduct, qty)}
     />
   );
 }
-
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {
