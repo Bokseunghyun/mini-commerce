@@ -263,15 +263,16 @@ export default function CartPage({
 
         @media (min-width: 768px) {
           .cart-container { flex-direction: row; align-items: flex-start; }
+          .cart-items-section { min-height: 640px; }
         }
 
-        .cart-items-section {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
+       .cart-items-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            min-height: 520px; 
+          }
         .section-title {
           font-size: 1rem;
           font-weight: 600;
@@ -405,17 +406,20 @@ export default function CartPage({
         .remove-item-btn:hover { background-color: #ffe5e5; }
         .trash-icon { width: 18px; height: 18px; color: #e53e3e; }
 
-        .empty-cart {
-          background-color: #ffffff;
-          border-radius: 12px;
-          padding: 48px 24px;
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 16px;
-        }
+.empty-cart {
+  background-color: #ffffff;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
 
+  flex: 1;               
+  justify-content: center; 
+  width: 100%;
+}
         .empty-cart-icon { width: 64px; height: 64px; color: #cccccc; }
         .empty-cart-text { font-size: 1rem; color: #666666; }
 
