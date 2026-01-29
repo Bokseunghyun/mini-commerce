@@ -3,6 +3,7 @@ import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
 import CartPage from './pages/cart';
 import LoginPage from './pages/login.jsx'; 
+import OrderCompletePage from "./pages/OrderComplete.jsx";
 
 export default function App() {
   const [page, setPage] = useState('login');
@@ -222,7 +223,7 @@ const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
   const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
 
   /* ---------------- 주문 API ---------------- */
- const order = async (items) => {
+const order = async (items) => {
   try {
     const token = localStorage.getItem("token");
 
@@ -238,15 +239,19 @@ const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      alert(data.message || `주문 실패 (status=${res.status})`);
+      alert(data.message || "주문 실패");
       return;
     }
-
-    alert(`주문 완료\n총 결제금액: ${Number(data.totalPrice || 0).toLocaleString("ko-KR")}원`);
+    
+    setCart([]);
+    setSelectedProduct(null);
+    setPage("orderComplete");
   } catch (e) {
     alert("주문 중 오류 발생");
+    console.error(e);
   }
 };
+
 
 
 
@@ -259,6 +264,23 @@ const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
     const items = [{ ...p, quantity: qty }];
     await order(items);
   };
+
+
+
+const restartApp = () => {
+  // 토큰/권한까지 “처음부터”로
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+
+  setCart([]);
+  setSelectedProduct(null);
+  setUserId("");
+  setPassword("");
+  setError("");
+  setPage("login");
+};
+
+
 
   /* ---------------- 로그인 페이지 ---------------- */
  if (page === "login") {
@@ -333,17 +355,9 @@ if (page === "productDetail" && selectedProduct) {
   }
 
   /* ---------------- 주문 완료 ---------------- */
-  if (page === 'checkout') {
-    return (
-      <div style={styles.container}>
-        <h2>주문 완료</h2>
-        <p>주문이 정상적으로 완료되었습니다</p>
-        <button onClick={() => window.location.reload()}>다시 시작</button>
-      </div>
-    );
+ if (page === "orderComplete") {
+  return <OrderCompletePage onRestart={restartApp} />;
   }
-
-  return null;
 }
 
 /* ---------------- 스타일 ---------------- */

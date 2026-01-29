@@ -96,6 +96,16 @@ export default async function productsRoutes(req, res) {
     ],
   }));
 
+
+  
+  // 의도적 장애 유지 (3,4번 상세 진입 시 500)
+  if (product.id === 3 || product.id === 4) {
+    return res.status(500).json({
+      message: '상품 조회 실패 (의도적 장애)',
+      code: 'PRODUCT_INTENTIONAL_FAIL',
+    });
+  }
+  
   return res.status(200).json({
     user,
     products: safeProducts,
