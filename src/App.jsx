@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
-import CartPage from './pages/Cart';
+import CartPage from './pages/cart';
 
 export default function App() {
   const [page, setPage] = useState('login');
