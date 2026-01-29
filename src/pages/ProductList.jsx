@@ -37,7 +37,6 @@ function ShoppingCartIcon({ className }) {
 function ProductCard({ product, onView, onAdd }) {
   return (
     <article className="product-card" id={`product-${product.id}`}>
-      {/* 이미지 영역 */}
       <a
         href={`/products/${product.id}`}
         className="product-image"
@@ -56,7 +55,6 @@ function ProductCard({ product, onView, onAdd }) {
         )}
       </a>
 
-      {/* 상품 정보 */}
       <div className="product-info">
         <a
           href={`/products/${product.id}`}
@@ -129,17 +127,10 @@ export default function ProductListPage({
     setCart((prev) => [...prev, product]);
   };
 
-  //  0일 때는 뱃지 숨기고, 1 이상일 때만 표시
-  const cartCount = Array.isArray(cart) ? cart.length : 0;
-
   return (
     <>
       <style>{`
-        * {
-          margin: 0;
-          padding: 0;
-          box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
@@ -148,15 +139,9 @@ export default function ProductListPage({
           line-height: 1.5;
         }
 
-        .page-container {
-          min-height: 100vh;
-          background-color: #fafafa;
-        }
+        .page-container { min-height: 100vh; background-color: #fafafa; }
 
-        .page-header {
-          border-bottom: 1px solid #e5e5e5;
-          background-color: #ffffff;
-        }
+        .page-header { border-bottom: 1px solid #e5e5e5; background-color: #ffffff; }
 
         .header-content {
           max-width: 1280px;
@@ -165,9 +150,7 @@ export default function ProductListPage({
         }
 
         @media (min-width: 640px) {
-          .header-content {
-            padding: 24px;
-          }
+          .header-content { padding: 24px; }
         }
 
         .header-top {
@@ -178,31 +161,27 @@ export default function ProductListPage({
         }
 
         .go-to-cart-btn {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 8px;
-          padding: 10px 20px;
+          padding: 10px 16px;
           background-color: #1a1a1a;
           color: #ffffff;
           border: none;
           border-radius: 8px;
           font-size: 0.875rem;
-          font-weight: 500;
+          font-weight: 600;
           cursor: pointer;
           transition: background-color 0.2s ease;
           white-space: nowrap;
           position: relative;
         }
 
-        .go-to-cart-btn:hover {
-          background-color: #333333;
-        }
+        .go-to-cart-btn:hover { background-color: #333333; }
 
-        .cart-icon-large {
-          width: 20px;
-          height: 20px;
-        }
+        .cart-icon-large { width: 20px; height: 20px; }
 
+        /* cart.length > 0일 때만 렌더링할 배지 */
         .cart-badge {
           position: absolute;
           top: -8px;
@@ -216,61 +195,28 @@ export default function ProductListPage({
           font-size: 12px;
           line-height: 20px;
           text-align: center;
-          font-weight: 700;
+          font-weight: 800;
         }
 
-        @media (max-width: 639px) {
-          .go-to-cart-btn {
-            padding: 10px;
-          }
-        }
+        .page-title { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
+        @media (min-width: 640px) { .page-title { font-size: 1.875rem; } }
 
-        .page-title {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #1a1a1a;
-        }
-
-        @media (min-width: 640px) {
-          .page-title {
-            font-size: 1.875rem;
-          }
-        }
-
-        .page-subtitle {
-          margin-top: 8px;
-          color: #737373;
-        }
+        .page-subtitle { margin-top: 8px; color: #737373; }
 
         .main-content {
           max-width: 1280px;
           margin: 0 auto;
           padding: 32px 16px;
         }
-
-        @media (min-width: 640px) {
-          .main-content {
-            padding: 32px 24px;
-          }
-        }
+        @media (min-width: 640px) { .main-content { padding: 32px 24px; } }
 
         .product-grid {
           display: grid;
           grid-template-columns: repeat(2, 1fr);
           gap: 16px;
         }
-
-        @media (min-width: 640px) {
-          .product-grid {
-            gap: 24px;
-          }
-        }
-
-        @media (min-width: 1024px) {
-          .product-grid {
-            grid-template-columns: repeat(4, 1fr);
-          }
-        }
+        @media (min-width: 640px) { .product-grid { gap: 24px; } }
+        @media (min-width: 1024px) { .product-grid { grid-template-columns: repeat(4, 1fr); } }
 
         .product-card {
           position: relative;
@@ -281,7 +227,6 @@ export default function ProductListPage({
           background-color: #ffffff;
           transition: box-shadow 0.2s ease;
         }
-
         .product-card:hover {
           box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
         }
@@ -302,9 +247,7 @@ export default function ProductListPage({
           transition: transform 0.3s ease;
         }
 
-        .product-card:hover .product-image img {
-          transform: scale(1.05);
-        }
+        .product-card:hover .product-image img { transform: scale(1.05); }
 
         .discount-badge {
           position: absolute;
@@ -326,10 +269,7 @@ export default function ProductListPage({
           padding: 16px;
         }
 
-        .product-name {
-          text-decoration: none;
-          color: inherit;
-        }
+        .product-name { text-decoration: none; color: inherit; }
 
         .product-name h3 {
           font-size: 0.875rem;
@@ -342,9 +282,7 @@ export default function ProductListPage({
           transition: color 0.2s ease;
         }
 
-        .product-name:hover h3 {
-          color: #737373;
-        }
+        .product-name:hover h3 { color: #737373; }
 
         .product-price {
           display: flex;
@@ -382,15 +320,9 @@ export default function ProductListPage({
           cursor: pointer;
           transition: background-color 0.2s ease;
         }
+        .add-to-cart-btn:hover { background-color: #333333; }
 
-        .add-to-cart-btn:hover {
-          background-color: #333333;
-        }
-
-        .cart-icon {
-          width: 16px;
-          height: 16px;
-        }
+        .cart-icon { width: 16px; height: 16px; }
       `}</style>
 
       <main className="page-container">
@@ -408,16 +340,15 @@ export default function ProductListPage({
                 type="button"
                 className="go-to-cart-btn"
                 onClick={() => setPage("cart")}
-                aria-label={
-                  cartCount > 0
-                    ? `장바구니로 이동 (총 ${cartCount}개)`
-                    : "장바구니로 이동"
-                }
+                aria-label="장바구니로 이동"
               >
                 <ShoppingCartIcon className="cart-icon-large" />
-                {cartCount > 0 && (
-                  <span className="cart-badge">{cartCount}</span>
-                )}
+                <span>장바구니</span>
+                {cart.length > 0 ? (
+                  <span className="cart-badge" aria-label={`장바구니 ${cart.length}개`}>
+                    {cart.length}
+                  </span>
+                ) : null}
               </button>
             </div>
           </div>

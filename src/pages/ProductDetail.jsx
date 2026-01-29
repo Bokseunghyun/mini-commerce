@@ -112,61 +112,68 @@ function CheckIcon({ className }) {
 }
 
 // ============================================
-// 상품 상세 페이지
+// 상품 상세 페이지 컴포넌트
+// - App.jsx에서 selectedProduct를 내려주는 구조에 맞춤
+// - onBack: 목록으로
+// - onGoCart: 장바구니 페이지로
+// - onAddToCart(product, quantity): 담기만 하고 화면 유지
+// - onBuyNow(product, quantity): 주문 API 로직(= App.jsx order 함수) 호출
+// - cartCount: 헤더 배지용
 // ============================================
 export default function ProductDetailPage({
-  product = null,
-  cartItems = [],
-  onAddToCart,
-  onBuyNow,
+  product,
+  cartCount = 0,
   onBack,
   onGoCart,
+  onAddToCart,
+  onBuyNow,
 }) {
   const [quantity, setQuantity] = useState(1);
 
-  const cartCount = useMemo(() => {
-    if (!Array.isArray(cartItems)) return 0;
-    // "수량 합"으로 카운트
-    return cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-  }, [cartItems]);
-
   const safeProduct = useMemo(() => {
-    if (!product) return null;
-    const price =
-      Number(product.price) ||
-      Number(product.discountedPrice) ||
-      Number(product.originalPrice) ||
-      0;
+    const p = product || {};
+    const discounted = Number(p.discountedPrice ?? p.price ?? 0) || 0;
+    const original = Number(p.originalPrice ?? discounted) || discounted;
+    const rate = Number(p.discountRate ?? 0) || 0;
 
     return {
-      ...product,
-      price,
-      discountedPrice: Number(product.discountedPrice) || price,
-      originalPrice: Number(product.originalPrice) || price,
-      discountRate: Number(product.discountRate) || 0,
-      description: product.description || "",
-      details: Array.isArray(product.details) ? product.details : [],
+      id: p.id,
+      name: p.name || "",
+      description: p.description || "설명이 없습니다",
+      details: Array.isArray(p.details) ? p.details : ["상세 정보가 없습니다"],
+      imageUrl: p.imageUrl || "",
+      originalPrice: original,
+      discountedPrice: discounted,
+      discountRate: rate,
+      price: Number(p.price ?? discounted) || discounted, // 장바구니/주문 호환용
     };
   }, [product]);
 
   const handleQuantityDecrease = () => {
-    if (quantity > 1) setQuantity(quantity - 1);
+    setQuantity((q) => (q > 1 ? q - 1 : q));
   };
 
   const handleQuantityIncrease = () => {
-    if (quantity < 99) setQuantity(quantity + 1);
+    setQuantity((q) => (q < 99 ? q + 1 : q));
   };
 
-  if (!safeProduct) {
-    return (
-      <div style={{ padding: 24 }}>
-        <p>상품 정보가 없습니다</p>
-        <button onClick={onBack}>목록으로</button>
-      </div>
-    );
-  }
+  const handleAddToCart = () => {
+    if (typeof onAddToCart === "function") {
+      onAddToCart(safeProduct, quantity);
+    }
+    // 화면 이동 없음 (요구사항)
+    alert(`${safeProduct.name} ${quantity}개가 장바구니에 담겼습니다.`);
+  };
 
-  const totalPrice = (Number(safeProduct.discountedPrice) || safeProduct.price) * quantity;
+  const handleBuyNow = () => {
+    if (typeof onBuyNow === "function") {
+      onBuyNow(safeProduct, quantity);
+      return;
+    }
+    alert(`${safeProduct.name} ${quantity}개를 바로 구매합니다.`);
+  };
+
+  const totalPrice = safeProduct.discountedPrice * quantity;
 
   return (
     <>
@@ -193,6 +200,7 @@ export default function ProductDetailPage({
           display: flex;
           align-items: center;
           justify-content: space-between;
+          gap: 12px;
         }
         .back-button {
           display: flex;
@@ -211,9 +219,7 @@ export default function ProductDetailPage({
         .back-button:hover { background-color: #f5f5f5; }
         .back-icon { width: 16px; height: 16px; }
 
-        
         .cart-button {
-          position: relative;
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -221,32 +227,29 @@ export default function ProductDetailPage({
           background-color: #1a1a1a;
           color: #ffffff;
           border: none;
+          cursor: pointer;
           border-radius: 8px;
           font-size: 0.875rem;
-          font-weight: 500;
-          cursor: pointer;
+          font-weight: 600;
           transition: background-color 0.2s ease;
+          position: relative;
         }
         .cart-button:hover { background-color: #333333; }
         .cart-icon { width: 18px; height: 18px; }
-
         .cart-badge {
           position: absolute;
           top: -8px;
           right: -8px;
-          min-width: 22px;
-          height: 22px;
+          min-width: 20px;
+          height: 20px;
           padding: 0 6px;
           border-radius: 999px;
           background: #dc2626;
           color: #fff;
           font-size: 12px;
-          font-weight: 700;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          line-height: 1;
-          border: 2px solid #fff;
+          line-height: 20px;
+          text-align: center;
+          font-weight: 800;
         }
 
         .main-content {
@@ -498,7 +501,11 @@ export default function ProductDetailPage({
             >
               <ShoppingCartIcon className="cart-icon" />
               <span>장바구니</span>
-              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+              {cartCount > 0 ? (
+                <span className="cart-badge" aria-label={`장바구니 ${cartCount}개`}>
+                  {cartCount}
+                </span>
+              ) : null}
             </button>
           </nav>
         </header>
@@ -513,7 +520,9 @@ export default function ProductDetailPage({
                   className="product-image"
                 />
                 {safeProduct.discountRate > 0 && (
-                  <span className="discount-badge">{safeProduct.discountRate}% OFF</span>
+                  <span className="discount-badge">
+                    {safeProduct.discountRate}% OFF
+                  </span>
                 )}
               </div>
             </section>
@@ -524,7 +533,11 @@ export default function ProductDetailPage({
               </h1>
               <p className="product-description">{safeProduct.description}</p>
 
-              <div className="price-section" data-testid="product-price" aria-label="가격 정보">
+              <div
+                className="price-section"
+                data-testid="product-price"
+                aria-label="가격 정보"
+              >
                 <div className="price-row">
                   {safeProduct.discountRate > 0 && (
                     <span className="discount-rate">{safeProduct.discountRate}%</span>
@@ -535,7 +548,9 @@ export default function ProductDetailPage({
                 </div>
                 {safeProduct.discountRate > 0 && (
                   <div className="price-row">
-                    <span className="original-price">{formatPrice(safeProduct.originalPrice)}원</span>
+                    <span className="original-price">
+                      {formatPrice(safeProduct.originalPrice)}원
+                    </span>
                     <span className="savings">
                       {formatPrice(safeProduct.originalPrice - safeProduct.discountedPrice)}원 할인
                     </span>
@@ -552,7 +567,6 @@ export default function ProductDetailPage({
                     disabled={quantity <= 1}
                     data-testid="quantity-decrease"
                     aria-label="수량 감소"
-                    type="button"
                   >
                     <MinusIcon className="quantity-btn-icon" />
                   </button>
@@ -565,7 +579,6 @@ export default function ProductDetailPage({
                     disabled={quantity >= 99}
                     data-testid="quantity-increase"
                     aria-label="수량 증가"
-                    type="button"
                   >
                     <PlusIcon className="quantity-btn-icon" />
                   </button>
@@ -580,10 +593,9 @@ export default function ProductDetailPage({
               <div className="button-section">
                 <button
                   className="btn btn-cart"
-                  onClick={() => onAddToCart?.(safeProduct, quantity)}
+                  onClick={handleAddToCart}
                   data-testid="add-to-cart-button"
                   aria-label="장바구니에 담기"
-                  type="button"
                 >
                   <ShoppingCartIcon className="btn-icon" />
                   장바구니 담기
@@ -591,10 +603,9 @@ export default function ProductDetailPage({
 
                 <button
                   className="btn btn-buy"
-                  onClick={() => onBuyNow?.(safeProduct, quantity)}
+                  onClick={handleBuyNow}
                   data-testid="buy-now-button"
                   aria-label="바로 구매하기"
-                  type="button"
                 >
                   바로 구매
                 </button>

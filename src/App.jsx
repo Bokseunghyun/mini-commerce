@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
 import CartPage from './pages/cart';
+import LoginPage from './pages/login.jsx'; 
 
 export default function App() {
   const [page, setPage] = useState('login');
@@ -11,6 +12,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
+  const [isLoginLoading, setIsLoginLoading] = useState(false);
+  const [loginErrorMessage, setLoginErrorMessage] = useState('');
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -35,31 +38,36 @@ export default function App() {
   };
 
   /* ---------------- 로그인 ---------------- */
-  const login = async () => {
-    setError('');
+  const login = async ({ username, password }) => {
+  setLoginErrorMessage('');
+  setIsLoginLoading(true);
 
-    try {
-      const res = await fetch(`${API_BASE}/api/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: userId, password }),
-      });
+  try {
+    const res = await fetch(`${API_BASE}/api/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
 
-      const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
 
-      if (!res.ok) {
-        setError(data.message || '로그인 실패');
-        return;
-      }
-
-      localStorage.setItem('token', data.token || '');
-      localStorage.setItem('role', data.user?.role || '');
-
-      setPage('products');
-    } catch (e) {
-      setError('로그인 중 오류 발생');
+    if (!res.ok) {
+      setLoginErrorMessage(data.message || '로그인 실패');
+      return;
     }
-  };
+
+    // token/role 저장
+    localStorage.setItem('token', data.token || '');
+    localStorage.setItem('role', data.user?.role || '');
+
+    setPage('products');
+  } catch (e) {
+    setLoginErrorMessage('로그인 중 오류 발생');
+  } finally {
+    setIsLoginLoading(false);
+  }
+};
+
 
   /* ---------------- 상품 목록 조회 ---------------- */
   useEffect(() => {
@@ -120,21 +128,23 @@ export default function App() {
 
   /* ---------------- 장바구니 ---------------- */
   const addToCart = (product, qty = 1) => {
-    setCart((prev) => {
-      if (!product) return prev;
+  const q = Math.max(1, Number(qty) || 1);
 
-      const p = normalizeProduct(product);
-      const addQty = Math.max(1, Number(qty) || 1);
+  setCart((prev) => {
+    if (!product) return prev;
 
-      const idx = prev.findIndex((x) => x.id === p.id);
-      if (idx >= 0) {
-        const next = prev.slice();
-        next[idx] = { ...next[idx], quantity: (Number(next[idx].quantity) || 1) + addQty };
-        return next;
-      }
-      return [...prev, { ...p, quantity: addQty }];
-    });
-  };
+    const p = normalizeProduct(product);
+
+    const idx = prev.findIndex((x) => x.id === p.id);
+    if (idx >= 0) {
+      const next = prev.slice();
+      next[idx] = { ...next[idx], quantity: (Number(next[idx].quantity) || 1) + q };
+      return next;
+    }
+    return [...prev, { ...p, quantity: q }];
+  });
+};
+
 
   //  Cart UI(아이템 id 기반)와 App(기존 index 기반 삭제)을 모두 만족시키기 위해 id삭제 래퍼 제공
   const removeFromCartById = (id) => {
@@ -222,29 +232,15 @@ export default function App() {
 
   /* ---------------- 로그인 페이지 ---------------- */
   if (page === 'login') {
-    return (
-      <div style={styles.container}>
-        <h2 style={{ textAlign: 'center' }}>로그인</h2>
-        <input
-          style={styles.input}
-          placeholder="아이디"
-          value={userId}
-          onChange={(e) => setUserId(e.target.value)}
-        />
-        <input
-          style={styles.input}
-          placeholder="비밀번호"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        {error && <p style={{ color: 'red', fontSize: 13 }}>{error}</p>}
-        <button style={styles.buttonPrimary} onClick={login}>
-          로그인
-        </button>
-      </div>
-    );
-  }
+  return (
+    <LoginPage
+      onLogin={login}
+      isLoading={isLoginLoading}
+      errorMessage={loginErrorMessage}
+    />
+  );
+}
+
 
   /* ---------------- 상품 목록 ---------------- */
   if (page === 'products') {
@@ -262,21 +258,26 @@ export default function App() {
   }
 
   /* ---------------- 상품 상세 ---------------- */
-  if (page === 'productDetail' && selectedProduct) {
-    return (
-      <ProductDetailPage
-        product={selectedProduct}
-        cartCount={cart.length}
-        onBack={() => setPage('products')}
-        onGoCart={() => setPage('cart')}
-        onAddToCart={(qty) => {
-          addToCart(selectedProduct, qty);
-          setPage('products'); // 기존 흐름 유지: 담고 목록으로
-        }}
-        onBuyNow={(qty) => buyNow(selectedProduct, qty)}
-      />
-    );
-  }
+if (page === 'productDetail' && selectedProduct) {
+  return (
+    <ProductDetailPage
+      product={selectedProduct}
+      cartCount={cart.length}
+      onBack={() => setPage('products')}
+      onGoCart={() => setPage('cart')}
+
+      // 담기만 하고, 페이지 이동 없음
+      onAddToCart={(product, qty) => {
+        addToCart(product, qty);
+        // setPage('products'); <-- 삭제
+      }}
+
+      //  바로구매 = order 동일(그대로)
+      onBuyNow={(product, qty) => buyNow(product, qty)}
+    />
+  );
+}
+
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {
