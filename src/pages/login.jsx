@@ -120,15 +120,18 @@ const styles = {
     alignItems: "center",
     minHeight: "100vh",
     backgroundColor: "#f5f5f5",
-    padding: "20px",
+    padding: "24px",
   },
   card: {
     backgroundColor: "#ffffff",
     borderRadius: "12px",
     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
-    padding: "40px",
-    width: "100%",
-    maxWidth: "520px",
+    padding: "44px",
+
+    // ✅ 여기부터 “무조건 넓어지게”
+    width: "min(92vw, 640px)",
+    maxWidth: "640px",
+    minWidth: "520px",
   },
   title: {
     fontSize: "28px",
@@ -194,6 +197,6 @@ const styles = {
   demoText: {
     fontSize: "14px",
     color: "#6b7280",
-    margin: "6px 0 0 0",
+    margin: "0",
   },
 };

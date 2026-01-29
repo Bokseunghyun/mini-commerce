@@ -1,31 +1,33 @@
-// api/cart.js
-import { applyCors, requireUser } from './_lib/common.js';
-
 export default async function cartRoutes(req, res) {
-  if (applyCors(req, res)) return;
+  // verifyToken을 통과했으니 req.user 존재
+  const user = req.user;
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: '허용되지 않은 요청', code: 'METHOD_NOT_ALLOWED' });
+  if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ message: "허용되지 않은 요청" });
+
+  const body = req.body || {};
+  const action = String(body.action || "").trim();
+
+  // 프론트 기존 규격 유지: { action:'remove', index, cart }
+  const cart = Array.isArray(body.cart) ? body.cart : null;
+
+  if (!action) return res.status(400).json({ message: "action 필수" });
+  if (!cart) return res.status(400).json({ message: "cart 필수" });
+
+  if (action === "remove") {
+    const index = Number(body.index);
+    if (!Number.isInteger(index) || index < 0 || index >= cart.length) {
+      return res.status(400).json({ message: "index 오류" });
+    }
+
+    const next = cart.slice();
+    next.splice(index, 1);
+
+    return res.status(200).json({
+      user,
+      cart: next,
+    });
   }
 
-  const user = requireUser(req, res);
-  if (!user) return;
-
-  const { action, index, cart } = req.body || {};
-
-  if (action !== 'remove') {
-    return res.status(400).json({ message: '알 수 없는 동작', code: 'CART_BAD_ACTION' });
-  }
-
-  if (!Array.isArray(cart)) {
-    return res.status(400).json({ message: 'cart 형식 오류', code: 'CART_BAD_BODY' });
-  }
-
-  const idx = Number(index);
-  if (!Number.isInteger(idx) || idx < 0 || idx >= cart.length) {
-    return res.status(400).json({ message: 'index 값 오류', code: 'CART_BAD_INDEX' });
-  }
-
-  const newCart = cart.filter((_, i) => i !== idx);
-  return res.status(200).json({ message: '삭제 성공', cart: newCart });
+  return res.status(400).json({ message: "지원하지 않는 action" });
 }

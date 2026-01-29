@@ -12,8 +12,8 @@ export default function App() {
   const [error, setError] = useState('');
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [isLoginLoading, setIsLoginLoading] = useState(false);
-  const [loginErrorMessage, setLoginErrorMessage] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [loginError, setLoginError] = useState("");
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -22,51 +22,81 @@ export default function App() {
 
   // ---------------- 공통: 상품 price 보정 ----------------
   // 서버 응답이 discountedPrice만 주는 경우 / price가 빠지는 경우 대비
-  const normalizeProduct = (p) => {
-    if (!p) return p;
-    const price =
-      p.price != null
-        ? Number(p.price)
-        : p.discountedPrice != null
-          ? Number(p.discountedPrice)
-          : 0;
+  const normalizeProduct = (raw) => {
+  if (!raw) return null;
+  const id = Number(raw.id);
+  const name = raw.name || "";
+  const price =
+    Number(raw.price) ||
+    Number(raw.discountedPrice) ||
+    0;
 
-    return {
-      ...p,
-      price,
-    };
+  return {
+    ...raw,
+    id,
+    name,
+    price, //  cart/order는 price 기준으로 계산
   };
+};
 
-  /* ---------------- 로그인 ---------------- */
-  const login = async ({ username, password }) => {
-  setLoginErrorMessage('');
-  setIsLoginLoading(true);
 
+
+
+const handleLogin = async ({ username, password }) => {
+  setLoginError("");
+  setIsLoading(true);
   try {
-    const res = await fetch(`${API_BASE}/api/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    const result = await requestLogin(API_BASE, username, password);
 
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      setLoginErrorMessage(data.message || '로그인 실패');
+    if (!result.ok) {
+      setLoginError(result.message); //  서버 status별 message
       return;
     }
 
-    // token/role 저장
-    localStorage.setItem('token', data.token || '');
-    localStorage.setItem('role', data.user?.role || '');
-
-    setPage('products');
+    localStorage.setItem("token", result.data.token || "");
+    localStorage.setItem("role", result.data.user?.role || "");
+    setPage("products");
   } catch (e) {
-    setLoginErrorMessage('로그인 중 오류 발생');
+    setLoginError("로그인 중 오류 발생");
   } finally {
-    setIsLoginLoading(false);
+    setIsLoading(false);
   }
 };
+
+
+
+
+  /* ---------------- 로그인 ---------------- */
+  async function requestLogin(API_BASE, username, password) {
+  const u = String(username ?? "").trim();
+  const p = String(password ?? "").trim();
+
+  //  프론트에서도 사전 검증 
+  if (!u && !p) {
+    return { ok: false, status: 400, message: "아이디와 비밀번호를 입력하세요" };
+  }
+  if (!u) {
+    return { ok: false, status: 400, message: "아이디를 입력하세요" };
+  }
+  if (!p) {
+    return { ok: false, status: 400, message: "비밀번호를 입력하세요" };
+  }
+
+  const res = await fetch(`${API_BASE}/api/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: u, password: p }),
+  });
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok) {
+    return { ok: false, status: res.status, message: data.message || "로그인 실패" };
+  }
+
+  return { ok: true, status: 200, data };
+}
+
 
 
   /* ---------------- 상품 목록 조회 ---------------- */
@@ -127,35 +157,31 @@ export default function App() {
   };
 
   /* ---------------- 장바구니 ---------------- */
-  /* ---------------- 장바구니 ---------------- */
-const addToCart = (product, quantity = 1) => {
+const addToCart = (product, qty = 1) => {
+  const p = normalizeProduct(product);
+  const quantity = Math.max(1, Number(qty) || 1);
+
+  if (!p) return;
+
+  // 0원으로 담기는 것 방지 (여기서 먼저 걸러도 되고 서버 order가 또 걸러줌)
+  if (!p.price || p.price <= 0) {
+    alert("상품 가격 오류(0원). 상품 데이터 확인 필요");
+    return;
+  }
+
   setCart((prev) => {
-    if (!product) return prev;
-
-    const qty = Math.max(1, Number(quantity) || 1);
-
-    // price가 0으로 들어가는 케이스 방지 (discountedPrice/price 둘 중 있는 값 사용)
-    const normalized = {
-      ...product,
-      price: Number(product.price ?? product.discountedPrice ?? 0),
-      quantity: qty,
-    };
-
-    const idx = prev.findIndex((p) => Number(p.id) === Number(normalized.id));
+    const idx = prev.findIndex((x) => Number(x.id) === Number(p.id));
     if (idx >= 0) {
       const next = prev.slice();
-      const prevQty = Math.max(1, Number(next[idx].quantity) || 1);
-      next[idx] = { ...next[idx], ...normalized, quantity: prevQty + qty };
+      next[idx] = { ...next[idx], quantity: (Number(next[idx].quantity) || 1) + quantity };
       return next;
     }
-
-    return [...prev, normalized];
+    return [...prev, { ...p, quantity }];
   });
 };
-const cartCount = cart.reduce(
-  (sum, item) => sum + Math.max(1, Number(item.quantity) || 1),
-  0
-);
+
+const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
+
 
 
 
@@ -166,71 +192,62 @@ const cartCount = cart.reduce(
   };
 
   /* ---------------- 장바구니 삭제 (기존 index 기반 유지) ---------------- */
-  const removeFromCart = async (index) => {
-    try {
-      if (!Array.isArray(cart)) {
-        alert('장바구니 데이터 오류');
-        return;
-      }
-
-      const res = await fetch(`${API_BASE}/api/cart`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ action: 'remove', index, cart }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        alert(data.message || '삭제 실패');
-        return;
-      }
-
-      setCart(Array.isArray(data.cart) ? data.cart : []);
-    } catch (err) {
-      alert('삭제 중 오류 발생');
-      console.error(err);
-    }
-  };
-
-  const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
-
-  /* ---------------- 주문 API ---------------- */
- const order = async () => {
+ const removeFromCart = async (index) => {
   try {
-    //  장바구니에 3,4 포함되면 주문 막기 (프론트 1차 차단)
-    const hasBlocked = (cart || []).some((p) => [3, 4].includes(Number(p.id)));
-    if (hasBlocked) {
-      alert('주문 불가 상품이 포함되어 있습니다');
-      return;
-    }
+    const token = localStorage.getItem("token");
 
-    const res = await fetch(`${API_BASE}/api/order`, {
-      method: 'POST',
+    const res = await fetch(`${API_BASE}/api/cart`, {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token || ""}`,
       },
-      body: JSON.stringify({ items: cart }),
+      body: JSON.stringify({ action: "remove", index, cart }),
     });
 
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      alert(data.message || '주문 실패');
+      alert(data.message || `삭제 실패 (status=${res.status})`);
       return;
     }
 
-    alert(`주문 성공\n총 금액: ${Number(data.order?.totalPrice || 0).toLocaleString()}원`);
-    setCart([]);
-    setPage('checkout');
-  } catch {
-    alert('주문 중 오류 발생');
+    setCart(data.cart || []);
+  } catch (e) {
+    alert("삭제 중 오류 발생");
   }
 };
+
+
+  const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
+
+  /* ---------------- 주문 API ---------------- */
+ const order = async (items) => {
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`${API_BASE}/api/order`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token || ""}`,
+      },
+      body: JSON.stringify({ items }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.message || `주문 실패 (status=${res.status})`);
+      return;
+    }
+
+    alert(`주문 완료\n총 결제금액: ${Number(data.totalPrice || 0).toLocaleString("ko-KR")}원`);
+  } catch (e) {
+    alert("주문 중 오류 발생");
+  }
+};
+
 
 
   //  상세페이지 "바로구매" = 주문(order)과 동일 동작
@@ -244,15 +261,17 @@ const cartCount = cart.reduce(
   };
 
   /* ---------------- 로그인 페이지 ---------------- */
-  if (page === 'login') {
+ if (page === "login") {
   return (
     <LoginPage
-      onLogin={login}
-      isLoading={isLoginLoading}
-      errorMessage={loginErrorMessage}
+      onLogin={handleLogin}
+      isLoading={isLoading}
+      errorMessage={loginError}
     />
   );
 }
+
+
 
 
   /* ---------------- 상품 목록 ---------------- */
@@ -271,18 +290,22 @@ const cartCount = cart.reduce(
 }
 
   /* ---------------- 상품 상세 ---------------- */
-if (page === 'productDetail' && selectedProduct) {
+if (page === "productDetail" && selectedProduct) {
   return (
     <ProductDetailPage
       product={selectedProduct}
-      cartCount={cartCount}
-      onBack={() => setPage('products')}
-      onGoCart={() => setPage('cart')}
-      onAddToCart={(qty) => addToCart(selectedProduct, qty)}
+      cartCount={cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)} // 수량 기준 뱃지
+      onBack={() => setPage("products")}
+      onGoCart={() => setPage("cart")}
+      onAddToCart={(qty) => {
+        addToCart(selectedProduct, qty);
+     
+      }}
       onBuyNow={(qty) => buyNow(selectedProduct, qty)}
     />
   );
 }
+
 
   /* ---------------- 장바구니 ---------------- */
   if (page === 'cart') {

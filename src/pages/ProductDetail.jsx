@@ -3,122 +3,54 @@
 import React, { useMemo, useState } from "react";
 
 // ============================================
-// 가격 포맷 함수
+// 가격 포맷
 // ============================================
-const formatPrice = (price) => {
-  const n = Number(price) || 0;
-  return n.toLocaleString("ko-KR");
-};
+const formatPrice = (price) => (Number(price) || 0).toLocaleString("ko-KR");
 
 // ============================================
-// 아이콘 컴포넌트들
+// 아이콘
 // ============================================
 function ShoppingCartIcon({ className }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <circle cx="8" cy="21" r="1" />
       <circle cx="19" cy="21" r="1" />
       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
     </svg>
   );
 }
-
 function MinusIcon({ className }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M5 12h14" />
     </svg>
   );
 }
-
 function PlusIcon({ className }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M5 12h14" />
       <path d="M12 5v14" />
     </svg>
   );
 }
-
 function ChevronLeftIcon({ className }) {
   return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="m15 18-6-6 6-6" />
     </svg>
   );
 }
 
-function CheckIcon({ className }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
 // ============================================
-// 상품 상세 페이지 컴포넌트
-// - App.jsx에서 selectedProduct를 내려주는 구조에 맞춤
-// - onBack: 목록으로
-// - onGoCart: 장바구니 페이지로
-// - onAddToCart(product, quantity): 담기만 하고 화면 유지
-// - onBuyNow(product, quantity): 주문 API 로직(= App.jsx order 함수) 호출
-// - cartCount: 헤더 배지용
+// 상품 상세
+// props:
+// - product: selectedProduct
+// - cartCount: 장바구니 총 수량(뱃지용)
+// - onBack(): 목록으로
+// - onGoCart(): 장바구니로
+// - onAddToCart(qty): "장바구니 담기" (이동 X)
+// - onBuyNow(qty): "바로구매" (order 동일)
 // ============================================
 export default function ProductDetailPage({
   product,
@@ -130,50 +62,33 @@ export default function ProductDetailPage({
 }) {
   const [quantity, setQuantity] = useState(1);
 
-  const safeProduct = useMemo(() => {
-    const p = product || {};
-    const discounted = Number(p.discountedPrice ?? p.price ?? 0) || 0;
-    const original = Number(p.originalPrice ?? discounted) || discounted;
-    const rate = Number(p.discountRate ?? 0) || 0;
+  const safeProduct = product || {};
+  const unitPrice = useMemo(() => {
+    // discountedPrice 우선, 없으면 price, 없으면 0
+    const n = Number(safeProduct.discountedPrice ?? safeProduct.price ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  }, [safeProduct]);
 
-    return {
-      id: p.id,
-      name: p.name || "",
-      description: p.description || "설명이 없습니다",
-      details: Array.isArray(p.details) ? p.details : ["상세 정보가 없습니다"],
-      imageUrl: p.imageUrl || "",
-      originalPrice: original,
-      discountedPrice: discounted,
-      discountRate: rate,
-      price: Number(p.price ?? discounted) || discounted, // 장바구니/주문 호환용
-    };
-  }, [product]);
+  const totalPrice = unitPrice * (Number(quantity) || 1);
 
   const handleQuantityDecrease = () => {
-    setQuantity((q) => (q > 1 ? q - 1 : q));
+    setQuantity((q) => Math.max(1, (Number(q) || 1) - 1));
   };
-
   const handleQuantityIncrease = () => {
-    setQuantity((q) => (q < 99 ? q + 1 : q));
+    setQuantity((q) => Math.min(99, (Number(q) || 1) + 1));
   };
 
   const handleAddToCart = () => {
-    if (typeof onAddToCart === "function") {
-      onAddToCart(safeProduct, quantity);
-    }
-    // 화면 이동 없음 (요구사항)
-    alert(`${safeProduct.name} ${quantity}개가 장바구니에 담겼습니다.`);
+    const qty = Math.max(1, Number(quantity) || 1);
+    onAddToCart?.(qty); // 여기서 페이지 이동 안함
   };
 
   const handleBuyNow = () => {
-    if (typeof onBuyNow === "function") {
-      onBuyNow(safeProduct, quantity);
-      return;
-    }
-    alert(`${safeProduct.name} ${quantity}개를 바로 구매합니다.`);
+    const qty = Math.max(1, Number(quantity) || 1);
+    onBuyNow?.(qty);
   };
 
-  const totalPrice = safeProduct.discountedPrice * quantity;
+  if (!product) return null;
 
   return (
     <>
@@ -186,6 +101,7 @@ export default function ProductDetailPage({
           line-height: 1.6;
         }
         .page-container { min-height: 100vh; background-color: #fafafa; }
+
         .page-header {
           position: sticky;
           top: 0;
@@ -202,8 +118,9 @@ export default function ProductDetailPage({
           justify-content: space-between;
           gap: 12px;
         }
+
         .back-button {
-          display: flex;
+          display: inline-flex;
           align-items: center;
           gap: 4px;
           padding: 8px 12px;
@@ -213,13 +130,14 @@ export default function ProductDetailPage({
           font-size: 0.875rem;
           color: #1a1a1a;
           cursor: pointer;
-          text-decoration: none;
           transition: background-color 0.2s ease;
         }
         .back-button:hover { background-color: #f5f5f5; }
         .back-icon { width: 16px; height: 16px; }
 
+        
         .cart-button {
+          position: relative;
           display: inline-flex;
           align-items: center;
           gap: 8px;
@@ -227,12 +145,11 @@ export default function ProductDetailPage({
           background-color: #1a1a1a;
           color: #ffffff;
           border: none;
-          cursor: pointer;
           border-radius: 8px;
           font-size: 0.875rem;
-          font-weight: 600;
+          font-weight: 500;
+          cursor: pointer;
           transition: background-color 0.2s ease;
-          position: relative;
         }
         .cart-button:hover { background-color: #333333; }
         .cart-icon { width: 18px; height: 18px; }
@@ -249,25 +166,15 @@ export default function ProductDetailPage({
           font-size: 12px;
           line-height: 20px;
           text-align: center;
-          font-weight: 800;
+          font-weight: 700;
         }
 
-        .main-content {
-          max-width: 1280px;
-          margin: 0 auto;
-          padding: 24px 16px;
-        }
-        @media (min-width: 768px) {
-          .main-content { padding: 40px 24px; }
-        }
-        .product-layout {
-          display: flex;
-          flex-direction: column;
-          gap: 32px;
-        }
-        @media (min-width: 1024px) {
-          .product-layout { flex-direction: row; gap: 48px; }
-        }
+        .main-content { max-width: 1280px; margin: 0 auto; padding: 24px 16px; }
+        @media (min-width: 768px) { .main-content { padding: 40px 24px; } }
+
+        .product-layout { display: flex; flex-direction: column; gap: 32px; }
+        @media (min-width: 1024px) { .product-layout { flex-direction: row; gap: 48px; } }
+
         .image-section { flex: 1; }
         .image-wrapper {
           position: relative;
@@ -277,11 +184,8 @@ export default function ProductDetailPage({
           background-color: #ffffff;
           border: 1px solid #e5e5e5;
         }
-        .product-image {
-          width: 100%;
-          height: 100%;
-          object-fit: cover;
-        }
+        .product-image { width: 100%; height: 100%; object-fit: cover; }
+
         .discount-badge {
           position: absolute;
           top: 16px;
@@ -293,219 +197,88 @@ export default function ProductDetailPage({
           padding: 6px 12px;
           border-radius: 8px;
         }
-        .info-section {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          gap: 24px;
-        }
-        .product-title {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #1a1a1a;
-          line-height: 1.4;
-        }
-        @media (min-width: 768px) {
-          .product-title { font-size: 1.75rem; }
-        }
-        .product-description {
-          font-size: 1rem;
-          color: #737373;
-          line-height: 1.6;
-        }
+
+        .info-section { flex: 1; display: flex; flex-direction: column; gap: 24px; }
+        .product-title { font-size: 1.5rem; font-weight: 700; line-height: 1.4; }
+        @media (min-width: 768px) { .product-title { font-size: 1.75rem; } }
+
+        .product-description { font-size: 1rem; color: #737373; }
+
         .price-section {
-          display: flex;
-          flex-direction: column;
-          gap: 8px;
-          padding: 20px;
-          background-color: #ffffff;
-          border-radius: 12px;
-          border: 1px solid #e5e5e5;
+          display: flex; flex-direction: column; gap: 8px;
+          padding: 20px; background-color: #ffffff;
+          border-radius: 12px; border: 1px solid #e5e5e5;
         }
-        .price-row {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .discount-rate {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #dc2626;
-        }
-        .discounted-price {
-          font-size: 1.75rem;
-          font-weight: 700;
-          color: #1a1a1a;
-        }
-        .original-price {
-          font-size: 1rem;
-          color: #a3a3a3;
-          text-decoration: line-through;
-        }
-        .savings {
-          font-size: 0.875rem;
-          color: #dc2626;
-          font-weight: 500;
-        }
+        .price-row { display: flex; align-items: center; gap: 12px; }
+        .discount-rate { font-size: 1.5rem; font-weight: 700; color: #dc2626; }
+        .discounted-price { font-size: 1.75rem; font-weight: 700; color: #1a1a1a; }
+        .original-price { font-size: 1rem; color: #a3a3a3; text-decoration: line-through; }
+        .savings { font-size: 0.875rem; color: #dc2626; font-weight: 500; }
+
         .quantity-section {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 20px;
-          background-color: #ffffff;
-          border: 1px solid #e5e5e5;
-          border-radius: 12px;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 16px 20px; background-color: #ffffff;
+          border: 1px solid #e5e5e5; border-radius: 12px;
         }
-        .quantity-label {
-          font-size: 0.875rem;
-          font-weight: 600;
-          color: #1a1a1a;
-        }
-        .quantity-controls {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
+        .quantity-label { font-size: 0.875rem; font-weight: 600; }
+        .quantity-controls { display: flex; align-items: center; gap: 12px; }
         .quantity-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          width: 40px;
-          height: 40px;
+          display: flex; align-items: center; justify-content: center;
+          width: 40px; height: 40px;
           background-color: #f5f5f5;
           border: 1px solid #e5e5e5;
           border-radius: 8px;
           cursor: pointer;
-          transition: background-color 0.2s ease;
         }
         .quantity-btn:hover:not(:disabled) { background-color: #e5e5e5; }
         .quantity-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .quantity-btn-icon { width: 18px; height: 18px; color: #1a1a1a; }
-        .quantity-value {
-          font-size: 1.125rem;
-          font-weight: 600;
-          min-width: 40px;
-          text-align: center;
-        }
+        .quantity-btn-icon { width: 18px; height: 18px; }
+        .quantity-value { font-size: 1.125rem; font-weight: 600; min-width: 40px; text-align: center; }
+
         .total-section {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          padding: 16px 20px;
-          background-color: #f5f5f5;
-          border: 1px solid #e5e5e5;
-          border-radius: 12px;
+          display: flex; align-items: center; justify-content: space-between;
+          padding: 16px 20px; background-color: #f5f5f5;
+          border: 1px solid #e5e5e5; border-radius: 12px;
         }
-        .total-label {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: #525252;
-        }
-        .total-price {
-          font-size: 1.5rem;
-          font-weight: 700;
-          color: #1a1a1a;
-        }
-        .button-section {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        @media (min-width: 640px) {
-          .button-section { flex-direction: row; }
-        }
+        .total-label { font-size: 0.875rem; font-weight: 500; color: #525252; }
+        .total-price { font-size: 1.5rem; font-weight: 700; color: #1a1a1a; }
+
+        .button-section { display: flex; flex-direction: column; gap: 12px; }
+        @media (min-width: 640px) { .button-section { flex-direction: row; } }
+
+        
         .btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          flex: 1;
-          padding: 16px 24px;
-          font-size: 1rem;
-          font-weight: 600;
-          border-radius: 12px;
-          cursor: pointer;
-          transition: all 0.2s ease;
-          border: none;
+          display: flex; align-items: center; justify-content: center; gap: 8px;
+          flex: 1; padding: 16px 24px;
+          font-size: 1rem; font-weight: 600;
+          border-radius: 12px; cursor: pointer;
+          transition: all 0.2s ease; border: none;
         }
-        .btn-cart {
-          background-color: #ffffff;
-          color: #1a1a1a;
-          border: 2px solid #1a1a1a;
-        }
+        .btn-cart { background-color: #ffffff; color: #1a1a1a; border: 2px solid #1a1a1a; }
         .btn-cart:hover { background-color: #f5f5f5; }
-        .btn-buy {
-          background-color: #1a1a1a;
-          color: #ffffff;
-        }
+        .btn-buy { background-color: #1a1a1a; color: #ffffff; }
         .btn-buy:hover { background-color: #333333; }
         .btn-icon { width: 20px; height: 20px; }
-        .details-section {
-          margin-top: 48px;
-          padding-top: 48px;
-          border-top: 1px solid #e5e5e5;
-        }
-        .details-title {
-          font-size: 1.25rem;
-          font-weight: 700;
-          color: #1a1a1a;
-          margin-bottom: 24px;
-        }
-        .details-list {
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-          list-style: none;
-        }
-        .details-item {
-          display: flex;
-          align-items: flex-start;
-          gap: 12px;
-          padding: 16px;
-          background-color: #ffffff;
-          border: 1px solid #e5e5e5;
-          border-radius: 8px;
-        }
-        .check-icon {
-          width: 20px;
-          height: 20px;
-          color: #16a34a;
-          flex-shrink: 0;
-          margin-top: 2px;
-        }
-        .details-text {
-          font-size: 0.9375rem;
-          color: #525252;
-          line-height: 1.5;
-        }
       `}</style>
 
       <div className="page-container" data-testid="product-detail">
         <header className="page-header">
           <nav className="header-content">
-            <button
-              type="button"
-              className="back-button"
-              aria-label="상품 목록으로 돌아가기"
-              onClick={onBack}
-            >
+            <button type="button" className="back-button" onClick={onBack} aria-label="상품 목록으로 돌아가기">
               <ChevronLeftIcon className="back-icon" />
               <span>목록</span>
             </button>
 
+            {}
             <button
               type="button"
               className="cart-button"
-              aria-label="장바구니로 이동"
+              aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
               onClick={onGoCart}
             >
               <ShoppingCartIcon className="cart-icon" />
               <span>장바구니</span>
-              {cartCount > 0 ? (
-                <span className="cart-badge" aria-label={`장바구니 ${cartCount}개`}>
-                  {cartCount}
-                </span>
-              ) : null}
+              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
             </button>
           </nav>
         </header>
@@ -514,46 +287,27 @@ export default function ProductDetailPage({
           <article className="product-layout">
             <section className="image-section" aria-label="상품 이미지">
               <div className="image-wrapper">
-                <img
-                  src={safeProduct.imageUrl || "/placeholder.svg"}
-                  alt={safeProduct.name}
-                  className="product-image"
-                />
-                {safeProduct.discountRate > 0 && (
-                  <span className="discount-badge">
-                    {safeProduct.discountRate}% OFF
-                  </span>
+                <img src={safeProduct.imageUrl || "/placeholder.svg"} alt={safeProduct.name} className="product-image" />
+                {Number(safeProduct.discountRate) > 0 && (
+                  <span className="discount-badge">{safeProduct.discountRate}% OFF</span>
                 )}
               </div>
             </section>
 
             <section className="info-section" aria-label="상품 정보">
-              <h1 className="product-title" data-testid="product-title">
-                {safeProduct.name}
-              </h1>
-              <p className="product-description">{safeProduct.description}</p>
+              <h1 className="product-title" data-testid="product-title">{safeProduct.name}</h1>
+              {safeProduct.description && <p className="product-description">{safeProduct.description}</p>}
 
-              <div
-                className="price-section"
-                data-testid="product-price"
-                aria-label="가격 정보"
-              >
+              <div className="price-section" data-testid="product-price" aria-label="가격 정보">
                 <div className="price-row">
-                  {safeProduct.discountRate > 0 && (
-                    <span className="discount-rate">{safeProduct.discountRate}%</span>
-                  )}
-                  <span className="discounted-price">
-                    {formatPrice(safeProduct.discountedPrice)}원
-                  </span>
+                  {Number(safeProduct.discountRate) > 0 && <span className="discount-rate">{safeProduct.discountRate}%</span>}
+                  <span className="discounted-price">{formatPrice(unitPrice)}원</span>
                 </div>
-                {safeProduct.discountRate > 0 && (
+
+                {Number(safeProduct.discountRate) > 0 && safeProduct.originalPrice != null && (
                   <div className="price-row">
-                    <span className="original-price">
-                      {formatPrice(safeProduct.originalPrice)}원
-                    </span>
-                    <span className="savings">
-                      {formatPrice(safeProduct.originalPrice - safeProduct.discountedPrice)}원 할인
-                    </span>
+                    <span className="original-price">{formatPrice(safeProduct.originalPrice)}원</span>
+                    <span className="savings">{formatPrice((Number(safeProduct.originalPrice) || 0) - unitPrice)}원 할인</span>
                   </div>
                 )}
               </div>
@@ -561,25 +315,11 @@ export default function ProductDetailPage({
               <div className="quantity-section" role="group" aria-label="수량 선택">
                 <span className="quantity-label">수량</span>
                 <div className="quantity-controls">
-                  <button
-                    className="quantity-btn"
-                    onClick={handleQuantityDecrease}
-                    disabled={quantity <= 1}
-                    data-testid="quantity-decrease"
-                    aria-label="수량 감소"
-                  >
+                  <button className="quantity-btn" onClick={handleQuantityDecrease} disabled={quantity <= 1} aria-label="수량 감소">
                     <MinusIcon className="quantity-btn-icon" />
                   </button>
-                  <span className="quantity-value" aria-live="polite" aria-atomic="true">
-                    {quantity}
-                  </span>
-                  <button
-                    className="quantity-btn"
-                    onClick={handleQuantityIncrease}
-                    disabled={quantity >= 99}
-                    data-testid="quantity-increase"
-                    aria-label="수량 증가"
-                  >
+                  <span className="quantity-value" aria-live="polite" aria-atomic="true">{quantity}</span>
+                  <button className="quantity-btn" onClick={handleQuantityIncrease} disabled={quantity >= 99} aria-label="수량 증가">
                     <PlusIcon className="quantity-btn-icon" />
                   </button>
                 </div>
@@ -591,41 +331,19 @@ export default function ProductDetailPage({
               </div>
 
               <div className="button-section">
-               <button
-                type="button"
-                      className="cart-button"
-                         aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
-                         onClick={onGoCart}
-                >
-                  <ShoppingCartIcon className="cart-icon" />
-                  <span>장바구니</span>
-                  {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
+                {}
+                <button className="btn btn-cart" onClick={handleAddToCart} aria-label="장바구니에 담기">
+                  <ShoppingCartIcon className="btn-icon" />
+                  장바구니 담기
                 </button>
 
-
-                <button
-                  className="btn btn-buy"
-                  onClick={handleBuyNow}
-                  data-testid="buy-now-button"
-                  aria-label="바로 구매하기"
-                >
+                {}
+                <button className="btn btn-buy" onClick={handleBuyNow} aria-label="바로 구매하기">
                   바로 구매
                 </button>
               </div>
             </section>
           </article>
-
-          <section className="details-section" aria-label="상품 상세 정보">
-            <h2 className="details-title">상품 상세 정보</h2>
-            <ul className="details-list">
-              {safeProduct.details.map((detail, index) => (
-                <li key={index} className="details-item">
-                  <CheckIcon className="check-icon" />
-                  <span className="details-text">{detail}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
         </main>
       </div>
     </>
