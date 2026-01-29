@@ -176,31 +176,39 @@ export default function App() {
   const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
 
   /* ---------------- 주문 API ---------------- */
-  const order = async (items = cart) => {
-    try {
-      const res = await fetch(`${API_BASE}/api/order`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: JSON.stringify({ items }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        alert(data.message || '주문 실패');
-        return;
-      }
-
-      alert(`주문 성공\n총 금액: ${data.order?.totalPrice?.toLocaleString?.() || 0}원`);
-      setCart([]);
-      setPage('checkout');
-    } catch {
-      alert('주문 중 오류 발생');
+ const order = async () => {
+  try {
+    //  장바구니에 3,4 포함되면 주문 막기 (프론트 1차 차단)
+    const hasBlocked = (cart || []).some((p) => [3, 4].includes(Number(p.id)));
+    if (hasBlocked) {
+      alert('주문 불가 상품이 포함되어 있습니다');
+      return;
     }
-  };
+
+    const res = await fetch(`${API_BASE}/api/order`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+      },
+      body: JSON.stringify({ items: cart }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.message || '주문 실패');
+      return;
+    }
+
+    alert(`주문 성공\n총 금액: ${Number(data.order?.totalPrice || 0).toLocaleString()}원`);
+    setCart([]);
+    setPage('checkout');
+  } catch {
+    alert('주문 중 오류 발생');
+  }
+};
+
 
   //  상세페이지 "바로구매" = 주문(order)과 동일 동작
   const buyNow = async (product, quantity = 1) => {
