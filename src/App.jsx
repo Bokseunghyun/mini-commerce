@@ -72,16 +72,7 @@ const handleLogin = async ({ username, password }) => {
   const u = String(username ?? "").trim();
   const p = String(password ?? "").trim();
 
-  //  프론트에서도 사전 검증 
-  if (!u && !p) {
-    return { ok: false, status: 400, message: "아이디와 비밀번호를 입력하세요" };
-  }
-  if (!u) {
-    return { ok: false, status: 400, message: "아이디를 입력하세요" };
-  }
-  if (!p) {
-    return { ok: false, status: 400, message: "비밀번호를 입력하세요" };
-  }
+ 
 
   const res = await fetch(`${API_BASE}/api/login`, {
     method: "POST",
@@ -124,55 +115,40 @@ const handleLogin = async ({ username, password }) => {
   }, [page]);
 
   /* ---------------- 상품 상세 ---------------- */
-
-class HttpError extends Error {
-  constructor(status, message, code) {
-    super(message);
-    this.name = 'HttpError';
-    this.status = status;
-    this.code = code;
-  }
-}
-
 const viewProduct = async (id) => {
-  const pid = Number(id);
-
   try {
-    // 3,4번도 "status를 받기 위해" 일부러 API 호출은 한다
+    const pid = Number(id);
+
+
     const res = await fetch(`${API_BASE}/api/products/${pid}`);
     const data = await res.json().catch(() => ({}));
 
-    // 여기서 서버 status를 그대로 에러로 던짐 (500/404/400 등)
     if (!res.ok) {
-      throw new HttpError(
-        res.status,
-        data.message || '상품 조회 실패',
-        data.code || 'PRODUCT_FETCH_FAILED'
-      );
-    }
+     
+      const msg = data.message || '상품 조회 실패';
+      const code = data.code ? ` (${data.code})` : '';
+      alert(`${res.status}${code}\n${msg}`);
 
-   
-    if (BLOCKED_DETAIL_IDS.has(pid)) {
-      throw new HttpError(
-        500,
-        '상품 조회 실패 (의도적 장애)',
-        'PRODUCT_INTENTIONAL_FAIL'
-      );
+      setSelectedProduct(null);
+      return;
     }
 
     const product = normalizeProduct(data);
     setSelectedProduct(product);
     setPage('productDetail');
   } catch (e) {
-    
-    if (e?.status) {
-      alert(`${e.status} (${e.code || 'ERROR'})\n${e.message}`);
-    } else {
-      alert(e?.message || '알 수 없는 오류');
-    }
+    alert(e?.message || '알 수 없는 오류');
     setSelectedProduct(null);
   }
 };
+
+//  ProductListPage에서 호출하는 진입 함수도 중복차단 제거
+const handleView = async (id) => {
+  await viewProduct(id);
+};
+
+
+
 
   /* ---------------- 장바구니 ---------------- */
 const addToCart = (product, qty = 1) => {
