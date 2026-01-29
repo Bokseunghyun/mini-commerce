@@ -81,10 +81,7 @@ function ProductCard({ product, onView, onAdd }) {
         </div>
 
         <div className="product-actions">
-          <button
-            className="add-to-cart-btn"
-            onClick={() => onView(product.id)}
-          >
+          <button className="add-to-cart-btn" onClick={() => onView(product.id)}>
             상품상세
           </button>
 
@@ -112,12 +109,7 @@ function ProductGrid({ products, onView, onAdd }) {
   return (
     <section id="product-list-page" className="product-grid">
       {products.map((p) => (
-        <ProductCard
-          key={p.id}
-          product={p}
-          onView={onView}
-          onAdd={onAdd}
-        />
+        <ProductCard key={p.id} product={p} onView={onView} onAdd={onAdd} />
       ))}
     </section>
   );
@@ -126,10 +118,19 @@ function ProductGrid({ products, onView, onAdd }) {
 // ============================================
 // 메인 페이지 컴포넌트
 // ============================================
-export default function ProductListPage({ products, onView, cart, setCart, setPage }) {
+export default function ProductListPage({
+  products,
+  onView,
+  cart,
+  setCart,
+  setPage,
+}) {
   const addToCart = (product) => {
     setCart((prev) => [...prev, product]);
   };
+
+  //  0일 때는 뱃지 숨기고, 1 이상일 때만 표시
+  const cartCount = Array.isArray(cart) ? cart.length : 0;
 
   return (
     <>
@@ -176,7 +177,6 @@ export default function ProductListPage({ products, onView, cart, setCart, setPa
           gap: 16px;
         }
 
-      
         .go-to-cart-btn {
           display: flex;
           align-items: center;
@@ -203,7 +203,6 @@ export default function ProductListPage({ products, onView, cart, setCart, setPa
           height: 20px;
         }
 
-      
         .cart-badge {
           position: absolute;
           top: -8px;
@@ -400,18 +399,25 @@ export default function ProductListPage({ products, onView, cart, setCart, setPa
             <div className="header-top">
               <div>
                 <h1 className="page-title">베스트 상품</h1>
-                <p className="page-subtitle">지금 가장 인기있는 상품을 만나보세요</p>
+                <p className="page-subtitle">
+                  지금 가장 인기있는 상품을 만나보세요
+                </p>
               </div>
 
-              {}
               <button
                 type="button"
                 className="go-to-cart-btn"
                 onClick={() => setPage("cart")}
-                aria-label={`장바구니로 이동 (총 ${cart.length}개)`}
+                aria-label={
+                  cartCount > 0
+                    ? `장바구니로 이동 (총 ${cartCount}개)`
+                    : "장바구니로 이동"
+                }
               >
                 <ShoppingCartIcon className="cart-icon-large" />
-                <span className="cart-badge">{cart.length}</span>
+                {cartCount > 0 && (
+                  <span className="cart-badge">{cartCount}</span>
+                )}
               </button>
             </div>
           </div>
