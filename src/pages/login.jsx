@@ -128,7 +128,7 @@ const styles = {
     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
     padding: "40px",
     width: "100%",
-    maxWidth: "400px",
+    maxWidth: "520px",
   },
   title: {
     fontSize: "28px",
