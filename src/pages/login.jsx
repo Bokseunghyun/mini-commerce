@@ -128,7 +128,7 @@ const styles = {
     boxShadow: "0 4px 20px rgba(0, 0, 0, 0.1)",
     padding: "44px",
 
-    // ✅ 여기부터 “무조건 넓어지게”
+    
     width: "min(92vw, 640px)",
     maxWidth: "640px",
     minWidth: "520px",
