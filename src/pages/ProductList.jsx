@@ -1,7 +1,5 @@
 "use client";
 
-
-
 // ============================================
 // 가격 포맷 함수
 // ============================================
@@ -54,9 +52,7 @@ function ProductCard({ product, onView, onAdd }) {
           loading="lazy"
         />
         {product.discountRate > 0 && (
-          <span className="discount-badge">
-            {product.discountRate}%
-          </span>
+          <span className="discount-badge">{product.discountRate}%</span>
         )}
       </a>
 
@@ -83,31 +79,31 @@ function ProductCard({ product, onView, onAdd }) {
             {product.discountedPrice.toLocaleString()}원
           </span>
         </div>
-          <div className="product-actions"> 
-            <button className="add-to-cart-btn" 
-            onClick={() => 
-            onView(product.id)} >
-               상품상세 </button>
-        <button
-          className="add-to-cart-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAdd(product);
-          }}
-          aria-label={`${product.name} 장바구니에 담기`}
-        >
-          <ShoppingCartIcon className="cart-icon" />
-          장바구니 담기
-        </button>
-      </div>
+
+        <div className="product-actions">
+          <button
+            className="add-to-cart-btn"
+            onClick={() => onView(product.id)}
+          >
+            상품상세
+          </button>
+
+          <button
+            className="add-to-cart-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd(product);
+            }}
+            aria-label={`${product.name} 장바구니에 담기`}
+          >
+            <ShoppingCartIcon className="cart-icon" />
+            장바구니 담기
+          </button>
+        </div>
       </div>
     </article>
   );
 }
-
-
-
-
 
 // ============================================
 // 상품 그리드 컴포넌트
@@ -115,7 +111,7 @@ function ProductCard({ product, onView, onAdd }) {
 function ProductGrid({ products, onView, onAdd }) {
   return (
     <section id="product-list-page" className="product-grid">
-      {products.map(p => (
+      {products.map((p) => (
         <ProductCard
           key={p.id}
           product={p}
@@ -127,16 +123,14 @@ function ProductGrid({ products, onView, onAdd }) {
   );
 }
 
-
 // ============================================
 // 메인 페이지 컴포넌트
 // ============================================
-export default function ProductListPage({ products, onView,cart,setCart,setPage }) {
-    const addToCart = (product) => {
-    setCart(prev => [...prev, product]);
+export default function ProductListPage({ products, onView, cart, setCart, setPage }) {
+  const addToCart = (product) => {
+    setCart((prev) => [...prev, product]);
   };
-  // 상세 진입은 App.jsx의 viewProduct(서버 호출 + selectedProduct 세팅)를 타야 함
-  // 여기에서 setPage만 하면 selectedProduct가 비어서 화면이 안 뜸
+
   return (
     <>
       <style>{`
@@ -182,6 +176,7 @@ export default function ProductListPage({ products, onView,cart,setCart,setPage 
           gap: 16px;
         }
 
+      
         .go-to-cart-btn {
           display: flex;
           align-items: center;
@@ -189,12 +184,14 @@ export default function ProductListPage({ products, onView,cart,setCart,setPage 
           padding: 10px 20px;
           background-color: #1a1a1a;
           color: #ffffff;
-          text-decoration: none;
+          border: none;
           border-radius: 8px;
           font-size: 0.875rem;
           font-weight: 500;
+          cursor: pointer;
           transition: background-color 0.2s ease;
           white-space: nowrap;
+          position: relative;
         }
 
         .go-to-cart-btn:hover {
@@ -206,10 +203,24 @@ export default function ProductListPage({ products, onView,cart,setCart,setPage 
           height: 20px;
         }
 
+      
+        .cart-badge {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          min-width: 20px;
+          height: 20px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #dc2626;
+          color: #fff;
+          font-size: 12px;
+          line-height: 20px;
+          text-align: center;
+          font-weight: 700;
+        }
+
         @media (max-width: 639px) {
-          .go-to-cart-btn span {
-            display: none;
-          }
           .go-to-cart-btn {
             padding: 10px;
           }
@@ -384,36 +395,30 @@ export default function ProductListPage({ products, onView,cart,setCart,setPage 
       `}</style>
 
       <main className="page-container">
-          
         <header className="page-header">
           <div className="header-content">
-           <div className="header-top">
+            <div className="header-top">
               <div>
                 <h1 className="page-title">베스트 상품</h1>
                 <p className="page-subtitle">지금 가장 인기있는 상품을 만나보세요</p>
               </div>
-               <button
-  type="button"
-  className="go-to-cart-btn"
-  onClick={() => setPage('cart')}
-  aria-label="장바구니로 이동"
->
-  <ShoppingCartIcon className="cart-icon-large" />
-  <span>장바구니 ({cart.length})</span>
-</button>
 
+              {}
+              <button
+                type="button"
+                className="go-to-cart-btn"
+                onClick={() => setPage("cart")}
+                aria-label={`장바구니로 이동 (총 ${cart.length}개)`}
+              >
+                <ShoppingCartIcon className="cart-icon-large" />
+                <span className="cart-badge">{cart.length}</span>
+              </button>
             </div>
-         
-  
           </div>
         </header>
 
-           <div className="main-content">
-                <ProductGrid
-            products={products}
-            onView={onView}
-            onAdd={addToCart}
-          />
+        <div className="main-content">
+          <ProductGrid products={products} onView={onView} onAdd={addToCart} />
         </div>
       </main>
     </>
