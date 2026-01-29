@@ -1,7 +1,6 @@
 export default async function productDetailRoutes(req, res) {
-
-  // id 파싱
-  const idRaw = req.query?.id || req.params?.id;
+  // express 환경이면 req.params, vercel serverless 단독이면 req.query도 올 수 있어서 둘 다 대응
+  const idRaw = req.params?.id ?? req.query?.id;
   const id = Number(idRaw);
 
   const PRODUCTS = [
@@ -14,8 +13,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 32,
       imageUrl:
         "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
-      description: "노이즈 캔슬링과 고음질을 동시에",
-      details: ["노이즈 캔슬링", "블루투스 5.3", "충전 케이스 포함"],
+      description: "프리미엄 사운드 + 강력한 노캔",
+      details: ["노이즈 캔슬링", "블루투스 5.x", "최대 재생시간 향상"],
     },
     {
       id: 2,
@@ -26,8 +25,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 33,
       imageUrl:
         "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-      description: "운동/수면/심박 트래킹",
-      details: ["방수", "심박 측정", "운동 모드 지원"],
+      description: "운동/수면/심박 체크",
+      details: ["방수", "헬스 트래커", "알림/통화 연동"],
     },
     {
       id: 3,
@@ -38,8 +37,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 25,
       imageUrl:
         "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop",
-      description: "360도 풍부한 사운드",
-      details: ["360도 사운드", "휴대용", "배터리 오래감"],
+      description: "의도적 장애 테스트 대상",
+      details: ["360도 사운드", "휴대용", "배터리"],
     },
     {
       id: 4,
@@ -50,8 +49,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 29,
       imageUrl:
         "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=400&fit=crop",
-      description: "손목 부담을 줄이는 에르고노믹",
-      details: ["무선", "DPI 조절", "인체공학 디자인"],
+      description: "의도적 장애 테스트 대상",
+      details: ["인체공학", "무선", "DPI 조절"],
     },
     {
       id: 5,
@@ -62,8 +61,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 25,
       imageUrl:
         "https://images.unsplash.com/photo-1511467687858-23d96c32e4ae?w=400&h=400&fit=crop",
-      description: "청축 특유의 클릭감",
-      details: ["RGB", "청축", "게이밍 최적화"],
+      description: "타건감 좋은 청축",
+      details: ["RGB", "기계식", "청축"],
     },
     {
       id: 6,
@@ -74,8 +73,8 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 31,
       imageUrl:
         "https://images.unsplash.com/photo-1587826080692-f439cd0b70da?w=400&h=400&fit=crop",
-      description: "선명한 4K 화질",
-      details: ["4K", "오토포커스", "내장 마이크"],
+      description: "회의/방송용 4K",
+      details: ["4K", "오토포커스", "내장마이크"],
     },
     {
       id: 7,
@@ -87,7 +86,7 @@ export default async function productDetailRoutes(req, res) {
       imageUrl:
         "https://images.unsplash.com/photo-1625723044792-44de16ccb4e9?w=400&h=400&fit=crop",
       description: "포트 확장 필수템",
-      details: ["7in1", "맥북 호환", "휴대성"],
+      details: ["7in1", "USB-C", "맥북 호환"],
     },
     {
       id: 8,
@@ -98,26 +97,26 @@ export default async function productDetailRoutes(req, res) {
       discountRate: 26,
       imageUrl:
         "https://images.unsplash.com/photo-1633269540827-728aabbb7646?w=400&h=400&fit=crop",
-      description: "빠르고 편한 무선 충전",
-      details: ["15W", "퀵차지", "안전 보호"],
+      description: "15W 고속 충전",
+      details: ["15W", "무선", "퀵차지"],
     },
   ];
 
-  const found = PRODUCTS.find((p) => p.id === id);
-
-  if (!found) {
-    return res.status(404).json({ message: "상품을 찾을 수 없습니다" });
+  if (!id || Number.isNaN(id)) {
+    return res.status(400).json({ message: "잘못된 id", code: "BAD_REQUEST" });
   }
 
-  //  price 보정: 상세 응답에 price가 항상 존재하도록 강제
-  const normalized = {
-    ...found,
-    price:
-      Number(found.price) ||
-      Number(found.discountedPrice) ||
-      Number(found.originalPrice) ||
-      0,
-  };
+  const product = PRODUCTS.find((p) => p.id === id);
+  if (!product) {
+    return res.status(404).json({ message: "상품 없음", code: "NOT_FOUND" });
+  }
 
-  return res.status(200).json(normalized);
+  // 의도적 장 애 복원
+  if (product.id === 3 || product.id === 4) {
+    return res
+      .status(500)
+      .json({ message: "상품 조회 실패 (의도적 장애)", code: "PRODUCT_DETAIL_FAIL" });
+  }
+
+  return res.status(200).json(product);
 }

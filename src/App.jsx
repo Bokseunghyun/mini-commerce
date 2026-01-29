@@ -86,10 +86,10 @@ export default function App() {
 
   /* ---------------- 상품 상세 ---------------- */
   const viewProduct = async (id) => {
-    //  3,4번 상세 진입 차단 유지 (2중 방어)
+    //  3,4번 상세 진입 차단
     if (BLOCKED_DETAIL_IDS.has(Number(id))) {
       setSelectedProduct(null);
-      alert('해당 상품은 상세 페이지 진입이 제한되어 있습니다');
+      alert('상세 페이지 진입 불가(의도적 오류)');
       return;
     }
 
@@ -112,7 +112,7 @@ export default function App() {
   //  ProductListPage에서 호출하는 진입 함수 (차단 포함)
   const handleView = async (id) => {
     if (BLOCKED_DETAIL_IDS.has(Number(id))) {
-      alert('해당 상품은 상세 페이지 진입이 제한되어 있습니다');
+      alert('상세 페이지 진입 불가(의도적 오류)');
       return;
     }
     await viewProduct(id);
