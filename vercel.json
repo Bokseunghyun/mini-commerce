@@ -6,7 +6,14 @@
   ],
   "routes": [
     { "handle": "filesystem" },
+
+  
+    { "src": "/api/products/([^/]+)", "dest": "/api/productDetail.js?id=$1" },
+
+ 
     { "src": "/api/(.*)", "dest": "/api/$1.js" },
+
+  
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
