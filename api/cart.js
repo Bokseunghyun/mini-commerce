@@ -1,44 +1,31 @@
-import jwt from 'jsonwebtoken';
-
-const SECRET = process.env.JWT_SECRET;
+// api/cart.js
+import { applyCors, requireUser } from './_lib/common.js';
 
 export default async function cartRoutes(req, res) {
+  if (applyCors(req, res)) return;
+
   if (req.method !== 'POST') {
-    return res.status(405).json({ message: '허용되지 않은 요청' });
+    return res.status(405).json({ message: '허용되지 않은 요청', code: 'METHOD_NOT_ALLOWED' });
   }
 
-  // ---------------- 인증 처리 ----------------
-  const authHeader = req.headers.authorization;
-  if (!authHeader) {
-    return res.status(401).json({ message: '토큰 없음' });
+  const user = requireUser(req, res);
+  if (!user) return;
+
+  const { action, index, cart } = req.body || {};
+
+  if (action !== 'remove') {
+    return res.status(400).json({ message: '알 수 없는 동작', code: 'CART_BAD_ACTION' });
   }
 
-  const token = authHeader.replace('Bearer ', '');
-  let user;
-  try {
-    user = jwt.verify(token, SECRET);
-  } catch {
-    return res.status(401).json({ message: '토큰 유효하지 않음' });
+  if (!Array.isArray(cart)) {
+    return res.status(400).json({ message: 'cart 형식 오류', code: 'CART_BAD_BODY' });
   }
 
-  // ---------------- Body 처리 ----------------
-  const { action, index, cart } = req.body;
-  if (!action) {
-    return res.status(400).json({ message: '요청 body가 올바르지 않음' });
+  const idx = Number(index);
+  if (!Number.isInteger(idx) || idx < 0 || idx >= cart.length) {
+    return res.status(400).json({ message: 'index 값 오류', code: 'CART_BAD_INDEX' });
   }
 
-  if (action === 'remove') {
-    if (!Array.isArray(cart)) {
-      return res.status(400).json({ message: 'cart 형식 오류(배열이아님)' });
-    }
-
-    const newCart = cart.filter((_, i) => i !== index);
-
-    return res.status(200).json({
-      message: '삭제 성공',
-      cart: newCart
-    });
-  }
-
-  return res.status(400).json({ message: '알 수 없는 동작' });
+  const newCart = cart.filter((_, i) => i !== idx);
+  return res.status(200).json({ message: '삭제 성공', cart: newCart });
 }

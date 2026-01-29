@@ -1,16 +1,18 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   plugins: [react()],
-  base: './', // 중요: 빌드 시 경로 문제 방지
+  base: './',
   server: {
-    proxy: process.env.NODE_ENV === 'development' ? {
-      '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-    } : {}
-  }
-});
-
+    // dev(vite)일 때만 /api를 3000(express)로 프록시
+    proxy: command === 'serve'
+      ? {
+          '/api': {
+            target: 'http://localhost:3000',
+            changeOrigin: true,
+          },
+        }
+      : undefined,
+  },
+}));

@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 
-const SECRET = process.env.JWT_SECRET;
+const SECRET = process.env.JWT_SECRET || 'demo-secret-key';
 
 export default async function loginRoutes(req, res) {
   // CORS
@@ -17,15 +17,17 @@ export default async function loginRoutes(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
-  if (req.method === 'OPTIONS') {
+  const method = String(req.method || '').toUpperCase();
+
+  if (method === 'OPTIONS') {
     return res.status(200).end();
   }
 
-  if (req.method !== 'POST') {
+
+  if (method !== 'POST') {
     return res.status(405).json({ message: '허용되지 않은 요청' });
   }
 
-  
   const { username, password } = req.body || {};
 
   if (!username || !password) {
