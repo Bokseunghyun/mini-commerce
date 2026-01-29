@@ -444,7 +444,7 @@ export default function ProductDetailPage({
             </button>
             <button type="button" className="cart-button" aria-label="장바구니로 이동" onClick={onGoCart}>
               <ShoppingCartIcon className="cart-icon" />
-              <span>장바구니</span>
+              <span>장바구니 ({cart.length})</span>
             </button>
           </nav>
         </header>
