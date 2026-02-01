@@ -1,4 +1,5 @@
 "use client";
+import { useState } from 'react';
 
 // ============================================
 // 가격 포맷 함수
@@ -32,11 +33,62 @@ function ShoppingCartIcon({ className }) {
 }
 
 // ============================================
+// 검색 아이콘 컴포넌트
+// ============================================
+function SearchIcon({ className }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.35-4.35" />
+    </svg>
+  );
+}
+
+// ============================================
+// 로딩 스피너 컴포넌트
+// ============================================
+function LoadingSpinner() {
+  return (
+    <div className="loading-container" data-testid="loading-spinner">
+      <div className="spinner"></div>
+      <p>상품을 불러오는 중...</p>
+    </div>
+  );
+}
+
+// ============================================
+// 빈 결과 컴포넌트
+// ============================================
+function EmptyResults({ searchTerm }) {
+  return (
+    <div className="empty-results" data-testid="empty-results">
+      <p>"{searchTerm}" 검색 결과가 없습니다.</p>
+      <p className="empty-subtitle">다른 검색어로 시도해보세요.</p>
+    </div>
+  );
+}
+
+// ============================================
 // 상품 카드 컴포넌트
 // ============================================
 function ProductCard({ product, onView, onAdd }) {
   return (
-    <article className="product-card" id={`product-${product.id}`}>
+    <article 
+      className="product-card" 
+      id={`product-${product.id}`}
+      data-testid={`product-card-${product.id}`}
+    >
       <a
         href={`/products/${product.id}`}
         className="product-image"
@@ -44,6 +96,7 @@ function ProductCard({ product, onView, onAdd }) {
           e.preventDefault();
           onView(product.id);
         }}
+        data-testid={`product-image-${product.id}`}
       >
         <img
           src={product.imageUrl || "/placeholder.svg"}
@@ -51,7 +104,9 @@ function ProductCard({ product, onView, onAdd }) {
           loading="lazy"
         />
         {product.discountRate > 0 && (
-          <span className="discount-badge">{product.discountRate}%</span>
+          <span className="discount-badge" data-testid={`discount-badge-${product.id}`}>
+            {product.discountRate}%
+          </span>
         )}
       </a>
 
@@ -63,23 +118,28 @@ function ProductCard({ product, onView, onAdd }) {
             e.preventDefault();
             onView(product.id);
           }}
+          data-testid={`product-name-${product.id}`}
         >
           <h3>{product.name}</h3>
         </a>
 
         <div className="product-price">
           {product.discountRate > 0 && (
-            <span className="original-price">
+            <span className="original-price" data-testid={`original-price-${product.id}`}>
               {product.originalPrice.toLocaleString()}원
             </span>
           )}
-          <span className="discounted-price">
+          <span className="discounted-price" data-testid={`price-${product.id}`}>
             {product.discountedPrice.toLocaleString()}원
           </span>
         </div>
 
         <div className="product-actions">
-          <button className="add-to-cart-btn" onClick={() => onView(product.id)}>
+          <button 
+            className="add-to-cart-btn" 
+            onClick={() => onView(product.id)}
+            data-testid={`view-detail-btn-${product.id}`}
+          >
             상품상세
           </button>
 
@@ -90,6 +150,7 @@ function ProductCard({ product, onView, onAdd }) {
               onAdd(product);
             }}
             aria-label={`${product.name} 장바구니에 담기`}
+            data-testid={`add-to-cart-btn-${product.id}`}
           >
             <ShoppingCartIcon className="cart-icon" />
             장바구니 담기
@@ -105,7 +166,7 @@ function ProductCard({ product, onView, onAdd }) {
 // ============================================
 function ProductGrid({ products, onView, onAdd }) {
   return (
-    <section id="product-list-page" className="product-grid">
+    <section id="product-list-page" className="product-grid" data-testid="product-grid">
       {products.map((p) => (
         <ProductCard key={p.id} product={p} onView={onView} onAdd={onAdd} />
       ))}
@@ -116,12 +177,50 @@ function ProductGrid({ products, onView, onAdd }) {
 // ============================================
 // 메인 페이지 컴포넌트
 // ============================================
-export default function ProductListPage({ products, onView, cart, cartCount, setCart, setPage, onAddToCart }) {
+export default function ProductListPage({ 
+  products, 
+  onView, 
+  cart, 
+  cartCount, 
+  setCart, 
+  setPage, 
+  onAddToCart,
+  isLoading = false // 로딩 상태 prop 추가
+}) {
+  // 검색 및 정렬 상태
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('default'); // default, price-asc, price-desc, name
 
   const addToCart = (product) => {
-  if (onAddToCart) onAddToCart(product, 1);
-};
+    if (onAddToCart) onAddToCart(product, 1);
+  };
 
+  // 검색 필터링
+  const filteredProducts = products.filter(product => {
+    const searchLower = searchTerm.toLowerCase().trim();
+    if (!searchLower) return true;
+    
+    return (
+      product.name.toLowerCase().includes(searchLower) ||
+      product.description?.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // 정렬
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    switch (sortBy) {
+      case 'price-asc':
+        return a.price - b.price;
+      case 'price-desc':
+        return b.price - a.price;
+      case 'name':
+        return a.name.localeCompare(b.name, 'ko-KR');
+      case 'discount':
+        return b.discountRate - a.discountRate;
+      default:
+        return 0; // 기본 순서 유지
+    }
+  });
 
   return (
     <>
@@ -177,7 +276,6 @@ export default function ProductListPage({ products, onView, cart, cartCount, set
 
         .cart-icon-large { width: 20px; height: 20px; }
 
-        /* cart.length > 0일 때만 렌더링할 배지 */
         .cart-badge {
           position: absolute;
           top: -8px;
@@ -198,6 +296,93 @@ export default function ProductListPage({ products, onView, cart, cartCount, set
         @media (min-width: 640px) { .page-title { font-size: 1.875rem; } }
 
         .page-subtitle { margin-top: 8px; color: #737373; }
+
+        /* 검색 및 필터 영역 */
+        .search-filter-container {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 24px 16px 0;
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        @media (min-width: 640px) {
+          .search-filter-container { 
+            padding: 24px 24px 0;
+            flex-direction: row;
+            justify-content: space-between;
+            align-items: center;
+          }
+        }
+
+        .search-box {
+          position: relative;
+          flex: 1;
+          max-width: 400px;
+        }
+
+        .search-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: #a3a3a3;
+        }
+
+        .search-input {
+          width: 100%;
+          padding: 10px 12px 10px 40px;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .search-input:focus {
+          outline: none;
+          border-color: #1a1a1a;
+          box-shadow: 0 0 0 3px rgba(26, 26, 26, 0.1);
+        }
+
+        .sort-container {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .sort-label {
+          font-size: 0.875rem;
+          color: #737373;
+          white-space: nowrap;
+        }
+
+        .sort-select {
+          padding: 8px 12px;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          background-color: #ffffff;
+          cursor: pointer;
+          transition: border-color 0.2s ease;
+        }
+
+        .sort-select:focus {
+          outline: none;
+          border-color: #1a1a1a;
+        }
+
+        .results-info {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 16px 16px 0;
+          font-size: 0.875rem;
+          color: #737373;
+        }
+
+        @media (min-width: 640px) {
+          .results-info { padding: 16px 24px 0; }
+        }
 
         .main-content {
           max-width: 1280px;
@@ -319,6 +504,54 @@ export default function ProductListPage({ products, onView, cart, cartCount, set
         .add-to-cart-btn:hover { background-color: #333333; }
 
         .cart-icon { width: 16px; height: 16px; }
+
+        /* 로딩 스피너 */
+        .loading-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
+          gap: 16px;
+        }
+
+        .spinner {
+          width: 48px;
+          height: 48px;
+          border: 4px solid #e5e5e5;
+          border-top-color: #1a1a1a;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+
+        .loading-container p {
+          color: #737373;
+          font-size: 0.875rem;
+        }
+
+        /* 빈 결과 */
+        .empty-results {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 400px;
+          gap: 8px;
+        }
+
+        .empty-results p {
+          font-size: 1rem;
+          color: #1a1a1a;
+        }
+
+        .empty-subtitle {
+          font-size: 0.875rem;
+          color: #737373;
+        }
       `}</style>
 
       <main className="page-container">
@@ -334,21 +567,66 @@ export default function ProductListPage({ products, onView, cart, cartCount, set
 
               <button
                 type="button"
-                 className="go-to-cart-btn"
-                   onClick={() => setPage("cart")}
-                 aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
+                className="go-to-cart-btn"
+                onClick={() => setPage("cart")}
+                aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
+                data-testid="cart-button"
               >
-                      <ShoppingCartIcon className="cart-icon-large" />
-                   {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-               <span>장바구니</span>
-                </button>
-
+                <ShoppingCartIcon className="cart-icon-large" />
+                {cartCount > 0 && <span className="cart-badge" data-testid="cart-badge">{cartCount}</span>}
+                <span>장바구니</span>
+              </button>
             </div>
           </div>
         </header>
 
+        {/* 검색 및 필터 영역 */}
+        <div className="search-filter-container">
+          <div className="search-box">
+            <SearchIcon className="search-icon" />
+            <input
+              type="text"
+              className="search-input"
+              placeholder="상품명 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              data-testid="search-input"
+            />
+          </div>
+
+          <div className="sort-container">
+            <label className="sort-label" htmlFor="sort-select">정렬:</label>
+            <select
+              id="sort-select"
+              className="sort-select"
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              data-testid="sort-select"
+            >
+              <option value="default">기본순</option>
+              <option value="price-asc">낮은 가격순</option>
+              <option value="price-desc">높은 가격순</option>
+              <option value="name">이름순</option>
+              <option value="discount">할인율순</option>
+            </select>
+          </div>
+        </div>
+
+        {/* 검색 결과 정보 */}
+        {searchTerm && (
+          <div className="results-info" data-testid="results-info">
+            총 {sortedProducts.length}개의 상품을 찾았습니다.
+          </div>
+        )}
+
         <div className="main-content">
-          <ProductGrid products={products} onView={onView} onAdd={addToCart} />
+          {isLoading ? (
+            <LoadingSpinner />
+          ) : sortedProducts.length === 0 ? (
+            <EmptyResults searchTerm={searchTerm} />
+          ) : (
+            <ProductGrid products={sortedProducts} onView={onView} onAdd={addToCart} />
+          )}
         </div>
       </main>
     </>

@@ -1,3 +1,7 @@
+#!/bin/bash
+
+# App.jsx 수정
+cat > src/App.jsx << 'EOF'
 import { useEffect, useState } from 'react';
 import HomePage from './pages/HomePage';
 import ProductListPage from './pages/ProductList';
@@ -138,7 +142,7 @@ export default function App() {
     await viewProduct(id);
   };
 
-  const addToCart = (product, qty = 1, showAlert = true) => {
+  const addToCart = (product, qty = 1) => {
     if (!isLoggedIn()) {
       if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
         setPage('login');
@@ -166,9 +170,7 @@ export default function App() {
       return [...prev, { ...p, quantity }];
     });
 
-    if (showAlert) {
-      alert('장바구니에 상품이 추가되었습니다.');
-    }
+    alert('장바구니에 상품이 추가되었습니다.');
   };
 
   const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
@@ -352,7 +354,7 @@ export default function App() {
       <ProductDetailPage
         product={selectedProduct}
         cartCount={cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)}
-        onBack={() => setPage("home")}
+        onBack={() => setPage("products")}
         onGoCart={() => {
           if (!isLoggedIn()) {
             if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
@@ -377,7 +379,7 @@ export default function App() {
         cartItems={cart}
         onIncrease={(id) => {
           const item = cart.find((x) => x.id === id);
-          if (item) addToCart(item, 1, false); // 장바구니에서는 알림 표시 안함
+          if (item) addToCart(item, 1);
         }}
         onDecrease={(id) => {
           setCart((prev) =>
@@ -401,7 +403,7 @@ export default function App() {
 
   if (page === "admin") {
     const role = localStorage.getItem('role');
-    if (role !== 'ADMIN') {
+    if (role !== 'admin') {
       alert('관리자 권한이 필요합니다.');
       setPage('home');
       return null;
@@ -416,3 +418,6 @@ export default function App() {
     );
   }
 }
+EOF
+
+echo "App.jsx updated"

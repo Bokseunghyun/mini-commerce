@@ -273,8 +273,16 @@ export default function CartPage({
     display: flex;
     flex-direction: column;
     gap: 16px;
-
+    min-width: 0;
     min-height: 520px;
+    width: 100%;
+  }
+
+  @media (min-width: 768px) {
+    .cart-items-section {
+      flex: 1;
+      min-width: 600px;
+    }
   }
 
   .section-title {
@@ -447,6 +455,7 @@ export default function CartPage({
 
   .order-summary-section {
     width: 100%;
+    flex-shrink: 0;
     background-color: #ffffff;
     border-radius: 12px;
     padding: 20px;

@@ -53,3 +53,12 @@ export function requireUser(req, res) {
     return null;
   }
 }
+
+// 관리자 권한 검증
+export function requireAdmin(user, res) {
+  if (!user || user.role !== 'ADMIN') {
+    res.status(403).json({ message: '관리자 권한이 필요합니다', code: 'AUTH_FORBIDDEN' });
+    return false;
+  }
+  return true;
+}
