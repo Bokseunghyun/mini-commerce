@@ -117,13 +117,23 @@ function formatPrice(price) {
 }
 
 // 장바구니 아이템 컴포넌트
-function CartItem({ item, onIncrease, onDecrease, onRemove }) {
+function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onToggleSelect }) {
   const qty = Number(item.quantity) || 1;
   const price = Number(item.price) || 0;
   const subtotal = price * qty;
 
   return (
     <article className="cart-item">
+      <div className="cart-item-checkbox">
+        <input
+          type="checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelect(item.id)}
+          aria-label={`${item.name} 선택`}
+          className="item-checkbox"
+        />
+      </div>
+      
       <div className="cart-item-image-wrapper">
         <img
           src={item.imageUrl || "/placeholder.svg"}
@@ -186,11 +196,47 @@ export default function CartPage({
   onCheckout,
   onBack,
 }) {
+  const [selectedItems, setSelectedItems] = React.useState(new Set());
+
+  // 전체 선택/해제
+  const allSelected = cartItems.length > 0 && selectedItems.size === cartItems.length;
+  const handleSelectAll = () => {
+    if (allSelected) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(cartItems.map(item => item.id)));
+    }
+  };
+
+  // 개별 선택/해제
+  const handleToggleSelect = (itemId) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(itemId)) {
+      newSelected.delete(itemId);
+    } else {
+      newSelected.add(itemId);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  // 선택된 상품들만 필터링
+  const selectedCartItems = cartItems.filter(item => selectedItems.has(item.id));
+  
   const totalItems = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-  const totalPrice = cartItems.reduce(
+  const selectedTotalItems = selectedCartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const selectedTotalPrice = selectedCartItems.reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
+
+  // 선택된 상품으로만 주문
+  const handleCheckoutSelected = () => {
+    if (selectedCartItems.length === 0) {
+      alert('주문할 상품을 선택해주세요.');
+      return;
+    }
+    onCheckout(selectedCartItems);
+  };
 
   return (
     <>
@@ -300,7 +346,7 @@ export default function CartPage({
     border-radius: 12px;
     padding: 16px;
     display: grid;
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: 40px 80px 1fr;
     grid-template-rows: auto auto auto;
     gap: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -308,11 +354,24 @@ export default function CartPage({
 
   @media (min-width: 640px) {
     .cart-item {
-      grid-template-columns: 100px 1fr auto auto auto;
+      grid-template-columns: 40px 100px 1fr auto auto auto;
       grid-template-rows: auto;
       align-items: center;
       gap: 20px;
     }
+  }
+
+  .cart-item-checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    accent-color: #1a1a1a;
   }
 
   .cart-item-image-wrapper {
@@ -347,7 +406,7 @@ export default function CartPage({
     display: flex;
     align-items: center;
     gap: 8px;
-    grid-column: 1 / 2;
+    grid-column: 2 / 3;
   }
 
   @media (min-width: 640px) { .cart-item-quantity { grid-column: auto; } }
@@ -386,7 +445,7 @@ export default function CartPage({
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
-    grid-column: 2 / 3;
+    grid-column: 3 / 4;
   }
 
   @media (min-width: 640px) {
@@ -407,7 +466,7 @@ export default function CartPage({
     justify-content: center;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    grid-column: 2 / 3;
+    grid-column: 3 / 4;
     justify-self: end;
   }
 
@@ -543,7 +602,20 @@ export default function CartPage({
 
         <div className="cart-container">
           <section className="cart-items-section" aria-label="장바구니 상품 목록">
-            <h2 className="section-title">장바구니 상품 ({totalItems}개)</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #e5e5e5' }}>
+              <h2 className="section-title" style={{ border: 'none', padding: 0 }}>장바구니 상품 ({totalItems}개)</h2>
+              {cartItems.length > 0 && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9375rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    onChange={handleSelectAll}
+                    style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#1a1a1a' }}
+                  />
+                  전체 선택
+                </label>
+              )}
+            </div>
 
             {cartItems.length > 0 ? (
               <div className="cart-items-list">
@@ -554,6 +626,8 @@ export default function CartPage({
                     onIncrease={onIncrease}
                     onDecrease={onDecrease}
                     onRemove={onRemove}
+                    isSelected={selectedItems.has(item.id)}
+                    onToggleSelect={handleToggleSelect}
                   />
                 ))}
               </div>
@@ -572,13 +646,13 @@ export default function CartPage({
             <h2 className="summary-title">주문 요약</h2>
 
             <div className="summary-row">
-              <span className="summary-label">총 상품 수</span>
-              <span className="summary-value">{totalItems}개</span>
+              <span className="summary-label">선택한 상품</span>
+              <span className="summary-value">{selectedTotalItems}개</span>
             </div>
 
             <div className="summary-row">
               <span className="summary-label">상품 금액</span>
-              <span className="summary-value">{formatPrice(totalPrice)}원</span>
+              <span className="summary-value">{formatPrice(selectedTotalPrice)}원</span>
             </div>
 
             <div className="summary-row">
@@ -590,18 +664,18 @@ export default function CartPage({
 
             <div className="summary-total-row">
               <span className="summary-total-label">총 결제 금액</span>
-              <span className="cart-total-price">{formatPrice(totalPrice)}원</span>
+              <span className="cart-total-price">{formatPrice(selectedTotalPrice)}원</span>
             </div>
 
             <button
               id="checkout-btn"
               type="button"
               className="checkout-btn"
-              onClick={onCheckout}
-              disabled={cartItems.length === 0}
+              onClick={handleCheckoutSelected}
+              disabled={selectedCartItems.length === 0}
               aria-label="주문하기"
             >
-              주문하기
+              주문하기 ({selectedTotalItems}개)
             </button>
           </aside>
         </div>

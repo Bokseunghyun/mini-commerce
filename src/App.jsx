@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import HomePage from './pages/HomePage';
 import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
@@ -66,7 +66,7 @@ export default function App() {
     const u = String(username ?? "").trim();
     const p = String(password ?? "").trim();
 
-    const res = await fetch(`${API_BASE}/api/login`, {
+    const res = await fetch(`${API_BASE}/api/main?action=login`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: u, password: p }),
@@ -80,6 +80,16 @@ export default function App() {
 
     return { ok: true, status: 200, data };
   }
+
+  // 첫 진입 시 비로그인 상태 보장
+  useEffect(() => {
+    // 개발 중에만 실행 - 실제 배포에서는 제거하거나 조건부로 실행
+    if (!localStorage.getItem('keepAuth')) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('role');
+      setUserRole('');
+    }
+  }, []);
 
   useEffect(() => {
     if (page === 'products' || page === 'home') {
@@ -182,7 +192,7 @@ export default function App() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/api/cart`, {
+      const res = await fetch(`${API_BASE}/api/main?action=cart`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -210,7 +220,7 @@ export default function App() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/api/order`, {
+      const res = await fetch(`${API_BASE}/api/main?action=order`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -226,7 +236,9 @@ export default function App() {
         return;
       }
       
-      setCart([]);
+      // 주문한 상품만 장바구니에서 제거
+      const orderedIds = new Set(items.map(item => item.id));
+      setCart(prev => prev.filter(item => !orderedIds.has(item.id)));
       setSelectedProduct(null);
       setPage("orderComplete");
     } catch (e) {
@@ -238,7 +250,7 @@ export default function App() {
   const buyNow = async (product, quantity = 1) => {
     if (!isLoggedIn()) {
       try {
-        const res = await fetch(`${API_BASE}/api/order`, {
+        const res = await fetch(`${API_BASE}/api/main?action=order`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -389,7 +401,7 @@ export default function App() {
           );
         }}
         onRemove={(id) => removeFromCartById(id)}
-        onCheckout={() => order(cart)}
+        onCheckout={(selectedItems) => order(selectedItems)}
         onBack={() => setPage('home')}
       />
     );
@@ -401,10 +413,48 @@ export default function App() {
 
   if (page === "admin") {
     const role = localStorage.getItem('role');
-    if (role !== 'ADMIN') {
-      alert('관리자 권한이 필요합니다.');
-      setPage('home');
-      return null;
+    const token = localStorage.getItem('token');
+    
+    // API를 호출하여 권한 검증 (비로그인 또는 일반 유저는 403/401 에러 발생)
+    const verifyAdminAccess = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/admin`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token ? `Bearer ${token}` : '',
+          },
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          const statusCode = res.status;
+          const message = data.message || '접근 권한이 없습니다.';
+          alert(`API 오류 발생!\n상태 코드: ${statusCode}\n메시지: ${message}`);
+          setPage('home');
+          return false;
+        }
+
+        return true;
+      } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+        setPage('home');
+        return false;
+      }
+    };
+
+    // 비동기 검증을 위한 컴포넌트
+    const [adminVerified, setAdminVerified] = React.useState(false);
+    
+    React.useEffect(() => {
+      verifyAdminAccess().then(verified => {
+        if (verified) setAdminVerified(true);
+      });
+    }, []);
+
+    if (!adminVerified) {
+      return null; // 검증 중
     }
     
     return (

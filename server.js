@@ -1,11 +1,12 @@
 import express from 'express';
 import cors from 'cors';
 import serverless from 'serverless-http';
-import loginRoutes from './api/login.js';
+import mainRoutes from './api/main.js';
 import productsRoutes from './api/products.js';
-import productDetailRoutes from './api/productDetail.js';
-import orderRoutes from './api/order.js';
-import cartRoutes from './api/cart.js';
+import productDetailRoutes from './api/products/[id].js';
+import adminRoutes from './api/admin.js';
+import statusCodesRoutes from './api/status-codes.js';
+import practiceRoutes from './api/practice.js';
 import verifyToken from './api/_utils/auth.js';
 
 const app = express();
@@ -13,6 +14,7 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'https://mini-commerce.vercel.app',
+  'https://mini-commerce-tawny.vercel.app',
 ];
 
 app.use(
@@ -22,28 +24,35 @@ app.use(
       if (allowedOrigins.includes(origin)) return callback(null, true);
       return callback(new Error('CORS 허용 안됨'));
     },
-    methods: ['GET', 'POST', 'OPTIONS'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
 
 app.use(express.json());
 
-//  문제 없이 OPTIONS만 200으로 처리
+// OPTIONS 처리
 app.use((req, res, next) => {
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   return next();
 });
 
 // ---------------- Routes ----------------
-// login은 app.post가 아니라 app.all로 고정해서 어떤 레이어가 껴도 login.js가 일관 처리하게 함
-app.all('/api/login', (req, res) => loginRoutes(req, res));
+// 통합 API (main.js)
+app.all('/api/main', (req, res) => mainRoutes(req, res));
 
-app.get('/api/products', productsRoutes); // public
-app.get('/api/products/:id', productDetailRoutes); // public
+// 상품 API
+app.get('/api/products', productsRoutes);
+app.get('/api/products/:id', (req, res) => productDetailRoutes(req, res));
 
-app.post('/api/order', verifyToken, orderRoutes); // JWT 필요
-app.post('/api/cart', verifyToken, cartRoutes); // JWT 필요
+// 관리자 API
+app.all('/api/admin', verifyToken, adminRoutes);
+
+// 상태 코드 테스트 API
+app.get('/api/status-codes', statusCodesRoutes);
+
+// RESTful 연습 API
+app.all('/api/practice', practiceRoutes);
 
 if (process.env.NODE_ENV !== 'production') {
   const PORT = 3000;

@@ -5,6 +5,8 @@ export default defineConfig(({ command }) => ({
   plugins: [react()],
   base: '/',
   server: {
+    port: 5173,
+    host: 'localhost', // IPv6 문제 해결
     // dev(vite)일 때만 /api를 3000(express)로 프록시
     proxy: command === 'serve'
       ? {
