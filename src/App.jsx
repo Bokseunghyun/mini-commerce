@@ -182,13 +182,13 @@ export default function App() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/api/cart`, {
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token || ""}`,
         },
-        body: JSON.stringify({ action: "remove", index, cart }),
+        body: JSON.stringify({ action: "cart_remove", index, cart }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -210,13 +210,13 @@ export default function App() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_BASE}/api/order`, {
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token || ""}`,
         },
-        body: JSON.stringify({ items }),
+        body: JSON.stringify({ action: "order", items }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -238,13 +238,13 @@ export default function App() {
   const buyNow = async (product, quantity = 1) => {
     if (!isLoggedIn()) {
       try {
-        const res = await fetch(`${API_BASE}/api/order`, {
+        const res = await fetch(`${API_BASE}/api/user-actions`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: "",
           },
-          body: JSON.stringify({ items: [] }),
+          body: JSON.stringify({ action: "order", items: [] }),
         });
 
         const data = await res.json().catch(() => ({}));
