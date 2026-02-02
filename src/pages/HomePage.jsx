@@ -601,6 +601,7 @@ export default function HomePage({
                 📖 가이드
               </button>
 
+<<<<<<< HEAD
               {/* 관리자 버튼 - 항상 표시 (비로그인/일반 사용자는 API 403 에러 발생) */}
               <button
                 type="button"
@@ -614,6 +615,23 @@ export default function HomePage({
               >
                 관리자
               </button>
+=======
+              {/* 관리자 버튼 - 로그인한 모든 사용자에게 표시 (일반 사용자는 403 에러) */}
+              {isLoggedIn && (
+                <button
+                  type="button"
+                  id="home-admin-btn"
+                  name="adminButton"
+                  className="btn btn-admin admin-button"
+                  aria-label="관리자 페이지"
+                  onClick={onGoAdmin}
+                  style={styles.adminBtn}
+                  data-testid="admin-button"
+                >
+                  관리자
+                </button>
+              )}
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
 
               {/* 로그인 / 로그아웃 토글 */}
               {isLoggedIn ? (
@@ -869,17 +887,27 @@ const styles = {
     fontSize: "0.9375rem",
   },
   searchBtn: {
+<<<<<<< HEAD
     padding: "10px 20px",
     backgroundColor: "#1a1a1a",
+=======
+    padding: "8px 16px",
+    backgroundColor: "#3b82f6",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
+<<<<<<< HEAD
     fontWeight: "600",
     cursor: "pointer",
     whiteSpace: "nowrap",
     minWidth: "80px",
     transition: "background-color 0.2s",
+=======
+    fontWeight: "500",
+    cursor: "pointer",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   headerActions: {
     display: "flex",
@@ -888,17 +916,27 @@ const styles = {
   },
   cartBtn: {
     position: "relative",
+<<<<<<< HEAD
     padding: "10px 20px",
     backgroundColor: "#1a1a1a",
+=======
+    padding: "8px 16px",
+    backgroundColor: "#10b981",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
+<<<<<<< HEAD
     fontWeight: "600",
     cursor: "pointer",
     whiteSpace: "nowrap",
     minWidth: "110px",
     transition: "background-color 0.2s",
+=======
+    fontWeight: "500",
+    cursor: "pointer",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   cartCount: {
     position: "absolute",
@@ -962,7 +1000,11 @@ const styles = {
     textAlign: "center",
   },
   bannerContent: {
+<<<<<<< HEAD
     maxWidth: "1400px",
+=======
+    maxWidth: "1200px",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     margin: "0 auto",
   },
   bannerTitle: {
@@ -980,7 +1022,11 @@ const styles = {
     padding: "16px 0",
   },
   container: {
+<<<<<<< HEAD
     maxWidth: "1400px",
+=======
+    maxWidth: "1200px",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     margin: "0 auto",
     padding: "0 16px",
   },
@@ -1044,7 +1090,11 @@ const styles = {
   },
   productsGrid: {
     display: "grid",
+<<<<<<< HEAD
     gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+=======
+    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     gap: "24px",
   },
   productCard: {
@@ -1129,26 +1179,41 @@ const styles = {
   viewBtn: {
     flex: 1,
     padding: "10px",
+<<<<<<< HEAD
     backgroundColor: "#1a1a1a",
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
     fontWeight: "600",
+=======
+    backgroundColor: "#f3f4f6",
+    color: "#1a1a1a",
+    border: "none",
+    borderRadius: "6px",
+    fontSize: "0.9375rem",
+    fontWeight: "500",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     cursor: "pointer",
-    transition: "background-color 0.2s",
   },
   addBtn: {
     flex: 1,
     padding: "10px",
+<<<<<<< HEAD
     backgroundColor: "#1a1a1a",
+=======
+    backgroundColor: "#3b82f6",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
+<<<<<<< HEAD
     fontWeight: "600",
+=======
+    fontWeight: "500",
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     cursor: "pointer",
-    transition: "background-color 0.2s",
   },
   footer: {
     backgroundColor: "#1a1a1a",
@@ -1259,9 +1324,12 @@ const styles = {
     padding: "16px 24px 0",
     borderBottom: "1px solid #e5e5e5",
     overflowX: "auto",
+<<<<<<< HEAD
     minHeight: "60px",
     height: "60px",
     flexShrink: 0,
+=======
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   tabButton: {
     padding: "10px 16px",

@@ -105,6 +105,7 @@ export const PRODUCTS = [
     discountRate: 26,
     imageUrl: "https://images.unsplash.com/photo-1633269540827-728aabbb7646?w=400&h=400&fit=crop",
   },
+<<<<<<< HEAD
   {
     id: 11,
     name: "스마트 LED 무드등 RGB 조명",
@@ -155,4 +156,6 @@ export const PRODUCTS = [
     discountRate: 37,
     imageUrl: "https://images.unsplash.com/photo-1583623025817-d180a2221d0a?w=400&h=400&fit=crop",
   },
+=======
+>>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
 ];
