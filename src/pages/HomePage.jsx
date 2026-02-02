@@ -363,18 +363,18 @@ function QuickStartContent() {
       </div>
 
       <h4 style={styles.guideSubSection}>3. 첫 테스트 작성</h4>
-      <div style={styles.codeBlock}>
-        import &#123; test, expect &#125; from '@playwright/test';<br/>
-        <br/>
-        test('로그인 테스트', async (&#123; page &#125;) => &#123;<br/>
-        &nbsp;&nbsp;await page.goto('http://localhost:5173');<br/>
-        &nbsp;&nbsp;await page.getByRole('button', &#123; name: '로그인' &#125;).click();<br/>
-        &nbsp;&nbsp;await page.getByLabel('아이디').fill('test');<br/>
-        &nbsp;&nbsp;await page.getByLabel('비밀번호').fill('1234');<br/>
-        &nbsp;&nbsp;await page.getByRole('button', &#123; name: '로그인' &#125;).click();<br/>
-        &nbsp;&nbsp;await expect(page.getByRole('button', &#123; name: '로그아웃' &#125;)).toBeVisible();<br/>
-        &#125;);
-      </div>
+      <pre style={styles.codeBlock}>
+{`import { test, expect } from '@playwright/test';
+
+test('로그인 테스트', async ({ page }) => {
+  await page.goto('http://localhost:5173');
+  await page.getByRole('button', { name: '로그인' }).click();
+  await page.getByLabel('아이디').fill('test');
+  await page.getByLabel('비밀번호').fill('1234');
+  await page.getByRole('button', { name: '로그인' }).click();
+  await expect(page.getByRole('button', { name: '로그아웃' })).toBeVisible();
+});`}
+      </pre>
 
       <h4 style={styles.guideSubSection}>4. 주요 테스트 패턴</h4>
       <ul style={styles.guideList}>
@@ -601,7 +601,6 @@ export default function HomePage({
                 📖 가이드
               </button>
 
-<<<<<<< HEAD
               {/* 관리자 버튼 - 항상 표시 (비로그인/일반 사용자는 API 403 에러 발생) */}
               <button
                 type="button"
@@ -615,23 +614,6 @@ export default function HomePage({
               >
                 관리자
               </button>
-=======
-              {/* 관리자 버튼 - 로그인한 모든 사용자에게 표시 (일반 사용자는 403 에러) */}
-              {isLoggedIn && (
-                <button
-                  type="button"
-                  id="home-admin-btn"
-                  name="adminButton"
-                  className="btn btn-admin admin-button"
-                  aria-label="관리자 페이지"
-                  onClick={onGoAdmin}
-                  style={styles.adminBtn}
-                  data-testid="admin-button"
-                >
-                  관리자
-                </button>
-              )}
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
 
               {/* 로그인 / 로그아웃 토글 */}
               {isLoggedIn ? (
@@ -858,7 +840,7 @@ const styles = {
     boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
   },
   headerInner: {
-    maxWidth: "1400px",
+    maxWidth: "1200px",
     margin: "0 auto",
     padding: "16px",
     display: "flex",
@@ -887,27 +869,17 @@ const styles = {
     fontSize: "0.9375rem",
   },
   searchBtn: {
-<<<<<<< HEAD
-    padding: "10px 20px",
-    backgroundColor: "#1a1a1a",
-=======
     padding: "8px 16px",
     backgroundColor: "#3b82f6",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
-<<<<<<< HEAD
-    fontWeight: "600",
+    fontWeight: "500",
     cursor: "pointer",
     whiteSpace: "nowrap",
     minWidth: "80px",
     transition: "background-color 0.2s",
-=======
-    fontWeight: "500",
-    cursor: "pointer",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   headerActions: {
     display: "flex",
@@ -916,27 +888,17 @@ const styles = {
   },
   cartBtn: {
     position: "relative",
-<<<<<<< HEAD
-    padding: "10px 20px",
-    backgroundColor: "#1a1a1a",
-=======
     padding: "8px 16px",
     backgroundColor: "#10b981",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
-<<<<<<< HEAD
-    fontWeight: "600",
+    fontWeight: "500",
     cursor: "pointer",
     whiteSpace: "nowrap",
     minWidth: "110px",
     transition: "background-color 0.2s",
-=======
-    fontWeight: "500",
-    cursor: "pointer",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   cartCount: {
     position: "absolute",
@@ -1000,11 +962,7 @@ const styles = {
     textAlign: "center",
   },
   bannerContent: {
-<<<<<<< HEAD
-    maxWidth: "1400px",
-=======
     maxWidth: "1200px",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     margin: "0 auto",
   },
   bannerTitle: {
@@ -1022,11 +980,7 @@ const styles = {
     padding: "16px 0",
   },
   container: {
-<<<<<<< HEAD
-    maxWidth: "1400px",
-=======
     maxWidth: "1200px",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     margin: "0 auto",
     padding: "0 16px",
   },
@@ -1090,11 +1044,7 @@ const styles = {
   },
   productsGrid: {
     display: "grid",
-<<<<<<< HEAD
-    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-=======
     gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     gap: "24px",
   },
   productCard: {
@@ -1179,40 +1129,23 @@ const styles = {
   viewBtn: {
     flex: 1,
     padding: "10px",
-<<<<<<< HEAD
-    backgroundColor: "#1a1a1a",
-    color: "#ffffff",
-    border: "none",
-    borderRadius: "6px",
-    fontSize: "0.9375rem",
-    fontWeight: "600",
-=======
     backgroundColor: "#f3f4f6",
     color: "#1a1a1a",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
     fontWeight: "500",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     cursor: "pointer",
   },
   addBtn: {
     flex: 1,
     padding: "10px",
-<<<<<<< HEAD
-    backgroundColor: "#1a1a1a",
-=======
     backgroundColor: "#3b82f6",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     color: "#ffffff",
     border: "none",
     borderRadius: "6px",
     fontSize: "0.9375rem",
-<<<<<<< HEAD
-    fontWeight: "600",
-=======
     fontWeight: "500",
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
     cursor: "pointer",
   },
   footer: {
@@ -1324,12 +1257,9 @@ const styles = {
     padding: "16px 24px 0",
     borderBottom: "1px solid #e5e5e5",
     overflowX: "auto",
-<<<<<<< HEAD
     minHeight: "60px",
     height: "60px",
     flexShrink: 0,
-=======
->>>>>>> 5a3d5dcd4ba2a1ca5b778628a6e65b109419d968
   },
   tabButton: {
     padding: "10px 16px",
