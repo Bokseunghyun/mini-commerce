@@ -132,6 +132,14 @@ export default async function productDetail(req, res) {
   }));
 
   const product = safeProducts.find((p) => p.id === productId);
+  
+  // id=16 LED 무드등은 404로 처리
+  if (productId === 16) {
+    return res
+      .status(404)
+      .json({ message: '상품을 찾을 수 없습니다', code: 'PRODUCT_NOT_FOUND' });
+  }
+  
   if (!product) {
     return res
       .status(404)

@@ -159,13 +159,13 @@ export default async function productsRoutes(req, res) {
     },
     {
       id: 16,
-      name: "가습기 초음파 3L 대용량 LED 무드등",
+      name: "LED 무드등 RGB 색상변경 무선조명",
       category: "생활",
-      originalPrice: 69000,
-      discountedPrice: 49000,
-      price: 49000,
+      originalPrice: 49000,
+      discountedPrice: 35000,
+      price: 35000,
       discountRate: 29,
-      imageUrl: "https://images.unsplash.com/photo-1585435557001-1ba8d415c605?w=400&h=400&fit=crop",
+      imageUrl: "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=400&h=400&fit=crop",
     },
     {
       id: 17,

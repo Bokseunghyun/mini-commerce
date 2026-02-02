@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 // 장바구니 아이콘
 function ShoppingBagIcon({ className }) {
@@ -117,13 +117,26 @@ function formatPrice(price) {
 }
 
 // 장바구니 아이템 컴포넌트
-function CartItem({ item, onIncrease, onDecrease, onRemove }) {
+function CartItem({ item, isSelected, onToggleSelect, onIncrease, onDecrease, onRemove }) {
   const qty = Number(item.quantity) || 1;
   const price = Number(item.price) || 0;
   const subtotal = price * qty;
 
+  // ID 3, 4는 오류 표시
+  const isErrorProduct = item.id === 3 || item.id === 4;
+
   return (
-    <article className="cart-item">
+    <article className={`cart-item ${isErrorProduct ? 'error-product' : ''}`}>
+      <div className="checkbox-wrapper">
+        <input
+          type="checkbox"
+          className="cart-checkbox"
+          checked={isSelected}
+          onChange={() => onToggleSelect(item.id)}
+          aria-label={`${item.name} 선택`}
+        />
+      </div>
+
       <div className="cart-item-image-wrapper">
         <img
           src={item.imageUrl || "/placeholder.svg"}
@@ -135,6 +148,9 @@ function CartItem({ item, onIncrease, onDecrease, onRemove }) {
       <div className="cart-item-info">
         <h3 className="cart-item-name">{item.name}</h3>
         <p className="cart-item-price">{formatPrice(price)}원</p>
+        {isErrorProduct && (
+          <p className="error-badge">⚠️ 주문 불가 상품</p>
+        )}
       </div>
 
       <div className="cart-item-quantity">
@@ -186,11 +202,54 @@ export default function CartPage({
   onCheckout,
   onBack,
 }) {
-  const totalItems = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-  const totalPrice = cartItems.reduce(
+  const [selectedItems, setSelectedItems] = useState([]);
+
+  // 초기에 모든 아이템 선택
+  useEffect(() => {
+    setSelectedItems(cartItems.map(item => item.id));
+  }, []);
+
+  const toggleSelectItem = (id) => {
+    setSelectedItems(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(itemId => itemId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedItems.length === cartItems.length) {
+      setSelectedItems([]);
+    } else {
+      setSelectedItems(cartItems.map(item => item.id));
+    }
+  };
+
+  const selectedCartItems = cartItems.filter(item => selectedItems.includes(item.id));
+  const totalItems = selectedCartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const totalPrice = selectedCartItems.reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
+
+  // 선택된 아이템 중 ID 3 또는 4가 있는지 확인
+  const hasErrorProduct = selectedCartItems.some(item => item.id === 3 || item.id === 4);
+
+  const handleCheckout = () => {
+    if (selectedItems.length === 0) {
+      alert('주문할 상품을 선택해주세요.');
+      return;
+    }
+
+    if (hasErrorProduct) {
+      alert('선택한 상품 중 주문할 수 없는 상품(ID 3, 4)이 포함되어 있습니다.\n해당 상품의 선택을 해제하고 다시 시도해주세요.');
+      return;
+    }
+
+    onCheckout(selectedCartItems);
+  };
 
   return (
     <>
@@ -285,12 +344,36 @@ export default function CartPage({
     }
   }
 
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e5e5e5;
+  }
+
+  .select-all-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .select-all-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+  }
+
+  .select-all-label {
+    font-size: 0.9rem;
+    color: #666;
+    cursor: pointer;
+  }
+
   .section-title {
     font-size: 1rem;
     font-weight: 600;
     color: #666666;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e5e5e5;
   }
 
   .cart-items-list { display: flex; flex-direction: column; gap: 12px; }
@@ -300,19 +383,37 @@ export default function CartPage({
     border-radius: 12px;
     padding: 16px;
     display: grid;
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: auto 80px 1fr;
     grid-template-rows: auto auto auto;
     gap: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    transition: border 0.2s ease;
+  }
+
+  .cart-item.error-product {
+    border: 2px solid #ef4444;
+    background-color: #fef2f2;
   }
 
   @media (min-width: 640px) {
     .cart-item {
-      grid-template-columns: 100px 1fr auto auto auto;
+      grid-template-columns: auto 100px 1fr auto auto auto;
       grid-template-rows: auto;
       align-items: center;
       gap: 20px;
     }
+  }
+
+  .checkbox-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .cart-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
   }
 
   .cart-item-image-wrapper {
@@ -342,6 +443,13 @@ export default function CartPage({
   }
 
   .cart-item-price { font-size: 0.875rem; color: #666666; }
+
+  .error-badge {
+    font-size: 0.75rem;
+    color: #dc2626;
+    font-weight: 600;
+    margin-top: 4px;
+  }
 
   .cart-item-quantity {
     display: flex;
@@ -427,7 +535,6 @@ export default function CartPage({
     flex-direction: column;
     align-items: center;
     gap: 16px;
-
     flex: 1;
     width: 100%;
     justify-content: center;
@@ -517,6 +624,13 @@ export default function CartPage({
     cursor: not-allowed;
   }
 
+  .checkout-btn.error {
+    background-color: #dc2626;
+  }
+
+  .checkout-btn.error:hover {
+    background-color: #b91c1c;
+  }
 
   @media (min-width: 768px) {
     .cart-items-section { min-height: 640px; }
@@ -543,7 +657,21 @@ export default function CartPage({
 
         <div className="cart-container">
           <section className="cart-items-section" aria-label="장바구니 상품 목록">
-            <h2 className="section-title">장바구니 상품 ({totalItems}개)</h2>
+            <div className="section-header">
+              <div className="select-all-wrapper">
+                <input
+                  type="checkbox"
+                  className="select-all-checkbox"
+                  checked={cartItems.length > 0 && selectedItems.length === cartItems.length}
+                  onChange={toggleSelectAll}
+                  id="select-all"
+                />
+                <label htmlFor="select-all" className="select-all-label">
+                  전체선택
+                </label>
+              </div>
+              <h2 className="section-title">장바구니 상품 ({cartItems.length}개)</h2>
+            </div>
 
             {cartItems.length > 0 ? (
               <div className="cart-items-list">
@@ -551,6 +679,8 @@ export default function CartPage({
                   <CartItem
                     key={item.id}
                     item={item}
+                    isSelected={selectedItems.includes(item.id)}
+                    onToggleSelect={toggleSelectItem}
                     onIncrease={onIncrease}
                     onDecrease={onDecrease}
                     onRemove={onRemove}
@@ -572,7 +702,7 @@ export default function CartPage({
             <h2 className="summary-title">주문 요약</h2>
 
             <div className="summary-row">
-              <span className="summary-label">총 상품 수</span>
+              <span className="summary-label">선택 상품 수</span>
               <span className="summary-value">{totalItems}개</span>
             </div>
 
@@ -593,15 +723,29 @@ export default function CartPage({
               <span className="cart-total-price">{formatPrice(totalPrice)}원</span>
             </div>
 
+            {hasErrorProduct && (
+              <div style={{ 
+                padding: '12px', 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca', 
+                borderRadius: '8px',
+                marginBottom: '12px',
+                fontSize: '0.875rem',
+                color: '#dc2626'
+              }}>
+                ⚠️ 주문 불가 상품이 선택되어 있습니다
+              </div>
+            )}
+
             <button
               id="checkout-btn"
               type="button"
-              className="checkout-btn"
-              onClick={onCheckout}
-              disabled={cartItems.length === 0}
+              className={`checkout-btn ${hasErrorProduct ? 'error' : ''}`}
+              onClick={handleCheckout}
+              disabled={selectedItems.length === 0}
               aria-label="주문하기"
             >
-              주문하기
+              {hasErrorProduct ? '주문 불가 (선택 해제 필요)' : `선택 상품 주문하기 (${selectedItems.length})`}
             </button>
           </aside>
         </div>
