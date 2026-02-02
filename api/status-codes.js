@@ -1,8 +1,8 @@
 /**
  * api/status-codes.js - HTTP 상태 코드 연습용 API
- * 
+ *
  * GET /api/status-codes?code=200 - 특정 상태 코드 반환
- * 
+ *
  * QA 검증 포인트:
  * - 다양한 HTTP 상태 코드
  * - 2xx (성공), 3xx (리다이렉트), 4xx (클라이언트 오류), 5xx (서버 오류)

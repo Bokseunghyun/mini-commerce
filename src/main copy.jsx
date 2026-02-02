@@ -6,11 +6,11 @@ import './index.css';
 // Vercel 배포 환경에서도 Mock API 동작하도록 fetch 가로채기
 async function enableMocking() {
   if (typeof window !== 'undefined' && !window.fetch.isMocked) {
-    
+
     window.fetch = async (url, options = {}) => {
       const normalizedUrl = typeof url === 'string' ? url : url.url;
 
-     
+
       const isApiRequest =
         normalizedUrl.startsWith('/api') ||
         normalizedUrl.includes('/api/');

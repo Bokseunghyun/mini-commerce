@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useMemo, useState } from "react";
 
 // ============================================
 // 가격 포맷
@@ -18,14 +18,14 @@ function ShoppingCartIcon({ className }) {
       <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12" />
     </svg>
   );
-}
+} 
 function MinusIcon({ className }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M5 12h14" />
     </svg>
   );
-}
+} 
 function PlusIcon({ className }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -61,71 +61,6 @@ export default function ProductDetailPage({
   onBuyNow,
 }) {
   const [quantity, setQuantity] = useState(1);
-  const [reviews, setReviews] = useState([]);
-  const [isLoadingReviews, setIsLoadingReviews] = useState(false);
-  const [newReview, setNewReview] = useState({ rating: 5, comment: '' });
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
-
-  // 리뷰 로드
-  useEffect(() => {
-    if (product?.id) {
-      setIsLoadingReviews(true);
-      fetch(`${API_BASE}/api/main?action=reviews&productId=${product.id}`)
-        .then(res => res.json())
-        .then(data => {
-          setReviews(Array.isArray(data) ? data : []);
-        })
-        .catch(() => setReviews([]))
-        .finally(() => setIsLoadingReviews(false));
-    }
-  }, [product?.id]);
-
-  // 리뷰 작성
-  const handleSubmitReview = async () => {
-    if (!newReview.comment.trim()) {
-      alert('리뷰 내용을 입력해주세요');
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      alert('로그인이 필요합니다');
-      return;
-    }
-
-    setIsSubmittingReview(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/main?action=reviews`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          productId: product.id,
-          rating: newReview.rating,
-          comment: newReview.comment,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message || '리뷰 작성 실패');
-        return;
-      }
-
-      setReviews([data, ...reviews]);
-      setNewReview({ rating: 5, comment: '' });
-      alert('리뷰가 작성되었습니다');
-    } catch (e) {
-      alert('리뷰 작성 중 오류 발생');
-    } finally {
-      setIsSubmittingReview(false);
-    }
-  };
 
   const safeProduct = product || {};
   const unitPrice = useMemo(() => {
@@ -200,7 +135,7 @@ export default function ProductDetailPage({
         .back-button:hover { background-color: #f5f5f5; }
         .back-icon { width: 16px; height: 16px; }
 
-        
+
         .cart-button {
           position: relative;
           display: inline-flex;
@@ -311,7 +246,7 @@ export default function ProductDetailPage({
         .button-section { display: flex; flex-direction: column; gap: 12px; }
         @media (min-width: 640px) { .button-section { flex-direction: row; } }
 
-        
+
         .btn {
           display: flex; align-items: center; justify-content: center; gap: 8px;
           flex: 1; padding: 16px 24px;
@@ -324,95 +259,6 @@ export default function ProductDetailPage({
         .btn-buy { background-color: #1a1a1a; color: #ffffff; }
         .btn-buy:hover { background-color: #333333; }
         .btn-icon { width: 20px; height: 20px; }
-
-        /* 리뷰 섹션 */
-        .reviews-section {
-          padding: 32px 0;
-          border-top: 8px solid #f5f5f5;
-        }
-        .reviews-header {
-          font-size: 1.25rem;
-          font-weight: 700;
-          margin-bottom: 20px;
-        }
-        .review-form {
-          background-color: #ffffff;
-          border: 1px solid #e5e5e5;
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 24px;
-        }
-        .rating-input {
-          display: flex;
-          gap: 8px;
-          margin-bottom: 12px;
-        }
-        .star-btn {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          transition: transform 0.2s;
-        }
-        .star-btn:hover { transform: scale(1.2); }
-        .review-textarea {
-          width: 100%;
-          min-height: 100px;
-          padding: 12px;
-          border: 1px solid #e5e5e5;
-          border-radius: 8px;
-          font-size: 14px;
-          resize: vertical;
-        }
-        .submit-review-btn {
-          margin-top: 12px;
-          padding: 10px 20px;
-          background-color: #1a1a1a;
-          color: #ffffff;
-          border: none;
-          border-radius: 8px;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .submit-review-btn:disabled {
-          background-color: #ccc;
-          cursor: not-allowed;
-        }
-        .review-item {
-          background-color: #ffffff;
-          border: 1px solid #e5e5e5;
-          border-radius: 12px;
-          padding: 16px;
-          margin-bottom: 12px;
-        }
-        .review-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 8px;
-        }
-        .review-author {
-          font-weight: 600;
-          font-size: 14px;
-        }
-        .review-date {
-          font-size: 12px;
-          color: #737373;
-        }
-        .review-rating {
-          color: #fbbf24;
-          font-size: 14px;
-        }
-        .review-comment {
-          font-size: 14px;
-          color: #525252;
-          line-height: 1.6;
-        }
-        .no-reviews {
-          text-align: center;
-          padding: 40px;
-          color: #737373;
-        }
       `}</style>
 
       <div className="page-container" data-testid="product-detail">
@@ -496,76 +342,6 @@ export default function ProductDetailPage({
                   바로 구매
                 </button>
               </div>
-            </section>
-
-            {/* 리뷰 섹션 */}
-            <section className="reviews-section" data-testid="reviews-section">
-              <h2 className="reviews-header">상품 리뷰 ({reviews.length})</h2>
-
-              {/* 리뷰 작성 폼 */}
-              <div className="review-form" data-testid="review-form">
-                <h3 style={{ fontSize: '16px', marginBottom: '12px' }}>리뷰 작성하기</h3>
-                <div className="rating-input">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <button
-                      key={star}
-                      type="button"
-                      className="star-btn"
-                      onClick={() => setNewReview({ ...newReview, rating: star })}
-                      data-testid={`star-${star}`}
-                    >
-                      {star <= newReview.rating ? '★' : '☆'}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  className="review-textarea"
-                  placeholder="이 상품에 대한 솔직한 리뷰를 남겨주세요 (최대 500자)"
-                  value={newReview.comment}
-                  onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
-                  maxLength={500}
-                  data-testid="review-comment-input"
-                />
-                <button
-                  type="button"
-                  className="submit-review-btn"
-                  onClick={handleSubmitReview}
-                  disabled={isSubmittingReview}
-                  data-testid="submit-review-btn"
-                >
-                  {isSubmittingReview ? '작성 중...' : '리뷰 등록'}
-                </button>
-              </div>
-
-              {/* 리뷰 목록 */}
-              {isLoadingReviews ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>
-                  리뷰를 불러오는 중...
-                </div>
-              ) : reviews.length === 0 ? (
-                <div className="no-reviews" data-testid="no-reviews">
-                  아직 작성된 리뷰가 없습니다. 첫 번째 리뷰를 작성해보세요!
-                </div>
-              ) : (
-                <div data-testid="reviews-list">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="review-item" data-testid={`review-${review.id}`}>
-                      <div className="review-header">
-                        <div>
-                          <span className="review-author">{review.username}</span>
-                          <span className="review-rating" style={{ marginLeft: '8px' }}>
-                            {'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}
-                          </span>
-                        </div>
-                        <span className="review-date">
-                          {new Date(review.createdAt).toLocaleDateString('ko-KR')}
-                        </span>
-                      </div>
-                      <p className="review-comment">{review.comment}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
             </section>
           </article>
         </main>

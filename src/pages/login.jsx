@@ -106,9 +106,9 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
   const showError = localError || usernameError || passwordError || errorMessage;
 
   // 버튼 비활성화 조건
-  const isButtonDisabled = 
-    isLoading || 
-    !username.trim() || 
+  const isButtonDisabled =
+    isLoading ||
+    !username.trim() ||
     !password ||
     !!usernameError ||
     !!passwordError;
@@ -120,9 +120,9 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
           로그인
         </h1>
 
-        <form 
-          className="login-form" 
-          onSubmit={handleSubmit} 
+        <form
+          className="login-form"
+          onSubmit={handleSubmit}
           style={styles.form}
           data-testid="login-form"
           noValidate
@@ -154,8 +154,8 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
               maxLength={20}
             />
             {usernameError && (
-              <span 
-                id="username-error" 
+              <span
+                id="username-error"
                 style={styles.fieldError}
                 data-testid="username-error"
                 role="alert"
@@ -192,8 +192,8 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
               maxLength={30}
             />
             {passwordError && (
-              <span 
-                id="password-error" 
+              <span
+                id="password-error"
                 style={styles.fieldError}
                 data-testid="password-error"
                 role="alert"
@@ -205,10 +205,10 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
 
           {/* 서버 에러 또는 전체 에러 */}
           {(localError || errorMessage) && (
-            <div 
-              id="login-error" 
-              className="form-error" 
-              role="alert" 
+            <div
+              id="login-error"
+              className="form-error"
+              role="alert"
               style={styles.error}
               data-testid="login-error"
             >

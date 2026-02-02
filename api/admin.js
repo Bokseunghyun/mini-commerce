@@ -19,7 +19,7 @@
  */
 
 import { applyCors, requireUser, requireAdmin } from './_lib/common.js';
-import { PRODUCTS } from './_data/products.js';
+import { PRODUCTS } from './products.js';
 
 // ============================================
 // 런타임 상품 저장소

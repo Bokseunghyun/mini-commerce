@@ -1,16 +1,52 @@
-# React + Vite
+# Mini Commerce - QA 자동화 & API 검증 연습 프로젝트
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+완벽한 QA 자동화 테스트와 RESTful API 검증 연습을 위한 이커머스 데모 사이트
 
-Currently, two official plugins are available:
+## 🎯 프로젝트 목적
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **QA 자동화 테스트** 연습 (Playwright, Cypress, Selenium)
+- **RESTful API 검증** 연습 (Postman, Thunder Client, fetch API)
+- **UI 테스트** 연습 (다양한 선택자, 시나리오)
+- **포트폴리오** 프로젝트로 활용 가능
 
-## React Compiler
+## 🚀 빠른 시작
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+npm install
+npm run dev        # 프론트엔드 (port 5173)
+npm run start-api  # API 서버 (port 3000) - 별도 터미널
+```
 
-## Expanding the ESLint configuration
+## 🔑 테스트 계정
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- **일반 사용자**: test / test1234
+- **관리자**: admin / admin1234
+
+## 📊 주요 기능
+
+### 18개 상품 (카테고리별)
+- 전자기기 6개
+- 액세서리 6개
+- 생활 6개
+
+### 10개 API 엔드포인트
+- 기본 CRUD (로그인, 상품, 장바구니, 주문, 관리자)
+- 고급 API (검색, 리뷰, 재고, 위시리스트, 상태코드)
+
+## 📖 상세 문서
+
+- [API_TESTING_GUIDE.md](API_TESTING_GUIDE.md) - API 검증 완벽 가이드
+- [API_TEST_COLLECTION.md](API_TEST_COLLECTION.md) - API 테스트 컬렉션
+- [QA_TEST_GUIDE.md](QA_TEST_GUIDE.md) - QA 테스트 시나리오
+- [SELECTOR_PRACTICE_GUIDE.md](SELECTOR_PRACTICE_GUIDE.md) - 선택자 연습
+- [PROJECT_EVALUATION.md](PROJECT_EVALUATION.md) - 프로젝트 평가
+
+## 🌐 Vercel 배포
+
+```bash
+vercel --prod
+```
+
+환경 변수 설정:
+- VITE_API_BASE_URL=https://your-domain.vercel.app
+- JWT_SECRET=your-secret-key

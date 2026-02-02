@@ -84,8 +84,8 @@ function EmptyResults({ searchTerm }) {
 // ============================================
 function ProductCard({ product, onView, onAdd }) {
   return (
-    <article 
-      className="product-card" 
+    <article
+      className="product-card"
       id={`product-${product.id}`}
       data-testid={`product-card-${product.id}`}
     >
@@ -135,8 +135,8 @@ function ProductCard({ product, onView, onAdd }) {
         </div>
 
         <div className="product-actions">
-          <button 
-            className="add-to-cart-btn" 
+          <button
+            className="add-to-cart-btn"
             onClick={() => onView(product.id)}
             data-testid={`view-detail-btn-${product.id}`}
           >
@@ -177,13 +177,13 @@ function ProductGrid({ products, onView, onAdd }) {
 // ============================================
 // 메인 페이지 컴포넌트
 // ============================================
-export default function ProductListPage({ 
-  products, 
-  onView, 
-  cart, 
-  cartCount, 
-  setCart, 
-  setPage, 
+export default function ProductListPage({
+  products,
+  onView,
+  cart,
+  cartCount,
+  setCart,
+  setPage,
   onAddToCart,
   isLoading = false // 로딩 상태 prop 추가
 }) {
@@ -199,7 +199,7 @@ export default function ProductListPage({
   const filteredProducts = products.filter(product => {
     const searchLower = searchTerm.toLowerCase().trim();
     if (!searchLower) return true;
-    
+
     return (
       product.name.toLowerCase().includes(searchLower) ||
       product.description?.toLowerCase().includes(searchLower)
@@ -308,7 +308,7 @@ export default function ProductListPage({
         }
 
         @media (min-width: 640px) {
-          .search-filter-container { 
+          .search-filter-container {
             padding: 24px 24px 0;
             flex-direction: row;
             justify-content: space-between;
