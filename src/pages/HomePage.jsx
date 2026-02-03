@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import QAGuide from "./QAGuide.jsx";
 
 // ============================================
 // 로딩 스피너 컴포넌트
@@ -47,6 +48,7 @@ export default function HomePage({
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [activeCategory, setActiveCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("default");
+  const [showQAGuide, setShowQAGuide] = useState(false);
 
   const categories = ["전체", "전자기기", "액세서리", "생활"];
 
@@ -172,6 +174,19 @@ export default function HomePage({
             </form>
 
             <div style={styles.headerActions} className="header-actions">
+              {/* QA 가이드 버튼 */}
+              <button
+                type="button"
+                id="qa-guide-btn"
+                name="qaGuideButton"
+                className="btn btn-info qa-guide-button"
+                aria-label="QA 자동화 가이드"
+                onClick={() => setShowQAGuide(true)}
+                style={styles.qaGuideBtn}
+              >
+                📘 QA 가이드
+              </button>
+
               {/* 장바구니 버튼 - 로그인 유도 포함 */}
               <button
                 type="button"
@@ -443,6 +458,9 @@ export default function HomePage({
           </div>
         </footer>
       </div>
+
+      {/* QA Guide Modal */}
+      {showQAGuide && <QAGuide onClose={() => setShowQAGuide(false)} />}
     </>
   );
 }
@@ -535,6 +553,18 @@ const styles = {
     fontWeight: "600",
     padding: "2px 8px",
     borderRadius: "12px",
+  },
+  qaGuideBtn: {
+    padding: "10px 16px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#ffffff",
+    backgroundColor: "#0891b2",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "background-color 0.2s",
+    whiteSpace: "nowrap",
   },
   adminBtn: {
     padding: "10px 16px",

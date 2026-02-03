@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-export default function AdminPage({ products = [], onBack, onUpdateProducts, isLoggedIn = false, userRole = "" }) {
+export default function AdminPage({ products = [], onBack, onUpdateProducts }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -533,36 +533,6 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, isL
         </header>
 
         <div className="admin-content">
-          {/* 권한별 안내 메시지 */}
-          {!isLoggedIn && (
-            <div className="info-box" style={{ backgroundColor: "#fef3c7", borderLeftColor: "#f59e0b" }}>
-              <div className="info-box-title">⚠️ 비로그인 상태</div>
-              <div className="info-box-text">
-                관리자 페이지를 조회할 수 있지만, 상품 수정/추가/삭제 기능을 사용하려면 로그인이 필요합니다.
-                <br />버튼 클릭 시 <strong>401 Unauthorized</strong> 오류가 발생합니다.
-              </div>
-            </div>
-          )}
-
-          {isLoggedIn && userRole !== "ADMIN" && (
-            <div className="info-box" style={{ backgroundColor: "#fef2f2", borderLeftColor: "#ef4444" }}>
-              <div className="info-box-title">🚫 권한 부족</div>
-              <div className="info-box-text">
-                일반 사용자 계정으로는 조회만 가능합니다. 상품 수정/추가/삭제는 관리자 권한이 필요합니다.
-                <br />버튼 클릭 시 <strong>403 Forbidden</strong> 오류가 발생합니다.
-              </div>
-            </div>
-          )}
-
-          {isLoggedIn && userRole === "ADMIN" && (
-            <div className="info-box" style={{ backgroundColor: "#d1fae5", borderLeftColor: "#10b981" }}>
-              <div className="info-box-title">✅ 관리자 권한</div>
-              <div className="info-box-text">
-                모든 상품 관리 기능을 사용할 수 있습니다.
-              </div>
-            </div>
-          )}
-
           <div className="info-box">
             <div className="info-box-title">상품 관리</div>
             <div className="info-box-text">

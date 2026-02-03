@@ -15,7 +15,6 @@ export default function App() {
   const [error, setError] = useState('');
   const [products, setProducts] = useState([]);
   const [cart, setCart] = useState([]);
-  const [wishlist, setWishlist] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [loginError, setLoginError] = useState("");
@@ -293,30 +292,6 @@ export default function App() {
     setPage('products');
   };
 
-  // 위시리스트 토글
-  const toggleWishlist = (product) => {
-    if (!isLoggedIn()) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-        setPage('login');
-      }
-      return;
-    }
-
-    const productId = Number(product.id);
-    setWishlist((prev) => {
-      const isInWishlist = prev.some((item) => Number(item.id) === productId);
-      if (isInWishlist) {
-        return prev.filter((item) => Number(item.id) !== productId);
-      } else {
-        return [...prev, normalizeProduct(product)];
-      }
-    });
-  };
-
-  const isInWishlist = (productId) => {
-    return wishlist.some((item) => Number(item.id) === Number(productId));
-  };
-
   if (page === 'home') {
     return (
       <HomePage
@@ -341,9 +316,6 @@ export default function App() {
         isLoading={isLoadingProducts}
         isLoggedIn={isLoggedIn()}
         userRole={localStorage.getItem('role') || ''}
-        wishlist={wishlist}
-        onToggleWishlist={toggleWishlist}
-        isInWishlist={isInWishlist}
       />
     );
   }
@@ -380,7 +352,7 @@ export default function App() {
       <ProductDetailPage
         product={selectedProduct}
         cartCount={cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)}
-        onBack={() => setPage("home")}
+        onBack={() => setPage("products")}
         onGoCart={() => {
           if (!isLoggedIn()) {
             if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
@@ -395,9 +367,6 @@ export default function App() {
         }}
         onBuyNow={(qty) => buyNow(selectedProduct, qty)}
         isLoggedIn={isLoggedIn()}
-        apiBase={API_BASE}
-        isInWishlist={isInWishlist(selectedProduct.id)}
-        onToggleWishlist={() => toggleWishlist(selectedProduct)}
       />
     );
   }
@@ -431,14 +400,18 @@ export default function App() {
   }
 
   if (page === "admin") {
-    // UI는 모두에게 보이지만, API 호출 시 권한 체크
+    const role = localStorage.getItem('role');
+    if (role !== 'ADMIN') {
+      alert('관리자 권한이 필요합니다.');
+      setPage('home');
+      return null;
+    }
+
     return (
       <AdminPage
         products={products}
         onBack={() => setPage('home')}
         onUpdateProducts={(updatedProducts) => setProducts(updatedProducts)}
-        isLoggedIn={isLoggedIn()}
-        userRole={localStorage.getItem('role') || ''}
       />
     );
   }

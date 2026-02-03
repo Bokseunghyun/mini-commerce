@@ -132,18 +132,18 @@ export default async function productDetail(req, res) {
   }));
 
   const product = safeProducts.find((p) => p.id === productId);
-  
-  // id=16 LED 무드등은 404로 처리
-  if (productId === 16) {
-    return res
-      .status(404)
-      .json({ message: '상품을 찾을 수 없습니다', code: 'PRODUCT_NOT_FOUND' });
-  }
-  
   if (!product) {
     return res
       .status(404)
       .json({ message: '상품 없음', code: 'PRODUCT_NOT_FOUND' });
+  }
+
+  // 의도적 403 에러 (권한 없음 케이스 - 상품 999)
+  if (productId === 999) {
+    return res.status(403).json({
+      message: '접근 권한이 없는 상품입니다',
+      code: 'FORBIDDEN_PRODUCT',
+    });
   }
 
   // 의도적 장애 유지 (3,4번 상세 진입 시 500)
