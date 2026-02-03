@@ -17,6 +17,18 @@ const wishlists = new Map();
 // 주문 차단 상품 ID
 const BLOCKED_ORDER_IDS = new Set([3, 4]);
 
+// 재고 데이터 (inventory.js와 동일)
+const inventory = {
+  1: { productId: 1, stock: 15 },
+  2: { productId: 2, stock: 8 },
+  3: { productId: 3, stock: 0 },
+  4: { productId: 4, stock: 23 },
+  5: { productId: 5, stock: 5 },
+  6: { productId: 6, stock: 12 },
+  7: { productId: 7, stock: 30 },
+  8: { productId: 8, stock: 0 },
+};
+
 // ======================
 // 유틸리티 함수
 // ======================
@@ -35,6 +47,14 @@ function normalizeItem(raw) {
   const quantity = Math.max(1, toNumber(raw?.quantity, 1));
   
   return { id, name, price, quantity };
+}
+
+// 재고 확인 함수
+function getStock(productId) {
+  const stock = inventory[productId];
+  if (stock) return stock.stock;
+  // 재고 정보 없으면 랜덤 생성
+  return Math.floor(Math.random() * 30) + 1;
 }
 
 // ======================
@@ -114,6 +134,19 @@ function handleOrder(req, res, user) {
       return res.status(400).json({ 
         message: `상품 수량 오류: ${it.name}`,
         code: 'INVALID_QUANTITY' 
+      });
+    }
+    
+    // 재고 검증 추가
+    const availableStock = getStock(it.id);
+    if (it.quantity > availableStock) {
+      return res.status(409).json({
+        message: `재고 부족: ${it.name}\n요청 수량: ${it.quantity}개\n사용 가능 재고: ${availableStock}개`,
+        code: 'INSUFFICIENT_STOCK',
+        productId: it.id,
+        productName: it.name,
+        requestedQuantity: it.quantity,
+        availableStock: availableStock
       });
     }
   }

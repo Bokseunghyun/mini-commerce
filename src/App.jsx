@@ -162,28 +162,7 @@ export default function App() {
       return;
     }
 
-    try {
-      const stockRes = await fetch(`${API_BASE}/api/inventory?productId=${p.id}`);
-      const stockData = await stockRes.json();
-      
-      if (!stockRes.ok) {
-        alert(`재고 확인 실패\n상태 코드: ${stockRes.status}\n메시지: ${stockData.message || '알 수 없는 오류'}`);
-        return;
-      }
-
-      const currentCartItem = cart.find(x => Number(x.id) === Number(p.id));
-      const currentQuantityInCart = currentCartItem ? Number(currentCartItem.quantity) || 0 : 0;
-      const totalQuantity = currentQuantityInCart + quantity;
-
-      if (totalQuantity > stockData.stock) {
-        alert(`재고 부족\n요청 수량: ${totalQuantity}개\n사용 가능 재고: ${stockData.stock}개\n현재 장바구니: ${currentQuantityInCart}개`);
-        return;
-      }
-    } catch (err) {
-      alert('재고 확인 중 오류 발생: ' + err.message);
-      return;
-    }
-
+    // 장바구니에 추가 (낙관적 업데이트)
     setCart((prev) => {
       const idx = prev.findIndex((x) => Number(x.id) === Number(p.id));
       if (idx >= 0) {

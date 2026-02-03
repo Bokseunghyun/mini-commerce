@@ -28,6 +28,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
   useEffect(() => {
     const checkAdminAccess = async () => {
       const token = localStorage.getItem('token');
+      
       try {
         const res = await fetch(`${API_BASE}/api/admin`, {
           method: 'GET',
@@ -39,14 +40,43 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         const data = await res.json().catch(() => ({}));
         
         if (!res.ok) {
-          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '권한 없음'}`);
+          // 상태 코드별 적절한 메시지 표시
+          let errorMessage = '';
+          
+          if (res.status === 401) {
+            // 토큰 없음 또는 유효하지 않음
+            errorMessage = `🔒 인증 오류 (${res.status})\n\n`;
+            if (data.code === 'AUTH_NO_TOKEN') {
+              errorMessage += '토큰이 없습니다.\n로그인이 필요합니다.';
+            } else if (data.code === 'AUTH_INVALID_TOKEN') {
+              errorMessage += '토큰이 유효하지 않습니다.\n다시 로그인해주세요.';
+            } else {
+              errorMessage += data.message || '인증에 실패했습니다.';
+            }
+          } else if (res.status === 403) {
+            // 권한 없음
+            errorMessage = `⛔ 권한 오류 (${res.status})\n\n`;
+            errorMessage += data.message || '관리자 권한이 필요합니다.\n일반 사용자는 접근할 수 없습니다.';
+          } else if (res.status === 500) {
+            // 서버 오류
+            errorMessage = `🔥 서버 오류 (${res.status})\n\n`;
+            errorMessage += data.message || '서버에서 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.';
+          } else {
+            // 기타 오류
+            errorMessage = `❌ API 오류 (${res.status})\n\n`;
+            errorMessage += data.message || '알 수 없는 오류가 발생했습니다.';
+          }
+          
+          alert(errorMessage);
           if (onAccessDenied) onAccessDenied();
           return;
         }
         
+        // 성공 - 관리자 권한 확인됨
         setIsAuthorized(true);
       } catch (e) {
-        alert('네트워크 오류: ' + e.message);
+        // 네트워크 오류
+        alert(`🌐 네트워크 오류\n\n${e.message}\n\n서버에 연결할 수 없습니다.`);
         if (onAccessDenied) onAccessDenied();
       } finally {
         setIsChecking(false);

@@ -137,11 +137,20 @@ export default function HomePage({
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        .cart-btn-br {
+          display: none;
+        }
         @media (max-width: 768px) {
           .product-grid { 
             grid-template-columns: repeat(2, 1fr) !important; 
             gap: 16px !important;
             padding: 16px 12px !important;
+          }
+          .cart-btn-br {
+            display: inline !important;
+          }
+          .cart-btn-text {
+            line-height: 1.3 !important;
           }
           .header-inner {
             flex-wrap: wrap;
@@ -540,7 +549,7 @@ export default function HomePage({
                         style={styles.addBtn}
                         data-testid={`add-to-cart-btn-${product.id}`}
                       >
-                        장바구니 담기
+                        <span className="cart-btn-text">장바구니<br className="cart-btn-br" />담기</span>
                       </button>
                     </div>
                   </div>
