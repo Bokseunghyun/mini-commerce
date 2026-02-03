@@ -4,22 +4,46 @@ import React from "react";
 
 export default function OrderCompletePage({ onRestart }) {
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <h1 style={styles.title}>주문 완료</h1>
-        <p style={styles.desc}>주문이 정상적으로 완료되었습니다.</p>
+    <>
+      <style>{`
+        @media (max-width: 768px) {
+          .order-complete-card {
+            padding: 24px 20px !important;
+            max-width: 90vw !important;
+          }
+          .order-complete-title {
+            font-size: 24px !important;
+          }
+          .order-complete-desc {
+            font-size: 14px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .order-complete-card {
+            padding: 20px 16px !important;
+          }
+          .order-complete-title {
+            font-size: 20px !important;
+          }
+        }
+      `}</style>
+      <div style={styles.page}>
+        <div style={styles.card} className="order-complete-card">
+          <h1 style={styles.title} className="order-complete-title">주문 완료</h1>
+          <p style={styles.desc} className="order-complete-desc">주문이 정상적으로 완료되었습니다.</p>
 
-        <button
-          type="button"
-          id="restart-btn"
-          style={styles.btn}
-          onClick={onRestart}
-          aria-label="다시 시작"
-        >
-          다시 시작
-        </button>
+          <button
+            type="button"
+            id="restart-btn"
+            style={styles.btn}
+            onClick={onRestart}
+            aria-label="다시 시작"
+          >
+            다시 시작
+          </button>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

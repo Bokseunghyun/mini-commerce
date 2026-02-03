@@ -505,6 +505,22 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts }) {
           color: #6b7280;
           font-size: 14px;
         }
+        @media (max-width: 768px) {
+          .admin-header { padding: 16px 12px; }
+          .admin-header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+          .admin-title { font-size: 20px; }
+          .header-buttons { width: 100%; justify-content: flex-start; }
+          .admin-content { padding: 16px 12px !important; }
+          .products-table-wrapper { overflow-x: auto; }
+          .products-table { min-width: 800px; }
+          .form-grid { grid-template-columns: 1fr !important; }
+        }
+        @media (max-width: 480px) {
+          .admin-header { padding: 12px 8px; }
+          .admin-title { font-size: 18px; }
+          .back-btn, .add-product-btn { padding: 8px 16px; font-size: 13px; }
+          .admin-content { padding: 12px 8px !important; }
+        }
       `}</style>
 
       <div className="admin-page">
