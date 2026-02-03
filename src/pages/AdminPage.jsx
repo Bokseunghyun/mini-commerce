@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
-export default function AdminPage({ products = [], onBack, onUpdateProducts }) {
+export default function AdminPage({ products = [], onBack, onUpdateProducts, onAccessDenied, apiBase }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -18,9 +18,51 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts }) {
     discountRate: "",
   });
   const [addError, setAddError] = useState("");
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   // Vite 기준
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || "";
+  const API_BASE = apiBase || import.meta.env.VITE_API_BASE_URL || "";
+
+  // 권한 검증
+  useEffect(() => {
+    const checkAdminAccess = async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const res = await fetch(`${API_BASE}/api/admin`, {
+          method: 'GET',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        
+        const data = await res.json().catch(() => ({}));
+        
+        if (!res.ok) {
+          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '권한 없음'}`);
+          if (onAccessDenied) onAccessDenied();
+          return;
+        }
+        
+        setIsAuthorized(true);
+      } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+        if (onAccessDenied) onAccessDenied();
+      } finally {
+        setIsChecking(false);
+      }
+    };
+
+    checkAdminAccess();
+  }, [API_BASE, onAccessDenied]);
+
+  if (isChecking) {
+    return <div style={{ padding: '20px', textAlign: 'center' }}>권한 확인 중...</div>;
+  }
+
+  if (!isAuthorized) {
+    return null;
+  }
 
   // ============================================
   // 상품 수정

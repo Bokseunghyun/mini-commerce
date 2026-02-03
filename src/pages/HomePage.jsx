@@ -165,10 +165,30 @@ export default function HomePage({
           .banner-subtitle {
             font-size: 14px !important;
           }
+          .category-wrapper {
+            flex-wrap: nowrap !important;
+            overflow-x: auto !important;
+            -webkit-overflow-scrolling: touch !important;
+            scrollbar-width: none !important;
+          }
+          .category-wrapper::-webkit-scrollbar {
+            display: none !important;
+          }
+          .category-button {
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+          }
+          .control-inner {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+          .sort-container {
+            justify-content: flex-end !important;
+          }
         }
         @media (max-width: 480px) {
           .product-grid { 
-            grid-template-columns: 1fr !important; 
+            grid-template-columns: repeat(2, 1fr) !important; 
             gap: 16px !important;
             padding: 16px 12px !important;
           }

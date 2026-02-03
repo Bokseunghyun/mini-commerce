@@ -190,24 +190,69 @@ export default function ProductListPage({
   // 검색 및 정렬 상태
   const [searchTerm, setSearchTerm] = useState('');
   const [sortBy, setSortBy] = useState('default'); // default, price-asc, price-desc, name
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
   const addToCart = (product) => {
     if (onAddToCart) onAddToCart(product, 1);
   };
 
-  // 검색 필터링
-  const filteredProducts = products.filter(product => {
-    const searchLower = searchTerm.toLowerCase().trim();
-    if (!searchLower) return true;
+  // API 검색 함수
+  const performSearch = async (term, sort) => {
+    if (!term.trim()) {
+      setSearchResults([]);
+      return;
+    }
 
-    return (
-      product.name.toLowerCase().includes(searchLower) ||
-      product.description?.toLowerCase().includes(searchLower)
-    );
-  });
+    setIsSearching(true);
+    try {
+      const params = new URLSearchParams();
+      params.append('q', term.trim());
+      if (sort && sort !== 'default') {
+        params.append('sort', sort);
+      }
 
-  // 정렬
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
+      const res = await fetch(`${API_BASE}/api/search?${params.toString()}`);
+      const data = await res.json();
+
+      if (res.ok) {
+        setSearchResults(data.products || []);
+      } else {
+        setSearchResults([]);
+      }
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // 검색어 변경 시 API 호출
+  const handleSearchChange = (term) => {
+    setSearchTerm(term);
+    if (term.trim()) {
+      performSearch(term, sortBy);
+    } else {
+      setSearchResults([]);
+    }
+  };
+
+  // 정렬 변경 시 API 재호출
+  const handleSortChange = (sort) => {
+    setSortBy(sort);
+    if (searchTerm.trim()) {
+      performSearch(searchTerm, sort);
+    }
+  };
+
+  // 표시할 상품 결정: 검색 중이거나 검색어가 있으면 검색 결과, 아니면 전체 상품
+  const displayProducts = searchTerm.trim() ? searchResults : products;
+
+  // 클라이언트 정렬 (검색 안 했을 때만)
+  const sortedProducts = !searchTerm.trim() ? [...displayProducts].sort((a, b) => {
     switch (sortBy) {
       case 'price-asc':
         return a.price - b.price;
@@ -218,9 +263,9 @@ export default function ProductListPage({
       case 'discount':
         return b.discountRate - a.discountRate;
       default:
-        return 0; // 기본 순서 유지
+        return 0;
     }
-  });
+  }) : displayProducts;
 
   return (
     <>
@@ -589,7 +634,7 @@ export default function ProductListPage({
               className="search-input"
               placeholder="상품명 검색..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               data-testid="search-input"
             />
           </div>
@@ -600,7 +645,7 @@ export default function ProductListPage({
               id="sort-select"
               className="sort-select"
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value)}
+              onChange={(e) => handleSortChange(e.target.value)}
               data-testid="sort-select"
             >
               <option value="default">기본순</option>
@@ -620,7 +665,7 @@ export default function ProductListPage({
         )}
 
         <div className="main-content">
-          {isLoading ? (
+          {(isLoading || isSearching) ? (
             <LoadingSpinner />
           ) : sortedProducts.length === 0 ? (
             <EmptyResults searchTerm={searchTerm} />
