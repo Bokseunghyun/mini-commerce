@@ -199,6 +199,8 @@ export default function HomePage({
               onClick={() => {
                 setSearchKeyword("");
                 setAppliedKeyword("");
+                setActiveCategory("전체");
+                setSortBy("default");
                 onGoHome?.();
               }}
               role="button"
@@ -207,6 +209,8 @@ export default function HomePage({
                 if (e.key === "Enter") {
                   setSearchKeyword("");
                   setAppliedKeyword("");
+                  setActiveCategory("전체");
+                  setSortBy("default");
                   onGoHome?.();
                 }
               }}

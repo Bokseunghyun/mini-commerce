@@ -674,7 +674,6 @@ export default function CartPage({
                   />
                 ))}
               </div>
-              </div>
             ) : (
               <div className="empty-cart">
                 <ShoppingBagIcon className="empty-cart-icon" />
