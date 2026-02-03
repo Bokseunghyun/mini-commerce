@@ -406,11 +406,46 @@ export default function App() {
   }
 
   if (page === "admin") {
-    const role = localStorage.getItem('role');
-    if (role !== 'ADMIN') {
-      alert('관리자 권한이 필요합니다.');
-      setPage('home');
+    const [adminCheckDone, setAdminCheckDone] = useState(false);
+    const [adminError, setAdminError] = useState(null);
+
+    useEffect(() => {
+      const checkAdminAccess = async () => {
+        const token = localStorage.getItem('token');
+        try {
+          const res = await fetch(`${API_BASE}/api/admin`, {
+            method: 'GET',
+            headers: {
+              'Authorization': token ? `Bearer ${token}` : '',
+            },
+          });
+          
+          const data = await res.json().catch(() => ({}));
+          
+          if (!res.ok) {
+            setAdminError(data.message || '관리자 권한이 필요합니다.');
+            alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '권한 없음'}`);
+            setPage('home');
+            return;
+          }
+          
+          setAdminCheckDone(true);
+        } catch (e) {
+          setAdminError('네트워크 오류: ' + e.message);
+          alert('네트워크 오류: ' + e.message);
+          setPage('home');
+        }
+      };
+
+      checkAdminAccess();
+    }, []);
+
+    if (adminError) {
       return null;
+    }
+
+    if (!adminCheckDone) {
+      return <div style={{ padding: '20px', textAlign: 'center' }}>권한 확인 중...</div>;
     }
 
     return (

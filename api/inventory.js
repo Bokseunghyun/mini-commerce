@@ -60,31 +60,38 @@ export default async function inventoryHandler(req, res) {
   // 재고 조회
   const stock = inventory[pid];
 
-  if (!stock) {
-    res.setHeader('X-Error-Code', 'PRODUCT_NOT_FOUND');
-    return res.status(404).json({
-      message: '상품을 찾을 수 없습니다',
-      code: 'PRODUCT_NOT_FOUND'
-    });
+  // 요구사항 4: 재고 정보가 없으면 임의의 값 생성
+  let stockData = stock;
+  if (!stockData) {
+    const randomStock = Math.floor(Math.random() * 30) + 1;
+    const warehouses = ['Seoul', 'Busan', 'Incheon', 'Daegu'];
+    const randomWarehouse = warehouses[Math.floor(Math.random() * warehouses.length)];
+    
+    stockData = {
+      productId: pid,
+      stock: randomStock,
+      warehouse: randomWarehouse,
+      lastUpdated: new Date().toISOString(),
+    };
   }
 
   // 커스텀 헤더 설정
-  res.setHeader('X-Product-Id', stock.productId);
-  res.setHeader('X-Stock-Count', stock.stock);
-  res.setHeader('X-Warehouse', stock.warehouse);
-  res.setHeader('X-Last-Updated', stock.lastUpdated);
+  res.setHeader('X-Product-Id', stockData.productId);
+  res.setHeader('X-Stock-Count', stockData.stock);
+  res.setHeader('X-Warehouse', stockData.warehouse);
+  res.setHeader('X-Last-Updated', stockData.lastUpdated);
 
   // 재고 상태 헤더
-  if (stock.stock === 0) {
+  if (stockData.stock === 0) {
     res.setHeader('X-Stock-Status', 'OUT_OF_STOCK');
-  } else if (stock.stock < 5) {
+  } else if (stockData.stock < 5) {
     res.setHeader('X-Stock-Status', 'LOW_STOCK');
   } else {
     res.setHeader('X-Stock-Status', 'IN_STOCK');
   }
 
   // ETag 설정 (재고 변경 감지용)
-  const etag = `"${stock.productId}-${stock.stock}-${stock.lastUpdated}"`;
+  const etag = `"${stockData.productId}-${stockData.stock}-${stockData.lastUpdated}"`;
   res.setHeader('ETag', etag);
 
   // Cache-Control 설정 (재고는 자주 변경되므로 짧은 캐시)
@@ -97,12 +104,12 @@ export default async function inventoryHandler(req, res) {
 
   // GET 요청이면 본문 포함
   return res.status(200).json({
-    productId: stock.productId,
-    stock: stock.stock,
-    available: stock.stock > 0,
-    warehouse: stock.warehouse,
-    lastUpdated: stock.lastUpdated,
-    status: stock.stock === 0 ? 'OUT_OF_STOCK' :
-            stock.stock < 5 ? 'LOW_STOCK' : 'IN_STOCK',
+    productId: stockData.productId,
+    stock: stockData.stock,
+    available: stockData.stock > 0,
+    warehouse: stockData.warehouse,
+    lastUpdated: stockData.lastUpdated,
+    status: stockData.stock === 0 ? 'OUT_OF_STOCK' :
+            stockData.stock < 5 ? 'LOW_STOCK' : 'IN_STOCK',
   });
 }

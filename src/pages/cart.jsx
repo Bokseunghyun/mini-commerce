@@ -117,13 +117,21 @@ function formatPrice(price) {
 }
 
 // 장바구니 아이템 컴포넌트
-function CartItem({ item, onIncrease, onDecrease, onRemove }) {
+function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onSelect }) {
   const qty = Number(item.quantity) || 1;
   const price = Number(item.price) || 0;
   const subtotal = price * qty;
 
   return (
     <article className="cart-item">
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onSelect(item.id)}
+        className="cart-item-checkbox"
+        aria-label={`${item.name} 선택`}
+      />
+      
       <div className="cart-item-image-wrapper">
         <img
           src={item.imageUrl || "/placeholder.svg"}
@@ -186,11 +194,72 @@ export default function CartPage({
   onCheckout,
   onBack,
 }) {
-  const totalItems = cartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
-  const totalPrice = cartItems.reduce(
+  const [selectedItems, setSelectedItems] = React.useState([]);
+
+  React.useEffect(() => {
+    setSelectedItems(cartItems.map(item => item.id));
+  }, [cartItems]);
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedItems(cartItems.map(item => item.id));
+    } else {
+      setSelectedItems([]);
+    }
+  };
+
+  const handleSelectItem = (id) => {
+    setSelectedItems(prev => {
+      if (prev.includes(id)) {
+        return prev.filter(itemId => itemId !== id);
+      } else {
+        return [...prev, id];
+      }
+    });
+  };
+
+  const selectedCartItems = cartItems.filter(item => selectedItems.includes(item.id));
+  const totalItems = selectedCartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
+  const totalPrice = selectedCartItems.reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
+
+  const handleCheckout = async () => {
+    const hasInvalidProduct = selectedCartItems.some(item => item.id === 3 || item.id === 4);
+    
+    if (hasInvalidProduct) {
+      const API_BASE = window.location.origin;
+      try {
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API_BASE}/api/user-actions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({ 
+            action: 'order', 
+            items: selectedCartItems 
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        
+        if (!res.ok) {
+          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '주문 처리 실패'}`);
+          return;
+        }
+      } catch (e) {
+        alert('네트워크 오류: ' + e.message);
+        return;
+      }
+    }
+    
+    onCheckout();
+  };
+
+  const allSelected = cartItems.length > 0 && selectedItems.length === cartItems.length;
 
   return (
     <>
@@ -217,10 +286,17 @@ export default function CartPage({
   .header-content {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 16px;
+    padding: 12px;
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
+  }
+
+  @media (min-width: 768px) {
+    .header-content {
+      padding: 16px;
+      gap: 16px;
+    }
   }
 
   .back-link {
@@ -243,11 +319,17 @@ export default function CartPage({
   .back-icon { width: 20px; height: 20px; }
 
   .page-title {
-    font-size: 1.25rem;
+    font-size: 1.125rem;
     font-weight: 600;
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  @media (min-width: 768px) {
+    .page-title {
+      font-size: 1.25rem;
+    }
   }
 
   .cart-icon-header { width: 24px; height: 24px; }
@@ -255,16 +337,18 @@ export default function CartPage({
   .cart-container {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 24px 16px;
+    padding: 16px 12px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 20px;
   }
 
   @media (min-width: 768px) {
     .cart-container {
+      padding: 24px 16px;
       flex-direction: row;
       align-items: flex-start;
+      gap: 24px;
     }
   }
 
@@ -286,11 +370,17 @@ export default function CartPage({
   }
 
   .section-title {
-    font-size: 1rem;
+    font-size: 0.875rem;
     font-weight: 600;
     color: #666666;
     padding-bottom: 8px;
     border-bottom: 1px solid #e5e5e5;
+  }
+
+  @media (min-width: 768px) {
+    .section-title {
+      font-size: 1rem;
+    }
   }
 
   .cart-items-list { display: flex; flex-direction: column; gap: 12px; }
@@ -300,7 +390,7 @@ export default function CartPage({
     border-radius: 12px;
     padding: 16px;
     display: grid;
-    grid-template-columns: 80px 1fr;
+    grid-template-columns: auto 80px 1fr;
     grid-template-rows: auto auto auto;
     gap: 12px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
@@ -308,10 +398,23 @@ export default function CartPage({
 
   @media (min-width: 640px) {
     .cart-item {
-      grid-template-columns: 100px 1fr auto auto auto;
+      grid-template-columns: auto 100px 1fr auto auto auto;
       grid-template-rows: auto;
       align-items: center;
       gap: 20px;
+    }
+  }
+
+  .cart-item-checkbox {
+    width: 20px;
+    height: 20px;
+    cursor: pointer;
+    grid-row: 1 / 2;
+  }
+
+  @media (min-width: 640px) {
+    .cart-item-checkbox {
+      grid-row: auto;
     }
   }
 
@@ -543,7 +646,19 @@ export default function CartPage({
 
         <div className="cart-container">
           <section className="cart-items-section" aria-label="장바구니 상품 목록">
-            <h2 className="section-title">장바구니 상품 ({totalItems}개)</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <input
+                type="checkbox"
+                id="select-all-checkbox"
+                checked={allSelected}
+                onChange={handleSelectAll}
+                style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                aria-label="전체 선택"
+              />
+              <h2 className="section-title" style={{ flex: 1, border: 'none', paddingBottom: 0 }}>
+                장바구니 상품 ({totalItems}개)
+              </h2>
+            </div>
 
             {cartItems.length > 0 ? (
               <div className="cart-items-list">
@@ -554,8 +669,11 @@ export default function CartPage({
                     onIncrease={onIncrease}
                     onDecrease={onDecrease}
                     onRemove={onRemove}
+                    isSelected={selectedItems.includes(item.id)}
+                    onSelect={handleSelectItem}
                   />
                 ))}
+              </div>
               </div>
             ) : (
               <div className="empty-cart">
@@ -597,8 +715,8 @@ export default function CartPage({
               id="checkout-btn"
               type="button"
               className="checkout-btn"
-              onClick={onCheckout}
-              disabled={cartItems.length === 0}
+              onClick={handleCheckout}
+              disabled={selectedItems.length === 0}
               aria-label="주문하기"
             >
               주문하기
