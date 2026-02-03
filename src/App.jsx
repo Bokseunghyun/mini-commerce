@@ -22,6 +22,12 @@ export default function App() {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
+  // REQ 1: 앱 초기 진입 시 반드시 비로그인 상태
+  useEffect(() => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('role');
+  }, []);
+
   const isLoggedIn = () => {
     return !!localStorage.getItem('token');
   };
@@ -352,7 +358,7 @@ export default function App() {
       <ProductDetailPage
         product={selectedProduct}
         cartCount={cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)}
-        onBack={() => setPage("products")}
+        onBack={() => setPage("home")}
         onGoCart={() => {
           if (!isLoggedIn()) {
             if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {

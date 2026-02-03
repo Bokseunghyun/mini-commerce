@@ -81,6 +81,13 @@ export default async function searchHandler(req, res) {
     const { q, category, minPrice, maxPrice, sort } = req.query;
 
     // 검색어 검증
+    if (q !== undefined && q !== null && !q.trim()) {
+      return res.status(400).json({
+        message: '검색어를 입력해주세요',
+        code: 'EMPTY_QUERY'
+      });
+    }
+
     if (q && typeof q !== 'string') {
       return res.status(400).json({
         message: '검색어는 문자열이어야 합니다',

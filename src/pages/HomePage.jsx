@@ -99,9 +99,24 @@ export default function HomePage({
     setSearchKeyword(e.target.value);
   };
 
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
   // 검색 버튼 클릭 또는 엔터키 시 appliedKeyword 업데이트
-  const handleSearchSubmit = (e) => {
+  const handleSearchSubmit = async (e) => {
     e.preventDefault();
+    // REQ 6: 검색어가 없을 때 API 호출하여 오류 표시
+    if (!searchKeyword.trim()) {
+      try {
+        const res = await fetch(`${API_BASE}/api/search?q=`);
+        const data = await res.json();
+        if (!res.ok) {
+          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '검색 실패'}\n코드: ${data.code || ''}`);
+        }
+      } catch (err) {
+        alert('네트워크 오류: ' + err.message);
+      }
+      return;
+    }
     setAppliedKeyword(searchKeyword);
   };
 
@@ -212,21 +227,19 @@ export default function HomePage({
                 )}
               </button>
 
-              {/* 관리자 버튼 - admin 로그인 시만 표시 */}
-              {isLoggedIn && userRole === "ADMIN" && (
-                <button
-                  type="button"
-                  id="home-admin-btn"
-                  name="adminButton"
-                  className="btn btn-admin admin-button"
-                  aria-label="관리자 페이지"
-                  onClick={onGoAdmin}
-                  style={styles.adminBtn}
-                  data-testid="admin-button"
-                >
-                  관리자
-                </button>
-              )}
+              {/* 관리자 버튼 - 항상 표시, 클릭 시 권한 체크에서 오류 발생 */}
+              <button
+                type="button"
+                id="home-admin-btn"
+                name="adminButton"
+                className="btn btn-admin admin-button"
+                aria-label="관리자 페이지"
+                onClick={onGoAdmin}
+                style={styles.adminBtn}
+                data-testid="admin-button"
+              >
+                관리자
+              </button>
 
               {/* 로그인 / 로그아웃 토글 */}
               {isLoggedIn ? (
