@@ -61,6 +61,48 @@ export default function ProductDetailPage({
   onBuyNow,
 }) {
   const [quantity, setQuantity] = useState(1);
+  const [stockInfo, setStockInfo] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [loadingStock, setLoadingStock] = useState(true);
+  const [loadingReviews, setLoadingReviews] = useState(true);
+
+  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
+  // 재고 정보 조회
+  React.useEffect(() => {
+    if (!product?.id) return;
+    
+    setLoadingStock(true);
+    fetch(`${API_BASE}/api/inventory?productId=${product.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setStockInfo(data);
+      })
+      .catch(err => {
+        console.error('재고 조회 실패:', err);
+      })
+      .finally(() => {
+        setLoadingStock(false);
+      });
+  }, [product?.id, API_BASE]);
+
+  // 리뷰 목록 조회
+  React.useEffect(() => {
+    if (!product?.id) return;
+    
+    setLoadingReviews(true);
+    fetch(`${API_BASE}/api/reviews?productId=${product.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setReviews(data.reviews || []);
+      })
+      .catch(err => {
+        console.error('리뷰 조회 실패:', err);
+      })
+      .finally(() => {
+        setLoadingReviews(false);
+      });
+  }, [product?.id, API_BASE]);
 
   const safeProduct = product || {};
   const unitPrice = useMemo(() => {
@@ -331,19 +373,115 @@ export default function ProductDetailPage({
               </div>
 
               <div className="button-section">
-                {}
+                {/* 장바구니 담기 */}
                 <button className="btn btn-cart" onClick={handleAddToCart} aria-label="장바구니에 담기">
                   <ShoppingCartIcon className="btn-icon" />
                   장바구니 담기
                 </button>
 
-                {}
+                {/* 바로구매 */}
                 <button className="btn btn-buy" onClick={handleBuyNow} aria-label="바로 구매하기">
                   바로 구매
                 </button>
               </div>
+
+              {/* 재고 정보 섹션 */}
+              <div id="stock-info" className="stock-info-section" style={{
+                padding: '16px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>재고 정보</h3>
+                {loadingStock ? (
+                  <p style={{ fontSize: '13px', color: '#6b7280' }}>재고 정보 조회 중...</p>
+                ) : stockInfo ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ fontSize: '13px', color: '#374151' }}>
+                      <span style={{ fontWeight: '500' }}>재고:</span> {stockInfo.stock}개
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#374151' }}>
+                      <span style={{ fontWeight: '500' }}>창고:</span> {stockInfo.warehouse}
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#374151' }}>
+                      <span style={{ fontWeight: '500' }}>상태:</span>{' '}
+                      <span style={{
+                        color: stockInfo.stock === 0 ? '#dc2626' : stockInfo.stock < 5 ? '#f59e0b' : '#10b981'
+                      }}>
+                        {stockInfo.status === 'OUT_OF_STOCK' ? '품절' : 
+                         stockInfo.status === 'LOW_STOCK' ? '재고 부족' : '재고 충분'}
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '13px', color: '#6b7280' }}>재고 정보를 불러올 수 없습니다</p>
+                )}
+              </div>
             </section>
           </article>
+
+          {/* 리뷰 섹션 */}
+          <section id="reviews-section" className="reviews-section" style={{
+            marginTop: '48px',
+            padding: '24px',
+            backgroundColor: '#ffffff',
+            borderRadius: '12px',
+            border: '1px solid #e5e7eb'
+          }}>
+            <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>
+              상품 리뷰 {!loadingReviews && `(${reviews.length})`}
+            </h2>
+            
+            {loadingReviews ? (
+              <p style={{ fontSize: '14px', color: '#6b7280' }}>리뷰를 불러오는 중...</p>
+            ) : reviews.length === 0 ? (
+              <p style={{ fontSize: '14px', color: '#6b7280' }}>아직 작성된 리뷰가 없습니다.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {reviews.map((review) => (
+                  <div key={review.id} className="review-item" style={{
+                    padding: '16px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid #e5e7eb'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                      <div className="review-rating" style={{ 
+                        display: 'flex', 
+                        alignItems: 'center',
+                        gap: '4px',
+                        fontSize: '14px',
+                        fontWeight: '600',
+                        color: '#f59e0b'
+                      }}>
+                        {'⭐'.repeat(review.rating)}
+                        <span style={{ marginLeft: '4px', color: '#6b7280' }}>({review.rating})</span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                        {review.username}
+                      </span>
+                    </div>
+                    <p className="review-comment" style={{ 
+                      fontSize: '14px', 
+                      color: '#374151',
+                      lineHeight: '1.6'
+                    }}>
+                      {review.comment}
+                    </p>
+                    {review.createdAt && (
+                      <p style={{ 
+                        fontSize: '12px', 
+                        color: '#9ca3af',
+                        marginTop: '8px'
+                      }}>
+                        {new Date(review.createdAt).toLocaleDateString('ko-KR')}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </main>
       </div>
     </>

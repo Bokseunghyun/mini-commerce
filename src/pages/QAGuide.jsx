@@ -110,7 +110,7 @@ export default function QAGuide({ onClose }) {
                   <tr>
                     <td style={styles.td}>상품상세</td>
                     <td style={styles.td}>리뷰 목록</td>
-                    <td style={styles.td}.review-item</td>
+                    <td style={styles.td}>.review-item</td>
                     <td style={styles.td}>리뷰 표시</td>
                   </tr>
                 </tbody>
