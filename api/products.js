@@ -165,7 +165,7 @@ export default async function productsRoutes(req, res) {
       discountedPrice: 49000,
       price: 49000,
       discountRate: 29,
-      imageUrl: "https://images.unsplash.com/photo-1585435557001-1ba8d415c605?w=400&h=400&fit=crop",
+      imageUrl: "https://images.unsplash.com/photo-1615486511484-92e172cc4fe0?w=400&h=400&fit=crop",
     },
     {
       id: 17,

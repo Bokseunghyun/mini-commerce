@@ -137,6 +137,49 @@ export default function HomePage({
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @media (max-width: 768px) {
+          .product-grid { 
+            grid-template-columns: repeat(2, 1fr) !important; 
+            gap: 16px !important;
+            padding: 16px 12px !important;
+          }
+          .header-inner {
+            flex-wrap: wrap;
+            gap: 12px !important;
+          }
+          .header-actions {
+            flex-wrap: wrap;
+            gap: 8px !important;
+          }
+          .search-form {
+            order: 3;
+            width: 100%;
+            max-width: 100% !important;
+          }
+          .banner {
+            padding: 40px 16px !important;
+          }
+          .banner-title {
+            font-size: 24px !important;
+          }
+          .banner-subtitle {
+            font-size: 14px !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .product-grid { 
+            grid-template-columns: 1fr !important; 
+            gap: 16px !important;
+            padding: 16px 12px !important;
+          }
+          .logo {
+            font-size: 20px !important;
+          }
+          .header-actions button {
+            padding: 8px 12px !important;
+            font-size: 13px !important;
+          }
+        }
       `}</style>
 
       <div className="home-page" style={styles.page} data-testid="home-page">
@@ -148,15 +191,25 @@ export default function HomePage({
           data-testid="home-header"
           role="banner"
         >
-          <div style={styles.headerInner}>
+          <div style={styles.headerInner} className="header-inner">
             <div
               id="shop-logo"
               className="logo shop-logo"
               style={styles.logo}
-              onClick={onGoHome}
+              onClick={() => {
+                setSearchKeyword("");
+                setAppliedKeyword("");
+                onGoHome?.();
+              }}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => e.key === "Enter" && onGoHome?.()}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setSearchKeyword("");
+                  setAppliedKeyword("");
+                  onGoHome?.();
+                }
+              }}
               data-testid="logo"
               aria-label="ShopDemo 홈으로 이동"
             >
@@ -274,10 +327,10 @@ export default function HomePage({
         </header>
 
         {/* Main Banner */}
-        <section className="main-banner" style={styles.banner} data-testid="main-banner">
-          <div style={styles.bannerContent}>
-            <h1 style={styles.bannerTitle}>겨울 시즌 특가 세일</h1>
-            <p style={styles.bannerSubtitle}>최대 50% 할인된 가격으로 만나보세요</p>
+        <section className="main-banner banner" style={styles.banner} data-testid="main-banner">
+          <div style={styles.bannerContent} className="banner-content">
+            <h1 style={styles.bannerTitle} className="banner-title">겨울 시즌 특가 세일</h1>
+            <p style={styles.bannerSubtitle} className="banner-subtitle">최대 50% 할인된 가격으로 만나보세요</p>
           </div>
         </section>
 
@@ -357,7 +410,7 @@ export default function HomePage({
           ) : sortedProducts.length === 0 && appliedKeyword ? (
             <EmptyResults searchTerm={appliedKeyword} />
           ) : (
-            <div style={styles.productGrid} className="products-container" data-testid="product-grid" role="list">
+            <div style={styles.productGrid} className="product-grid products-container" data-testid="product-grid" role="list">
               {sortedProducts.map((product, index) => (
                 <article
                   key={product.id}
@@ -708,7 +761,7 @@ const styles = {
     margin: "0 auto",
     padding: "32px 24px",
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: "24px",
     minHeight: "400px",
     width: "100%",
@@ -860,9 +913,9 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    minHeight: "400px",
     gap: "8px",
     gridColumn: "1 / -1",
+    padding: "80px 20px",
   },
   emptyText: {
     fontSize: "16px",

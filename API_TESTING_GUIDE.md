@@ -590,6 +590,472 @@ test('권한 부족 - 403', async () => {
 
 ## 실전 테스트 예제
 
+### 1. 상태 코드 연습 (status-codes API)
+
+status-codes API는 다양한 HTTP 상태 코드를 연습할 수 있도록 설계된 특수 엔드포인트입니다.
+
+#### 사용법
+```bash
+# 200 OK 테스트
+GET /api/status-codes?code=200
+
+# 404 Not Found 테스트
+GET /api/status-codes?code=404
+
+# 401 Unauthorized 테스트
+GET /api/status-codes?code=401
+
+# 429 Too Many Requests 테스트 (Retry-After 헤더 포함)
+GET /api/status-codes?code=429
+
+# 500 Internal Server Error 테스트
+GET /api/status-codes?code=500
+```
+
+#### Playwright 테스트 예시
+```javascript
+test('다양한 HTTP 상태 코드 테스트', async ({ request }) => {
+  // 200 OK
+  const ok = await request.get('http://localhost:3000/api/status-codes?code=200');
+  expect(ok.status()).toBe(200);
+  
+  // 404 Not Found
+  const notFound = await request.get('http://localhost:3000/api/status-codes?code=404');
+  expect(notFound.status()).toBe(404);
+  
+  // 429 Too Many Requests
+  const tooMany = await request.get('http://localhost:3000/api/status-codes?code=429');
+  expect(tooMany.status()).toBe(429);
+  expect(tooMany.headers()['retry-after']).toBeDefined();
+  
+  // 500 Server Error
+  const serverError = await request.get('http://localhost:3000/api/status-codes?code=500');
+  expect(serverError.status()).toBe(500);
+});
+```
+
+### 2. 재고 확인 (inventory API)
+
+재고 API는 상품의 재고 정보를 조회하고, HEAD 메서드를 통해 헤더만 확인할 수 있습니다.
+
+#### GET 요청 - 재고 정보 조회
+```javascript
+test('재고 정보 조회', async ({ request }) => {
+  const response = await request.get('http://localhost:3000/api/inventory?productId=1');
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  // 응답 본문 검증
+  expect(data.productId).toBe(1);
+  expect(data.stock).toBeGreaterThanOrEqual(0);
+  expect(data.warehouse).toBeDefined();
+  expect(data.lastUpdated).toBeDefined();
+  expect(data.status).toMatch(/IN_STOCK|LOW_STOCK|OUT_OF_STOCK/);
+  
+  // 커스텀 헤더 검증
+  expect(response.headers()['x-product-id']).toBe('1');
+  expect(response.headers()['x-stock-count']).toBeDefined();
+  expect(response.headers()['x-warehouse']).toBeDefined();
+  expect(response.headers()['x-stock-status']).toBeDefined();
+  expect(response.headers()['etag']).toBeDefined();
+  expect(response.headers()['cache-control']).toBeDefined();
+});
+```
+
+#### HEAD 요청 - 메타데이터만 조회
+```javascript
+test('HEAD 메서드로 재고 확인', async ({ request }) => {
+  const response = await request.head('http://localhost:3000/api/inventory?productId=1');
+  
+  expect(response.ok()).toBeTruthy();
+  
+  // 본문은 없고 헤더만 존재
+  const headers = response.headers();
+  expect(headers['x-product-id']).toBe('1');
+  expect(headers['x-stock-count']).toBeDefined();
+  expect(headers['x-stock-status']).toBeDefined();
+  
+  // 본문 크기가 0인지 확인
+  const body = await response.body();
+  expect(body.length).toBe(0);
+});
+```
+
+#### 재고 부족 시나리오
+```javascript
+test('재고 부족 상품 확인', async ({ request }) => {
+  // productId=3은 재고가 0인 상품
+  const response = await request.get('http://localhost:3000/api/inventory?productId=3');
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.stock).toBe(0);
+  expect(data.available).toBe(false);
+  expect(data.status).toBe('OUT_OF_STOCK');
+  expect(response.headers()['x-stock-status']).toBe('OUT_OF_STOCK');
+});
+```
+
+### 3. 리뷰 시스템 (reviews API)
+
+#### 리뷰 조회
+```javascript
+test('상품 리뷰 조회', async ({ request }) => {
+  const response = await request.get('http://localhost:3000/api/reviews?productId=1');
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.productId).toBe(1);
+  expect(Array.isArray(data.reviews)).toBe(true);
+  
+  if (data.reviews.length > 0) {
+    const review = data.reviews[0];
+    expect(review.id).toBeDefined();
+    expect(review.productId).toBe(1);
+    expect(review.rating).toBeGreaterThanOrEqual(1);
+    expect(review.rating).toBeLessThanOrEqual(5);
+    expect(review.comment).toBeDefined();
+    expect(review.username).toBeDefined();
+  }
+});
+```
+
+#### 리뷰 작성 (인증 필요)
+```javascript
+test('리뷰 작성', async ({ request }) => {
+  // 먼저 로그인하여 토큰 획득
+  const loginRes = await request.post('http://localhost:3000/api/login', {
+    data: { username: 'test', password: 'test1234' }
+  });
+  const { token } = await loginRes.json();
+  
+  // 리뷰 작성
+  const response = await request.post('http://localhost:3000/api/reviews', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: {
+      productId: 1,
+      rating: 5,
+      comment: '정말 좋은 상품입니다!'
+    }
+  });
+  
+  expect(response.status()).toBe(201);
+  const data = await response.json();
+  
+  expect(data.review.id).toBeDefined();
+  expect(data.review.productId).toBe(1);
+  expect(data.review.rating).toBe(5);
+  expect(data.review.comment).toBe('정말 좋은 상품입니다!');
+});
+```
+
+#### 리뷰 수정 (PATCH)
+```javascript
+test('리뷰 수정', async ({ request }) => {
+  const token = 'your-jwt-token';
+  
+  const response = await request.patch('http://localhost:3000/api/reviews', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: {
+      id: 1,
+      rating: 4,
+      comment: '수정된 리뷰입니다.'
+    }
+  });
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.review.id).toBe(1);
+  expect(data.review.rating).toBe(4);
+  expect(data.review.comment).toBe('수정된 리뷰입니다.');
+});
+```
+
+#### 리뷰 삭제
+```javascript
+test('리뷰 삭제', async ({ request }) => {
+  const token = 'your-jwt-token';
+  
+  const response = await request.delete('http://localhost:3000/api/reviews', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { id: 1 }
+  });
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.message).toContain('삭제');
+});
+```
+
+### 4. 검색 API (search)
+
+#### 기본 검색
+```javascript
+test('상품 검색', async ({ request }) => {
+  const response = await request.get('http://localhost:3000/api/search?q=블루투스');
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.query).toBe('블루투스');
+  expect(data.count).toBeGreaterThan(0);
+  expect(Array.isArray(data.products)).toBe(true);
+  
+  // 모든 상품명에 '블루투스'가 포함되어 있는지 확인
+  data.products.forEach(p => {
+    expect(p.name.toLowerCase()).toContain('블루투스');
+  });
+});
+```
+
+#### 복합 필터 검색
+```javascript
+test('카테고리 + 가격 필터 검색', async ({ request }) => {
+  const params = new URLSearchParams({
+    category: '전자기기',
+    minPrice: '50000',
+    maxPrice: '200000',
+    sort: 'price-asc'
+  });
+  
+  const response = await request.get(`http://localhost:3000/api/search?${params}`);
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  // 필터 조건 검증
+  expect(data.filters.category).toBe('전자기기');
+  expect(data.filters.minPrice).toBe(50000);
+  expect(data.filters.maxPrice).toBe(200000);
+  
+  // 모든 상품이 조건을 만족하는지 확인
+  data.products.forEach(p => {
+    expect(p.category).toBe('전자기기');
+    expect(p.price).toBeGreaterThanOrEqual(50000);
+    expect(p.price).toBeLessThanOrEqual(200000);
+  });
+  
+  // 가격 오름차순 정렬 확인
+  for (let i = 0; i < data.products.length - 1; i++) {
+    expect(data.products[i].price).toBeLessThanOrEqual(data.products[i + 1].price);
+  }
+});
+```
+
+#### 빈 검색어 오류 테스트
+```javascript
+test('빈 검색어 입력 시 400 오류', async ({ request }) => {
+  const response = await request.get('http://localhost:3000/api/search?q=');
+  
+  expect(response.status()).toBe(400);
+  const data = await response.json();
+  
+  expect(data.code).toBe('SEARCH_QUERY_REQUIRED');
+  expect(data.message).toContain('검색어');
+});
+```
+
+### 5. 인증 테스트
+
+#### 로그인
+```javascript
+test('로그인 성공', async ({ request }) => {
+  const response = await request.post('http://localhost:3000/api/login', {
+    data: {
+      username: 'test',
+      password: 'test1234'
+    }
+  });
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.token).toBeDefined();
+  expect(data.user).toBeDefined();
+  expect(data.user.username).toBe('test');
+  expect(data.user.role).toBeDefined();
+});
+```
+
+#### 로그인 실패
+```javascript
+test('잘못된 비밀번호로 로그인 시도', async ({ request }) => {
+  const response = await request.post('http://localhost:3000/api/login', {
+    data: {
+      username: 'test',
+      password: 'wrongpassword'
+    }
+  });
+  
+  expect(response.status()).toBe(401);
+  const data = await response.json();
+  
+  expect(data.code).toBe('AUTH_INVALID_CREDENTIALS');
+  expect(data.message).toContain('비밀번호');
+});
+```
+
+#### 토큰 없이 보호된 API 호출
+```javascript
+test('토큰 없이 리뷰 작성 시도', async ({ request }) => {
+  const response = await request.post('http://localhost:3000/api/reviews', {
+    data: {
+      productId: 1,
+      rating: 5,
+      comment: '인증 없이 작성'
+    }
+  });
+  
+  expect(response.status()).toBe(401);
+  const data = await response.json();
+  
+  expect(data.code).toBe('AUTH_NO_TOKEN');
+});
+```
+
+### 6. 관리자 권한 테스트
+
+#### 일반 사용자가 관리자 API 호출
+```javascript
+test('일반 사용자가 관리자 페이지 접근 시 403', async ({ request }) => {
+  // 일반 사용자로 로그인
+  const loginRes = await request.post('http://localhost:3000/api/login', {
+    data: { username: 'test', password: 'test1234' }
+  });
+  const { token } = await loginRes.json();
+  
+  // 관리자 API 호출
+  const response = await request.get('http://localhost:3000/api/admin', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  
+  expect(response.status()).toBe(403);
+  const data = await response.json();
+  
+  expect(data.code).toBe('AUTH_FORBIDDEN');
+});
+```
+
+#### 관리자로 API 호출
+```javascript
+test('관리자 권한으로 API 접근', async ({ request }) => {
+  // 관리자로 로그인
+  const loginRes = await request.post('http://localhost:3000/api/login', {
+    data: { username: 'admin', password: 'admin1234' }
+  });
+  const { token } = await loginRes.json();
+  
+  // 관리자 API 호출
+  const response = await request.get('http://localhost:3000/api/admin', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  
+  expect(response.ok()).toBeTruthy();
+  const data = await response.json();
+  
+  expect(data.message).toContain('관리자');
+});
+```
+
+---
+
+## 추가 검증 포인트
+
+### 1. 에러 응답 형식 일관성
+모든 API의 에러 응답은 다음 형식을 따릅니다:
+```json
+{
+  "message": "에러 메시지",
+  "code": "ERROR_CODE"
+}
+```
+
+### 2. CORS 헤더
+모든 API는 CORS를 지원합니다:
+```javascript
+test('CORS 헤더 검증', async ({ request }) => {
+  const response = await request.get('http://localhost:3000/api/products', {
+    headers: { 'Origin': 'http://localhost:5173' }
+  });
+  
+  expect(response.headers()['access-control-allow-origin']).toBeDefined();
+});
+```
+
+### 3. 재고 초과 주문 방지
+장바구니에 재고보다 많은 수량을 담으려고 하면 API 오류가 발생합니다:
+```javascript
+test('재고 초과 주문 방지', async ({ page }) => {
+  // 1. 상품 상세 페이지 이동
+  await page.goto('http://localhost:3000');
+  await page.click('[data-testid="product-card-1"]');
+  
+  // 2. 재고 확인
+  const stockText = await page.locator('#stock-info').textContent();
+  const stock = parseInt(stockText.match(/\d+/)[0]);
+  
+  // 3. 재고보다 많은 수량 입력 시도
+  await page.fill('[aria-label="수량 선택"]', (stock + 1).toString());
+  await page.click('text=장바구니 담기');
+  
+  // 4. 오류 메시지 확인
+  await expect(page.locator('text=재고 부족')).toBeVisible();
+});
+```
+
+---
+
+## 📝 QA 자동화 체크리스트
+
+### 기본 API 검증
+- [ ] 모든 API 엔드포인트 호출 가능
+- [ ] 올바른 HTTP 메서드 사용
+- [ ] 정상 응답 시 올바른 상태 코드 반환
+- [ ] 오류 시 적절한 상태 코드 반환
+- [ ] 에러 응답에 code와 message 포함
+
+### 상태 코드 연습
+- [ ] status-codes API로 200, 404, 401, 429, 500 테스트
+- [ ] 429 응답에 Retry-After 헤더 포함 확인
+
+### 재고 관리
+- [ ] inventory API로 재고 조회 가능
+- [ ] HEAD 메서드로 헤더만 조회 가능
+- [ ] 커스텀 헤더 (X-Product-Id, X-Stock-Count 등) 검증
+- [ ] ETag 및 Cache-Control 헤더 확인
+- [ ] 재고 초과 주문 시 오류 발생 확인
+
+### 리뷰 시스템
+- [ ] 리뷰 조회 (GET)
+- [ ] 리뷰 작성 (POST) - 인증 필요
+- [ ] 리뷰 수정 (PATCH) - 인증 필요
+- [ ] 리뷰 삭제 (DELETE) - 인증 필요
+- [ ] 필수 필드 누락 시 400 오류
+- [ ] 별점 범위 초과 시 400 오류
+
+### 검색 기능
+- [ ] 기본 검색 동작
+- [ ] 카테고리 필터 동작
+- [ ] 가격 범위 필터 동작
+- [ ] 정렬 기능 동작
+- [ ] 빈 검색어 입력 시 400 오류
+
+### 인증/권한
+- [ ] 로그인 성공
+- [ ] 로그인 실패 (잘못된 비밀번호)
+- [ ] 토큰 없이 보호된 API 호출 시 401
+- [ ] 일반 사용자가 관리자 API 호출 시 403
+- [ ] 관리자 권한으로 API 접근 성공
+
+---
+
+**이 가이드를 참고하여 체계적인 API 테스트를 수행하세요!**
+
 ### Playwright 예제
 
 ```javascript
