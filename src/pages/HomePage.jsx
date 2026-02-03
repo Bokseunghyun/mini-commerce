@@ -167,32 +167,33 @@ export default function HomePage({
           }
           .control-inner {
             flex-wrap: nowrap !important;
-            overflow-x: auto !important;
-            -webkit-overflow-scrolling: touch !important;
-            scrollbar-width: none !important;
-          }
-          .control-inner::-webkit-scrollbar {
-            display: none !important;
+            gap: 8px !important;
           }
           .category-wrapper {
+            flex: 1 !important;
+            display: flex !important;
+            gap: 6px !important;
             flex-wrap: nowrap !important;
-            overflow-x: visible !important;
-            flex-shrink: 1 !important;
             min-width: 0 !important;
           }
           .category-button {
-            flex-shrink: 0 !important;
+            flex: 1 !important;
+            padding: 8px 4px !important;
+            font-size: 12px !important;
             white-space: nowrap !important;
-            padding: 8px 16px !important;
-            font-size: 13px !important;
+            min-width: 0 !important;
           }
           .sort-container {
             flex-shrink: 0 !important;
-            white-space: nowrap !important;
+            gap: 4px !important;
+          }
+          .sort-label {
+            font-size: 12px !important;
           }
           .sort-select {
-            font-size: 13px !important;
-            padding: 6px 10px !important;
+            font-size: 12px !important;
+            padding: 6px 8px !important;
+            min-width: 80px !important;
           }
         }
         @media (max-width: 480px) {
