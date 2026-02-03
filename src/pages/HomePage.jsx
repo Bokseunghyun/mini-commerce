@@ -165,25 +165,34 @@ export default function HomePage({
           .banner-subtitle {
             font-size: 14px !important;
           }
-          .category-wrapper {
+          .control-inner {
             flex-wrap: nowrap !important;
             overflow-x: auto !important;
             -webkit-overflow-scrolling: touch !important;
             scrollbar-width: none !important;
           }
-          .category-wrapper::-webkit-scrollbar {
+          .control-inner::-webkit-scrollbar {
             display: none !important;
+          }
+          .category-wrapper {
+            flex-wrap: nowrap !important;
+            overflow-x: visible !important;
+            flex-shrink: 1 !important;
+            min-width: 0 !important;
           }
           .category-button {
             flex-shrink: 0 !important;
             white-space: nowrap !important;
-          }
-          .control-inner {
-            flex-direction: column !important;
-            align-items: stretch !important;
+            padding: 8px 16px !important;
+            font-size: 13px !important;
           }
           .sort-container {
-            justify-content: flex-end !important;
+            flex-shrink: 0 !important;
+            white-space: nowrap !important;
+          }
+          .sort-select {
+            font-size: 13px !important;
+            padding: 6px 10px !important;
           }
         }
         @media (max-width: 480px) {
