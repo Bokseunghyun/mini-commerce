@@ -337,10 +337,10 @@ export default function CartPage({
   .cart-container {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 16px 12px;
+    padding: 16px 8px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 16px;
   }
 
   @media (min-width: 768px) {
@@ -388,11 +388,11 @@ export default function CartPage({
   .cart-item {
     background-color: #ffffff;
     border-radius: 12px;
-    padding: 16px;
+    padding: 12px;
     display: grid;
-    grid-template-columns: auto 80px 1fr;
+    grid-template-columns: 60px 1fr;
     grid-template-rows: auto auto auto;
-    gap: 12px;
+    gap: 10px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
@@ -402,62 +402,111 @@ export default function CartPage({
       grid-template-rows: auto;
       align-items: center;
       gap: 20px;
+      padding: 16px;
     }
   }
 
   .cart-item-checkbox {
-    width: 20px;
-    height: 20px;
+    width: 18px;
+    height: 18px;
     cursor: pointer;
+    grid-column: 1 / 2;
     grid-row: 1 / 2;
   }
 
   @media (min-width: 640px) {
     .cart-item-checkbox {
+      width: 20px;
+      height: 20px;
+      grid-column: auto;
       grid-row: auto;
     }
   }
 
   .cart-item-image-wrapper {
-    width: 80px;
-    height: 80px;
+    width: 60px;
+    height: 60px;
     border-radius: 8px;
     overflow: hidden;
     background-color: #f5f5f5;
+    grid-column: 1 / 2;
+    grid-row: 2 / 3;
   }
 
   @media (min-width: 640px) {
-    .cart-item-image-wrapper { width: 100px; height: 100px; }
+    .cart-item-image-wrapper {
+      width: 100px;
+      height: 100px;
+      grid-column: auto;
+      grid-row: auto;
+    }
   }
 
   .cart-item-image { width: 100%; height: 100%; object-fit: cover; }
 
-  .cart-item-info { display: flex; flex-direction: column; gap: 4px; }
+  .cart-item-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    grid-column: 2 / 3;
+    grid-row: 1 / 3;
+  }
+
+  @media (min-width: 640px) {
+    .cart-item-info {
+      grid-column: auto;
+      grid-row: auto;
+    }
+  }
 
   .cart-item-name {
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 500;
     color: #1a1a1a;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+    line-height: 1.3;
   }
 
-  .cart-item-price { font-size: 0.875rem; color: #666666; }
+  @media (min-width: 640px) {
+    .cart-item-name {
+      font-size: 0.9375rem;
+    }
+  }
+
+  .cart-item-price {
+    font-size: 0.8125rem;
+    color: #666666;
+  }
+
+  @media (min-width: 640px) {
+    .cart-item-price {
+      font-size: 0.875rem;
+    }
+  }
 
   .cart-item-quantity {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     grid-column: 1 / 2;
+    grid-row: 3 / 4;
+    justify-self: start;
   }
 
-  @media (min-width: 640px) { .cart-item-quantity { grid-column: auto; } }
+  @media (min-width: 640px) {
+    .cart-item-quantity {
+      gap: 8px;
+      grid-column: auto;
+      grid-row: auto;
+    }
+  }
 
   .cart-quantity-decrease, .cart-quantity-increase {
-    width: 32px;
-    height: 32px;
+    width: 28px;
+    height: 28px;
     border: 1px solid #e5e5e5;
     border-radius: 6px;
     background-color: #ffffff;
@@ -466,6 +515,13 @@ export default function CartPage({
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+  }
+
+  @media (min-width: 640px) {
+    .cart-quantity-decrease, .cart-quantity-increase {
+      width: 32px;
+      height: 32px;
+    }
   }
 
   .cart-quantity-decrease:hover:not(:disabled), .cart-quantity-increase:hover {
@@ -477,31 +533,69 @@ export default function CartPage({
 
   .quantity-icon { width: 14px; height: 14px; color: #1a1a1a; }
 
+  @media (min-width: 640px) {
+    .quantity-icon {
+      width: 16px;
+      height: 16px;
+    }
+  }
+
   .quantity-value {
-    min-width: 24px;
+    min-width: 20px;
     text-align: center;
-    font-size: 0.9375rem;
+    font-size: 0.875rem;
     font-weight: 500;
+  }
+
+  @media (min-width: 640px) {
+    .quantity-value {
+      min-width: 24px;
+      font-size: 0.9375rem;
+    }
   }
 
   .cart-item-subtotal {
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: flex-end;
     gap: 2px;
     grid-column: 2 / 3;
+    grid-row: 3 / 4;
   }
 
   @media (min-width: 640px) {
-    .cart-item-subtotal { grid-column: auto; align-items: flex-end; }
+    .cart-item-subtotal {
+      grid-column: auto;
+      grid-row: auto;
+    }
   }
 
-  .subtotal-label { font-size: 0.75rem; color: #999999; }
-  .subtotal-value { font-size: 1rem; font-weight: 600; color: #1a1a1a; }
+  .subtotal-label {
+    font-size: 0.6875rem;
+    color: #999999;
+  }
+
+  @media (min-width: 640px) {
+    .subtotal-label {
+      font-size: 0.75rem;
+    }
+  }
+
+  .subtotal-value {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #1a1a1a;
+  }
+
+  @media (min-width: 640px) {
+    .subtotal-value {
+      font-size: 1rem;
+    }
+  }
 
   .remove-item-btn {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
     border: none;
     border-radius: 6px;
     background-color: #fff5f5;
@@ -511,20 +605,41 @@ export default function CartPage({
     cursor: pointer;
     transition: background-color 0.2s ease;
     grid-column: 2 / 3;
+    grid-row: 2 / 3;
     justify-self: end;
+    align-self: end;
   }
 
   @media (min-width: 640px) {
-    .remove-item-btn { grid-column: auto; justify-self: auto; }
+    .remove-item-btn {
+      width: 36px;
+      height: 36px;
+      grid-column: auto;
+      grid-row: auto;
+      justify-self: auto;
+      align-self: auto;
+    }
   }
 
   .remove-item-btn:hover { background-color: #ffe5e5; }
-  .trash-icon { width: 18px; height: 18px; color: #e53e3e; }
+
+  .trash-icon {
+    width: 16px;
+    height: 16px;
+    color: #e53e3e;
+  }
+
+  @media (min-width: 640px) {
+    .trash-icon {
+      width: 18px;
+      height: 18px;
+    }
+  }
 
   .empty-cart {
     background-color: #ffffff;
     border-radius: 12px;
-    padding: 48px 24px;
+    padding: 48px 12px;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -534,6 +649,12 @@ export default function CartPage({
     flex: 1;
     width: 100%;
     justify-content: center;
+  }
+
+  @media (min-width: 640px) {
+    .empty-cart {
+      padding: 48px 24px;
+    }
   }
 
   .empty-cart-icon { width: 64px; height: 64px; color: #cccccc; }

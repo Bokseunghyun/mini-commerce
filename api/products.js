@@ -1,18 +1,16 @@
-export default async function productsRoutes(req, res) {
-  const user = req.user;
-
-  const PRODUCTS = [
-    // 전자기기
-    {
-      id: 1,
-      name: "프리미엄 무선 블루투스 이어폰 노이즈 캔슬링",
-      category: "전자기기",
-      originalPrice: 189000,
-      discountedPrice: 129000,
-      price: 129000,
-      discountRate: 32,
-      imageUrl: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
-    },
+// 상품 데이터
+export const PRODUCTS = [
+  // 전자기기
+  {
+    id: 1,
+    name: "프리미엄 무선 블루투스 이어폰 노이즈 캔슬링",
+    category: "전자기기",
+    originalPrice: 189000,
+    discountedPrice: 129000,
+    price: 129000,
+    discountRate: 32,
+    imageUrl: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
+  },
     {
       id: 2,
       name: "스마트 워치 헬스 트래커 방수 기능",
@@ -187,7 +185,10 @@ export default async function productsRoutes(req, res) {
       discountRate: 25,
       imageUrl: "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=400&h=400&fit=crop",
     },
-  ];
+];
+
+export default async function productsRoutes(req, res) {
+  const user = req.user;
 
   const safeProducts = PRODUCTS.map((p) => ({
     ...p,

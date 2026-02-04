@@ -59,12 +59,23 @@ export default function ProductDetailPage({
   onGoCart,
   onAddToCart,
   onBuyNow,
+  isLoggedIn = false,
 }) {
   const [quantity, setQuantity] = useState(1);
   const [stockInfo, setStockInfo] = useState(null);
   const [reviews, setReviews] = useState([]);
   const [loadingStock, setLoadingStock] = useState(true);
   const [loadingReviews, setLoadingReviews] = useState(true);
+  
+  // 리뷰 작성 상태
+  const [isWritingReview, setIsWritingReview] = useState(false);
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState('');
+  
+  // 리뷰 수정 상태
+  const [editingReviewId, setEditingReviewId] = useState(null);
+  const [editReviewRating, setEditReviewRating] = useState(5);
+  const [editReviewComment, setEditReviewComment] = useState('');
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -128,6 +139,141 @@ export default function ProductDetailPage({
   const handleBuyNow = () => {
     const qty = Math.max(1, Number(quantity) || 1);
     onBuyNow?.(qty);
+  };
+
+  // 리뷰 목록 새로고침
+  const refreshReviews = async () => {
+    if (!product?.id) return;
+    
+    setLoadingReviews(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/reviews?productId=${product.id}`);
+      const data = await res.json();
+      setReviews(data.reviews || []);
+    } catch (err) {
+      console.error('리뷰 조회 실패:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // 리뷰 작성
+  const handleSubmitReview = async () => {
+    if (!isLoggedIn) {
+      alert('로그인이 필요합니다.');
+      return;
+    }
+
+    if (newReviewComment.trim().length < 10) {
+      alert('리뷰는 최소 10자 이상 작성해주세요.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/reviews`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          productId: product.id,
+          rating: newReviewRating,
+          comment: newReviewComment.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`리뷰 작성 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        return;
+      }
+
+      alert('리뷰가 작성되었습니다.');
+      setIsWritingReview(false);
+      setNewReviewRating(5);
+      setNewReviewComment('');
+      await refreshReviews();
+    } catch (err) {
+      alert('리뷰 작성 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+
+  // 리뷰 수정 시작
+  const handleStartEdit = (review) => {
+    setEditingReviewId(review.id);
+    setEditReviewRating(review.rating);
+    setEditReviewComment(review.comment);
+  };
+
+  // 리뷰 수정 제출
+  const handleUpdateReview = async () => {
+    if (editReviewComment.trim().length < 10) {
+      alert('리뷰는 최소 10자 이상 작성해주세요.');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/reviews`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          id: editingReviewId,
+          rating: editReviewRating,
+          comment: editReviewComment.trim(),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`리뷰 수정 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        return;
+      }
+
+      alert('리뷰가 수정되었습니다.');
+      setEditingReviewId(null);
+      setEditReviewRating(5);
+      setEditReviewComment('');
+      await refreshReviews();
+    } catch (err) {
+      alert('리뷰 수정 중 오류가 발생했습니다: ' + err.message);
+    }
+  };
+
+  // 리뷰 삭제
+  const handleDeleteReview = async (reviewId) => {
+    if (!confirm('이 리뷰를 삭제하시겠습니까?')) return;
+
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/reviews`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({ id: reviewId }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(`리뷰 삭제 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        return;
+      }
+
+      alert('리뷰가 삭제되었습니다.');
+      await refreshReviews();
+    } catch (err) {
+      alert('리뷰 삭제 중 오류가 발생했습니다: ' + err.message);
+    }
   };
 
   if (!product) return null;
@@ -471,9 +617,124 @@ export default function ProductDetailPage({
             borderRadius: '12px',
             border: '1px solid #e5e7eb'
           }}>
-            <h2 style={{ fontSize: '20px', fontWeight: '700', marginBottom: '16px' }}>
-              상품 리뷰 {!loadingReviews && `(${reviews.length})`}
-            </h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: '700' }}>
+                상품 리뷰 {!loadingReviews && `(${reviews.length})`}
+              </h2>
+              {isLoggedIn && !isWritingReview && (
+                <button
+                  onClick={() => setIsWritingReview(true)}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '14px',
+                    fontWeight: '600',
+                    color: '#ffffff',
+                    backgroundColor: '#1a1a1a',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  리뷰 작성
+                </button>
+              )}
+            </div>
+
+            {/* 리뷰 작성 폼 */}
+            {isWritingReview && (
+              <div style={{
+                padding: '20px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb',
+                marginBottom: '16px'
+              }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px' }}>리뷰 작성하기</h3>
+                
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    별점
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <button
+                        key={star}
+                        onClick={() => setNewReviewRating(star)}
+                        style={{
+                          fontSize: '24px',
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          padding: '4px',
+                        }}
+                      >
+                        {star <= newReviewRating ? '⭐' : '☆'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                    리뷰 내용 (최소 10자)
+                  </label>
+                  <textarea
+                    value={newReviewComment}
+                    onChange={(e) => setNewReviewComment(e.target.value)}
+                    placeholder="상품에 대한 리뷰를 작성해주세요."
+                    style={{
+                      width: '100%',
+                      minHeight: '100px',
+                      padding: '12px',
+                      fontSize: '14px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      resize: 'vertical',
+                    }}
+                  />
+                  <p style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
+                    {newReviewComment.length} / 500자
+                  </p>
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={handleSubmitReview}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#ffffff',
+                      backgroundColor: '#1a1a1a',
+                      border: 'none',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    등록
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsWritingReview(false);
+                      setNewReviewRating(5);
+                      setNewReviewComment('');
+                    }}
+                    style={{
+                      padding: '10px 20px',
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#6b7280',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    취소
+                  </button>
+                </div>
+              </div>
+            )}
             
             {loadingReviews ? (
               <p style={{ fontSize: '14px', color: '#6b7280' }}>리뷰를 불러오는 중...</p>
@@ -481,47 +742,172 @@ export default function ProductDetailPage({
               <p style={{ fontSize: '14px', color: '#6b7280' }}>아직 작성된 리뷰가 없습니다.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {reviews.map((review) => (
-                  <div key={review.id} className="review-item" style={{
-                    padding: '16px',
-                    backgroundColor: '#f9fafb',
-                    borderRadius: '8px',
-                    border: '1px solid #e5e7eb'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                      <div className="review-rating" style={{ 
-                        display: 'flex', 
-                        alignItems: 'center',
-                        gap: '4px',
-                        fontSize: '14px',
-                        fontWeight: '600',
-                        color: '#f59e0b'
-                      }}>
-                        {'⭐'.repeat(review.rating)}
-                        <span style={{ marginLeft: '4px', color: '#6b7280' }}>({review.rating})</span>
-                      </div>
-                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-                        {review.username}
-                      </span>
-                    </div>
-                    <p className="review-comment" style={{ 
-                      fontSize: '14px', 
-                      color: '#374151',
-                      lineHeight: '1.6'
+                {reviews.map((review) => {
+                  const isEditing = editingReviewId === review.id;
+                  const currentUsername = localStorage.getItem('token') ? 
+                    JSON.parse(atob(localStorage.getItem('token').split('.')[1])).username : null;
+                  const isOwnReview = currentUsername === review.username;
+
+                  return (
+                    <div key={review.id} className="review-item" style={{
+                      padding: '16px',
+                      backgroundColor: '#f9fafb',
+                      borderRadius: '8px',
+                      border: '1px solid #e5e7eb'
                     }}>
-                      {review.comment}
-                    </p>
-                    {review.createdAt && (
-                      <p style={{ 
-                        fontSize: '12px', 
-                        color: '#9ca3af',
-                        marginTop: '8px'
-                      }}>
-                        {new Date(review.createdAt).toLocaleDateString('ko-KR')}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                      {isEditing ? (
+                        // 수정 모드
+                        <div>
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', fontSize: '14px', fontWeight: '500', marginBottom: '8px' }}>
+                              별점
+                            </label>
+                            <div style={{ display: 'flex', gap: '4px' }}>
+                              {[1, 2, 3, 4, 5].map((star) => (
+                                <button
+                                  key={star}
+                                  onClick={() => setEditReviewRating(star)}
+                                  style={{
+                                    fontSize: '20px',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: '2px',
+                                  }}
+                                >
+                                  {star <= editReviewRating ? '⭐' : '☆'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div style={{ marginBottom: '12px' }}>
+                            <textarea
+                              value={editReviewComment}
+                              onChange={(e) => setEditReviewComment(e.target.value)}
+                              style={{
+                                width: '100%',
+                                minHeight: '80px',
+                                padding: '10px',
+                                fontSize: '14px',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                resize: 'vertical',
+                              }}
+                            />
+                          </div>
+
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={handleUpdateReview}
+                              style={{
+                                padding: '8px 16px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#ffffff',
+                                backgroundColor: '#1a1a1a',
+                                border: 'none',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              저장
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEditingReviewId(null);
+                                setEditReviewRating(5);
+                                setEditReviewComment('');
+                              }}
+                              style={{
+                                padding: '8px 16px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#6b7280',
+                                backgroundColor: '#ffffff',
+                                border: '1px solid #e5e7eb',
+                                borderRadius: '6px',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              취소
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // 일반 표시 모드
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                            <div className="review-rating" style={{ 
+                              display: 'flex', 
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              color: '#f59e0b'
+                            }}>
+                              {'⭐'.repeat(review.rating)}
+                              <span style={{ marginLeft: '4px', color: '#6b7280' }}>({review.rating})</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+                              {review.username}
+                            </span>
+                          </div>
+                          <p className="review-comment" style={{ 
+                            fontSize: '14px', 
+                            color: '#374151',
+                            lineHeight: '1.6',
+                            marginBottom: '8px'
+                          }}>
+                            {review.comment}
+                          </p>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            {review.createdAt && (
+                              <p style={{ 
+                                fontSize: '12px', 
+                                color: '#9ca3af',
+                              }}>
+                                {new Date(review.createdAt).toLocaleDateString('ko-KR')}
+                              </p>
+                            )}
+                            {isOwnReview && (
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button
+                                  onClick={() => handleStartEdit(review)}
+                                  style={{
+                                    padding: '4px 12px',
+                                    fontSize: '12px',
+                                    color: '#6b7280',
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  수정
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteReview(review.id)}
+                                  style={{
+                                    padding: '4px 12px',
+                                    fontSize: '12px',
+                                    color: '#ef4444',
+                                    backgroundColor: '#ffffff',
+                                    border: '1px solid #fecaca',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>

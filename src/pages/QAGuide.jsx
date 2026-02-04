@@ -13,6 +13,7 @@ export default function QAGuide({ onClose }) {
     { id: "overview", label: "📌 개요 & UI 포인트" },
     { id: "errors", label: "💥 오류 케이스" },
     { id: "scenarios", label: "🎬 테스트 시나리오" },
+    { id: "flows", label: "🔄 시스템 흐름" },
     { id: "api", label: "🌐 API 문서" },
     { id: "skills", label: "📚 역량 & 리소스" },
   ];
@@ -371,6 +372,349 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   expect(response.status()).toBe(400);
   const body = await response.json();
   expect(body.code).toBe('COMMENT_TOO_SHORT');
+});`}</pre>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ============ TAB: flows ============ */}
+          {activeTab === "flows" && (
+            <div role="tabpanel" id="tab-panel-flows" aria-labelledby="tab-flows">
+              <section style={styles.section}>
+                <h3 style={styles.sectionTitle}>🔄 시스템 흐름 테스트 (UI + API 통합)</h3>
+                <p style={styles.text}>
+                  실제 사용자 시나리오를 따라 UI 검증과 API 검증을 결합한 End-to-End 테스트입니다.
+                </p>
+              </section>
+
+              {/* 흐름 1: 회원가입 → 로그인 → 상품 주문 */}
+              <section style={styles.section}>
+                <h4 style={styles.subsectionTitle}>🛒 Flow 1: 비회원 → 로그인 → 상품 주문</h4>
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>단계별 검증</h5>
+                  <ol style={{ ...styles.list, paddingLeft: '20px' }}>
+                    <li>
+                      <strong>홈페이지 진입</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 상품 카드 표시 확인 (className="product-card")</li>
+                        <li>UI: 로그인 버튼 표시 확인 (id="login-button")</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>로그인 시도</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 로그인 폼 표시 (id="login-form")</li>
+                        <li>UI: username, password 입력</li>
+                        <li>API: POST /api/login → 200 응답 확인</li>
+                        <li>API: token 포함 여부 확인</li>
+                        <li>UI: localStorage에 token 저장 확인</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>상품 상세 페이지 진입</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 상품 카드 클릭 (data-testid="product-card-1")</li>
+                        <li>API: GET /api/products/1 → 200 응답</li>
+                        <li>UI: 상품 정보 표시 확인</li>
+                        <li>API: GET /api/inventory?productId=1 → 재고 정보 확인</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>장바구니 담기</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 수량 조절 (className="quantity-btn")</li>
+                        <li>UI: "장바구니 담기" 버튼 클릭</li>
+                        <li>UI: alert 확인 ("장바구니에 상품이 추가되었습니다")</li>
+                        <li>UI: localStorage cart 업데이트 확인</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>주문하기</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 장바구니 페이지 이동</li>
+                        <li>UI: "주문하기" 버튼 클릭</li>
+                        <li>API: POST /api/user-actions (action: "order") → 재고 검증</li>
+                        <li>API: 재고 부족 시 409 에러 확인</li>
+                        <li>API: 재고 충분 시 200 응답 확인</li>
+                        <li>UI: 주문 완료 페이지 표시</li>
+                      </ul>
+                    </li>
+                  </ol>
+                </div>
+
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Playwright 코드 예시</h5>
+                  <pre style={styles.code}>{`test('전체 주문 흐름 (UI + API)', async ({ page }) => {
+  // 1. 홈페이지 진입
+  await page.goto('/');
+  await expect(page.locator('.product-card').first()).toBeVisible();
+  
+  // 2. 로그인
+  await page.click('#login-button');
+  await page.fill('#username', 'test');
+  await page.fill('#password', 'test1234');
+  
+  const [loginResponse] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/login')),
+    page.click('#login-submit')
+  ]);
+  
+  expect(loginResponse.status()).toBe(200);
+  const loginData = await loginResponse.json();
+  expect(loginData.token).toBeTruthy();
+  
+  // 3. 상품 상세 진입
+  const [productResponse] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/products/1')),
+    page.click('[data-testid="product-card-1"]')
+  ]);
+  
+  expect(productResponse.status()).toBe(200);
+  
+  // 4. 재고 확인
+  const inventoryResponse = await page.waitForResponse(
+    res => res.url().includes('/api/inventory')
+  );
+  const inventory = await inventoryResponse.json();
+  
+  // 5. 장바구니 담기
+  await page.click('.btn-add-to-cart');
+  await expect(page.locator('text=장바구니에 상품이 추가')).toBeVisible();
+  
+  // 6. 주문
+  await page.click('[aria-label*="장바구니"]');
+  
+  const [orderResponse] = await Promise.all([
+    page.waitForResponse(res => 
+      res.url().includes('/api/user-actions') && 
+      res.request().method() === 'POST'
+    ),
+    page.click('text=주문하기')
+  ]);
+  
+  const orderData = await orderResponse.json();
+  
+  if (inventory.stock > 0) {
+    expect(orderResponse.status()).toBe(200);
+    await expect(page.locator('text=주문 완료')).toBeVisible();
+  } else {
+    expect(orderResponse.status()).toBe(409);
+    expect(orderData.code).toBe('INSUFFICIENT_STOCK');
+  }
+});`}</pre>
+                </div>
+              </section>
+
+              {/* 흐름 2: 리뷰 작성 → 수정 → 삭제 */}
+              <section style={styles.section}>
+                <h4 style={styles.subsectionTitle}>✍️ Flow 2: 리뷰 작성 → 수정 → 삭제</h4>
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>단계별 검증</h5>
+                  <ol style={{ ...styles.list, paddingLeft: '20px' }}>
+                    <li>
+                      <strong>로그인 상태로 상품 상세 페이지 진입</strong>
+                      <ul style={styles.list}>
+                        <li>API: GET /api/reviews?productId=1 → 기존 리뷰 목록 확인</li>
+                        <li>UI: "리뷰 작성" 버튼 표시 확인</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>리뷰 작성</strong>
+                      <ul style={styles.list}>
+                        <li>UI: "리뷰 작성" 버튼 클릭</li>
+                        <li>UI: 별점 선택 (1-5)</li>
+                        <li>UI: 리뷰 내용 입력 (최소 10자)</li>
+                        <li>API: POST /api/reviews → 201 응답 확인</li>
+                        <li>API: 중복 작성 시 409 에러 확인</li>
+                        <li>UI: 리뷰 목록 새로고침 확인</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>리뷰 수정</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 본인 리뷰에 "수정" 버튼 표시 확인</li>
+                        <li>UI: "수정" 버튼 클릭 → 수정 폼 표시</li>
+                        <li>UI: 별점/내용 변경</li>
+                        <li>API: PATCH /api/reviews → 200 응답 확인</li>
+                        <li>API: 타인 리뷰 수정 시 403 에러 확인</li>
+                        <li>UI: 수정된 내용 즉시 반영</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>리뷰 삭제</strong>
+                      <ul style={styles.list}>
+                        <li>UI: "삭제" 버튼 클릭 → confirm 대화상자</li>
+                        <li>API: DELETE /api/reviews → 200 응답 확인</li>
+                        <li>API: 타인 리뷰 삭제 시 403 에러 확인</li>
+                        <li>UI: 리뷰 목록에서 제거 확인</li>
+                      </ul>
+                    </li>
+                  </ol>
+                </div>
+
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Playwright 코드 예시</h5>
+                  <pre style={styles.code}>{`test('리뷰 CRUD 흐름', async ({ page }) => {
+  // 로그인
+  await page.goto('/');
+  await page.click('#login-button');
+  await page.fill('#username', 'test');
+  await page.fill('#password', 'test1234');
+  await page.click('#login-submit');
+  
+  // 상품 상세 진입
+  await page.click('[data-testid="product-card-1"]');
+  await page.waitForSelector('#reviews-section');
+  
+  // 리뷰 작성
+  await page.click('text=리뷰 작성');
+  await page.click('button:has-text("⭐"):nth-child(5)'); // 5점
+  await page.fill('textarea', '정말 좋은 상품입니다. 강력 추천합니다!');
+  
+  const [createResponse] = await Promise.all([
+    page.waitForResponse(res => 
+      res.url().includes('/api/reviews') && 
+      res.request().method() === 'POST'
+    ),
+    page.click('button:has-text("등록")')
+  ]);
+  
+  expect(createResponse.status()).toBe(201);
+  const created = await createResponse.json();
+  const reviewId = created.review.id;
+  
+  // 리뷰 표시 확인
+  await expect(page.locator(\`.review-item:has-text("정말 좋은")\`)).toBeVisible();
+  
+  // 리뷰 수정
+  await page.locator(\`.review-item:has-text("정말 좋은")\`)
+    .locator('button:has-text("수정")').click();
+  await page.fill('textarea', '수정된 리뷰입니다. 역시 좋은 상품이네요!');
+  
+  const [updateResponse] = await Promise.all([
+    page.waitForResponse(res => 
+      res.url().includes('/api/reviews') && 
+      res.request().method() === 'PATCH'
+    ),
+    page.click('button:has-text("저장")')
+  ]);
+  
+  expect(updateResponse.status()).toBe(200);
+  await expect(page.locator('text=수정된 리뷰')).toBeVisible();
+  
+  // 리뷰 삭제
+  page.on('dialog', dialog => dialog.accept());
+  
+  const [deleteResponse] = await Promise.all([
+    page.waitForResponse(res => 
+      res.url().includes('/api/reviews') && 
+      res.request().method() === 'DELETE'
+    ),
+    page.locator(\`.review-item:has-text("수정된")\`)
+      .locator('button:has-text("삭제")').click()
+  ]);
+  
+  expect(deleteResponse.status()).toBe(200);
+  await expect(page.locator('text=수정된 리뷰')).not.toBeVisible();
+});`}</pre>
+                </div>
+              </section>
+
+              {/* 흐름 3: 권한 검증 흐름 */}
+              <section style={styles.section}>
+                <h4 style={styles.subsectionTitle}>🔐 Flow 3: 권한 검증 (비로그인 → 일반 → 관리자)</h4>
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>단계별 검증</h5>
+                  <ol style={{ ...styles.list, paddingLeft: '20px' }}>
+                    <li>
+                      <strong>비로그인 상태에서 관리자 페이지 접근</strong>
+                      <ul style={styles.list}>
+                        <li>UI: "관리자" 버튼 클릭</li>
+                        <li>API: GET /api/admin → 401 에러 (AUTH_NO_TOKEN)</li>
+                        <li>UI: alert 표시 ("토큰이 없습니다")</li>
+                        <li>UI: 홈으로 리다이렉트</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>일반 계정으로 관리자 페이지 접근</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 일반 계정(test/test1234)으로 로그인</li>
+                        <li>UI: "관리자" 버튼 클릭</li>
+                        <li>API: GET /api/admin → 403 에러 (AUTH_FORBIDDEN)</li>
+                        <li>UI: alert 표시 ("관리자 권한이 필요합니다")</li>
+                        <li>UI: 홈으로 리다이렉트</li>
+                      </ul>
+                    </li>
+                    <li>
+                      <strong>관리자 계정으로 접근</strong>
+                      <ul style={styles.list}>
+                        <li>UI: 관리자 계정(admin/admin1234)으로 로그인</li>
+                        <li>UI: "관리자" 버튼 클릭</li>
+                        <li>API: GET /api/admin → 200 응답</li>
+                        <li>UI: 관리자 페이지 표시 (상품 목록)</li>
+                        <li>API: POST /api/admin → 상품 추가</li>
+                        <li>API: PUT /api/admin → 상품 수정</li>
+                        <li>API: DELETE /api/admin → 상품 삭제</li>
+                      </ul>
+                    </li>
+                  </ol>
+                </div>
+
+                <div style={styles.subsection}>
+                  <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Playwright 코드 예시</h5>
+                  <pre style={styles.code}>{`test('권한 검증 흐름', async ({ page }) => {
+  // 1. 비로그인 상태
+  await page.goto('/');
+  
+  page.on('dialog', dialog => {
+    expect(dialog.message()).toContain('토큰이 없습니다');
+    dialog.accept();
+  });
+  
+  const [noAuthResponse] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/admin')),
+    page.click('button:has-text("관리자")')
+  ]);
+  
+  expect(noAuthResponse.status()).toBe(401);
+  const noAuthData = await noAuthResponse.json();
+  expect(noAuthData.code).toBe('AUTH_NO_TOKEN');
+  
+  // 2. 일반 계정
+  await page.click('#login-button');
+  await page.fill('#username', 'test');
+  await page.fill('#password', 'test1234');
+  await page.click('#login-submit');
+  
+  page.on('dialog', dialog => {
+    expect(dialog.message()).toContain('관리자 권한');
+    dialog.accept();
+  });
+  
+  const [forbiddenResponse] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/admin')),
+    page.click('button:has-text("관리자")')
+  ]);
+  
+  expect(forbiddenResponse.status()).toBe(403);
+  const forbiddenData = await forbiddenResponse.json();
+  expect(forbiddenData.code).toBe('AUTH_FORBIDDEN');
+  
+  // 3. 관리자 계정
+  await page.click('button:has-text("로그아웃")');
+  await page.click('#login-button');
+  await page.fill('#username', 'admin');
+  await page.fill('#password', 'admin1234');
+  await page.click('#login-submit');
+  
+  const [adminResponse] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/admin')),
+    page.click('button:has-text("관리자")')
+  ]);
+  
+  expect(adminResponse.status()).toBe(200);
+  await expect(page.locator('text=상품 관리')).toBeVisible();
 });`}</pre>
                 </div>
               </section>
