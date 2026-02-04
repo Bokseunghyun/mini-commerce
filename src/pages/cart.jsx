@@ -358,7 +358,6 @@ export default function CartPage({
     flex-direction: column;
     gap: 16px;
     min-width: 0;
-    min-height: 520px;
     width: 100%;
     background-color: #ffffff;
     border-radius: 12px;
@@ -371,6 +370,7 @@ export default function CartPage({
       flex: 1;
       min-width: 600px;
       padding: 20px;
+      min-height: 520px;
     }
   }
 
@@ -644,7 +644,7 @@ export default function CartPage({
   .empty-cart {
     background-color: transparent;
     border-radius: 12px;
-    padding: 48px 8px;
+    padding: 48px 0;
     text-align: center;
     display: flex;
     flex-direction: column;
@@ -658,7 +658,7 @@ export default function CartPage({
 
   @media (min-width: 640px) {
     .empty-cart {
-      padding: 48px 24px;
+      padding: 48px 0;
     }
   }
 
