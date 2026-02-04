@@ -340,7 +340,7 @@ export default function CartPage({
     padding: 16px 8px;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
   }
 
   @media (min-width: 768px) {
@@ -360,12 +360,17 @@ export default function CartPage({
     min-width: 0;
     min-height: 520px;
     width: 100%;
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   }
 
   @media (min-width: 768px) {
     .cart-items-section {
       flex: 1;
       min-width: 600px;
+      padding: 20px;
     }
   }
 
@@ -637,9 +642,9 @@ export default function CartPage({
   }
 
   .empty-cart {
-    background-color: #ffffff;
+    background-color: transparent;
     border-radius: 12px;
-    padding: 48px 12px;
+    padding: 48px 8px;
     text-align: center;
     display: flex;
     flex-direction: column;

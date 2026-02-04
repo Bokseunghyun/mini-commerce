@@ -577,21 +577,99 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           color: #6b7280;
           font-size: 14px;
         }
+
+        /* 모바일 카드 스타일 */
+        .product-card-mobile {
+          display: none;
+        }
+
         @media (max-width: 768px) {
           .admin-header { padding: 16px 12px; }
           .admin-header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
           .admin-title { font-size: 20px; }
           .header-buttons { width: 100%; justify-content: flex-start; }
           .admin-content { padding: 16px 12px !important; }
-          .products-table-wrapper { overflow-x: auto; }
-          .products-table { min-width: 800px; }
+          
+          /* 모바일에서는 테이블 숨기고 카드 표시 */
+          .table-wrapper { display: none; }
+          
+          .product-card-mobile {
+            display: block;
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          }
+          
+          .product-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #e5e7eb;
+          }
+          
+          .product-card-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1f2937;
+            flex: 1;
+          }
+          
+          .product-card-id {
+            font-size: 12px;
+            color: #6b7280;
+            background-color: #f3f4f6;
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-left: 8px;
+          }
+          
+          .product-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+          }
+          
+          .product-card-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 14px;
+          }
+          
+          .product-card-label {
+            color: #6b7280;
+            font-weight: 500;
+          }
+          
+          .product-card-value {
+            color: #1f2937;
+            font-weight: 500;
+          }
+          
+          .product-card-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            padding-top: 12px;
+            border-top: 1px solid #e5e7eb;
+          }
+          
           .form-grid { grid-template-columns: 1fr !important; }
+          .add-form-section { padding: 16px; margin-bottom: 16px; }
+          .info-box { padding: 12px; margin-bottom: 16px; }
         }
         @media (max-width: 480px) {
           .admin-header { padding: 12px 8px; }
           .admin-title { font-size: 18px; }
           .back-btn, .add-product-btn { padding: 8px 16px; font-size: 13px; }
           .admin-content { padding: 12px 8px !important; }
+          .add-form-section { padding: 12px; }
+          .product-card-mobile { padding: 12px; }
         }
       `}</style>
 
@@ -879,6 +957,160 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* 모바일 카드 레이아웃 */}
+            <div className="product-cards-mobile">
+              {products.length === 0 ? (
+                <div className="empty-table">
+                  상품이 없습니다. 상단의 상품 추가 버튼을 사용하세요.
+                </div>
+              ) : (
+                products.map((product) => (
+                  <div key={product.id} className="product-card-mobile">
+                    <div className="product-card-header">
+                      <div className="product-card-title">
+                        {editingId === product.id ? (
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={editForm.name}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, name: e.target.value })
+                            }
+                          />
+                        ) : (
+                          product.name
+                        )}
+                      </div>
+                      <div className="product-card-id">ID: {product.id}</div>
+                    </div>
+
+                    <div className="product-card-body">
+                      <div className="product-card-row">
+                        <span className="product-card-label">카테고리</span>
+                        <span className="product-card-value">{product.category || "-"}</span>
+                      </div>
+
+                      <div className="product-card-row">
+                        <span className="product-card-label">정가</span>
+                        <span className="product-card-value">
+                          {editingId === product.id ? (
+                            <input
+                              type="number"
+                              className="edit-input"
+                              value={editForm.originalPrice}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  originalPrice: Number(e.target.value),
+                                })
+                              }
+                              style={{ width: '100px' }}
+                            />
+                          ) : (
+                            `${Number(product.originalPrice || 0).toLocaleString()}원`
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="product-card-row">
+                        <span className="product-card-label">할인가</span>
+                        <span className="product-card-value">
+                          {editingId === product.id ? (
+                            <input
+                              type="number"
+                              className="edit-input"
+                              value={editForm.discountedPrice}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  discountedPrice: Number(e.target.value),
+                                })
+                              }
+                              style={{ width: '100px' }}
+                            />
+                          ) : (
+                            `${Number(product.discountedPrice || 0).toLocaleString()}원`
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="product-card-row">
+                        <span className="product-card-label">할인율</span>
+                        <span className="product-card-value">
+                          {editingId === product.id ? (
+                            <input
+                              type="number"
+                              className="edit-input"
+                              value={editForm.discountRate}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  discountRate: Number(e.target.value),
+                                })
+                              }
+                              style={{ width: '80px' }}
+                            />
+                          ) : (
+                            `${Number(product.discountRate || 0)}%`
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="product-card-row">
+                        <span className="product-card-label">상태</span>
+                        <span
+                          className={`status-badge ${
+                            product.active !== false
+                              ? "status-active"
+                              : "status-inactive"
+                          }`}
+                        >
+                          {product.active !== false ? "활성" : "비활성"}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="product-card-actions">
+                      {editingId === product.id ? (
+                        <>
+                          <button onClick={handleSave} className="btn btn-save">
+                            저장
+                          </button>
+                          <button onClick={handleCancel} className="btn btn-cancel">
+                            취소
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            data-testid={`edit-btn-${product.id}`}
+                            onClick={() => handleEdit(product)}
+                            className="btn btn-edit"
+                          >
+                            수정
+                          </button>
+                          <button
+                            data-testid={`toggle-btn-${product.id}`}
+                            onClick={() => handleToggleActive(product.id)}
+                            className="btn btn-toggle"
+                          >
+                            {product.active !== false ? "비활성화" : "활성화"}
+                          </button>
+                          <button
+                            data-testid={`delete-btn-${product.id}`}
+                            onClick={() => handleDeleteProduct(product.id)}
+                            className="btn btn-delete"
+                          >
+                            삭제
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>

@@ -348,3 +348,238 @@ vercel --prod
 VITE_API_BASE_URL=https://your-domain.vercel.app
 JWT_SECRET=your-secret-key
 ```
+
+---
+
+## 🎓 Playwright 테스트 코드 예제 (TypeScript)
+
+### 초보자를 위한 기본 개념 설명
+
+Playwright는 웹 애플리케이션을 자동으로 테스트하는 도구입니다. 브라우저를 실제로 열고, 사용자처럼 클릭하고, 입력하고, 결과를 확인할 수 있습니다.
+
+#### 주요 용어 설명
+- **`test()`**: 하나의 테스트 케이스를 정의합니다.
+- **`page`**: 브라우저의 한 탭을 의미합니다. 여기서 모든 동작을 수행합니다.
+- **`await`**: 비동기 작업(API 호출, 페이지 이동 등)이 완료될 때까지 기다립니다.
+- **`expect()`**: 결과를 검증합니다. 예상한 값과 실제 값이 일치하는지 확인합니다.
+- **`locator()`**: HTML 요소를 찾는 방법입니다. ID, 클래스, 텍스트 등으로 찾을 수 있습니다.
+
+### 예제 1: 로그인 성공 테스트
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 올바른 아이디/비밀번호로 로그인이 성공하는지 확인합니다
+test('로그인 성공 - 올바른 계정 정보 입력', async ({ page }) => {
+  // 1. 메인 페이지로 이동합니다
+  await page.goto('/');
+  
+  // 2. 로그인 버튼을 찾아서 클릭합니다
+  // '#home-login'은 HTML에서 id="home-login"인 요소를 의미합니다
+  await page.click('#home-login');
+  
+  // 3. 아이디 입력창에 'test'를 입력합니다
+  await page.fill('#login-username', 'test');
+  
+  // 4. 비밀번호 입력창에 'test1234'를 입력합니다
+  await page.fill('#login-password', 'test1234');
+  
+  // 5. 로그인 제출 버튼을 클릭합니다
+  await page.click('#login-submit');
+  
+  // 6. 로그인이 성공하면 로그아웃 버튼이 보여야 합니다
+  // toBeVisible()은 해당 요소가 화면에 보이는지 확인합니다
+  await expect(page.locator('#home-logout')).toBeVisible();
+});
+```
+
+### 예제 2: 로그인 실패 테스트
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 잘못된 계정 정보로 로그인이 실패하는지 확인합니다
+test('로그인 실패 - 잘못된 계정 정보', async ({ page }) => {
+  // 1. 메인 페이지로 이동
+  await page.goto('/');
+  
+  // 2. 로그인 페이지로 이동
+  await page.click('#home-login');
+  
+  // 3. 존재하지 않는 아이디와 비밀번호 입력
+  await page.fill('#login-username', 'wronguser');
+  await page.fill('#login-password', 'wrongpass');
+  
+  // 4. 로그인 시도
+  await page.click('#login-submit');
+  
+  // 5. 에러 메시지가 표시되는지 확인
+  // toContainText()는 해당 요소에 특정 텍스트가 포함되어 있는지 확인합니다
+  await expect(page.locator('#login-error'))
+    .toContainText('아이디 또는 비밀번호');
+});
+```
+
+### 예제 3: 카테고리 필터링 테스트
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 카테고리 버튼을 클릭했을 때 상품이 제대로 필터링되는지 확인합니다
+test('카테고리 필터 - 전자기기 선택', async ({ page }) => {
+  // 1. 메인 페이지로 이동
+  await page.goto('/');
+  
+  // 2. '전자기기' 카테고리 버튼 클릭
+  await page.click('[data-testid="category-전자기기"]');
+  
+  // 3. 페이지에 표시된 모든 상품 카드를 찾습니다
+  // locator().all()은 조건에 맞는 모든 요소를 배열로 반환합니다
+  const productCards = await page.locator('[data-testid^="product-card-"]').all();
+  
+  // 4. 전자기기 카테고리는 6개의 상품이 있어야 합니다
+  // toBe()는 정확히 같은 값인지 확인합니다
+  expect(productCards.length).toBe(6);
+});
+```
+
+### 예제 4: 장바구니 담기 테스트 (로그인 필요)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 로그인 후 상품을 장바구니에 담고 확인하는 전체 과정을 테스트합니다
+test('장바구니 담기 - 로그인 후 상품 추가', async ({ page }) => {
+  // 1. 로그인 과정
+  await page.goto('/');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', 'test1234');
+  await page.click('#login-submit');
+  
+  // 2. 첫 번째 상품의 '장바구니 담기' 버튼 클릭
+  // [data-testid="add-btn-1"]은 상품 ID가 1인 상품의 장바구니 버튼입니다
+  await page.click('[data-testid="add-btn-1"]');
+  
+  // 3. 장바구니 카운트 배지가 '1'을 표시하는지 확인
+  await expect(page.locator('[data-testid="cart-badge"]'))
+    .toHaveText('1');
+  
+  // 4. 장바구니 페이지로 이동
+  await page.click('[data-testid="cart-button"]');
+  
+  // 5. 장바구니 페이지가 로드되었는지 확인
+  await expect(page.locator('#cart-page')).toBeVisible();
+  
+  // 6. 장바구니에 상품이 1개 있는지 확인
+  const cartItems = await page.locator('.cart-item').all();
+  expect(cartItems.length).toBe(1);
+});
+```
+
+### 예제 5: 관리자 권한 테스트
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 일반 사용자와 관리자의 권한 차이를 확인합니다
+test('권한 테스트 - 일반 사용자는 관리자 버튼이 보이지 않음', async ({ page }) => {
+  // 1. 일반 사용자로 로그인
+  await page.goto('/');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', 'test1234');
+  await page.click('#login-submit');
+  
+  // 2. 관리자 버튼이 화면에 보이지 않아야 합니다
+  // not.toBeVisible()은 요소가 보이지 않음을 확인합니다
+  await expect(page.locator('[data-testid="admin-button"]'))
+    .not.toBeVisible();
+});
+
+test('권한 테스트 - 관리자는 관리자 버튼이 보임', async ({ page }) => {
+  // 1. 관리자 계정으로 로그인
+  await page.goto('/');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'admin');
+  await page.fill('#login-password', 'admin1234');
+  await page.click('#login-submit');
+  
+  // 2. 관리자 버튼이 화면에 보여야 합니다
+  await expect(page.locator('[data-testid="admin-button"]'))
+    .toBeVisible();
+});
+```
+
+### 예제 6: API 직접 호출 테스트
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 이 테스트는 UI 없이 API를 직접 호출하여 테스트합니다
+test('API 테스트 - 존재하지 않는 상품 조회 시 404 에러', async ({ page }) => {
+  // page.request.get()을 사용하면 API를 직접 호출할 수 있습니다
+  const response = await page.request.get('/api/products/99');
+  
+  // HTTP 상태 코드가 404인지 확인
+  expect(response.status()).toBe(404);
+  
+  // 응답 본문(body)을 JSON으로 파싱
+  const body = await response.json();
+  
+  // 에러 코드가 'PRODUCT_NOT_FOUND'인지 확인
+  expect(body.code).toBe('PRODUCT_NOT_FOUND');
+});
+
+test('API 테스트 - 인증 없이 관리자 API 호출 시 401 에러', async ({ page }) => {
+  // 인증 토큰 없이 관리자 API 호출
+  const response = await page.request.get('/api/admin');
+  
+  // 401 Unauthorized 에러가 발생해야 합니다
+  expect(response.status()).toBe(401);
+  
+  const body = await response.json();
+  expect(body.code).toBe('AUTH_NO_TOKEN');
+});
+```
+
+### 테스트 실행 방법
+
+```bash
+# Playwright 설치
+npm init playwright@latest
+
+# 모든 테스트 실행
+npx playwright test
+
+# 특정 파일만 실행
+npx playwright test tests/login.spec.ts
+
+# UI 모드로 실행 (디버깅에 유용)
+npx playwright test --ui
+
+# 헤드풀 모드로 실행 (브라우저가 실제로 보임)
+npx playwright test --headed
+```
+
+### 디버깅 팁
+
+1. **스크린샷 찍기**: 테스트 중 특정 시점의 화면을 저장
+   ```typescript
+   await page.screenshot({ path: 'screenshot.png' });
+   ```
+
+2. **대기 시간 추가**: 요소가 나타날 때까지 기다리기
+   ```typescript
+   await page.waitForSelector('#my-element');
+   ```
+
+3. **콘솔 로그 확인**: 브라우저 콘솔의 메시지 캡처
+   ```typescript
+   page.on('console', msg => console.log(msg.text()));
+   ```
+
+4. **네트워크 요청 감시**: API 호출 모니터링
+   ```typescript
+   page.on('request', request => console.log(request.url()));
+   ```
