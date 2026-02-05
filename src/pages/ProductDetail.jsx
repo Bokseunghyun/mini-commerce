@@ -305,9 +305,11 @@ export default function ProductDetailPage({
           align-items: center;
           justify-content: space-between;
           gap: 8px;
+          width: 350px;
+          box-sizing: border-box;
         }
         @media (min-width: 768px) {
-          .header-content { padding: 16px; gap: 12px; }
+          .header-content { padding: 16px; gap: 12px; width: 100%; }
         }
 
         .back-button {
@@ -372,8 +374,8 @@ export default function ProductDetailPage({
           .cart-badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: 12px; line-height: 20px; }
         }
 
-        .main-content { max-width: 1280px; margin: 0 auto; padding: 16px 12px; }
-        @media (min-width: 768px) { .main-content { padding: 40px 24px; } }
+        .main-content { max-width: 1280px; margin: 0 auto; padding: 16px 12px; width: 350px; box-sizing: border-box; }
+        @media (min-width: 768px) { .main-content { padding: 40px 24px; width: 100%; } }
 
         .product-layout { display: flex; flex-direction: column; gap: 24px; }
         @media (min-width: 1024px) { .product-layout { flex-direction: row; gap: 48px; } }

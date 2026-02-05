@@ -287,10 +287,12 @@ export default function ProductListPage({
           max-width: 1280px;
           margin: 0 auto;
           padding: 24px 16px;
+          width: 350px;
+          box-sizing: border-box;
         }
 
         @media (min-width: 640px) {
-          .header-content { padding: 24px; }
+          .header-content { padding: 24px; width: 100%; }
         }
 
         .header-top {
@@ -350,6 +352,8 @@ export default function ProductListPage({
           display: flex;
           flex-direction: column;
           gap: 16px;
+          width: 350px;
+          box-sizing: border-box;
         }
 
         @media (min-width: 640px) {
@@ -358,6 +362,7 @@ export default function ProductListPage({
             flex-direction: row;
             justify-content: space-between;
             align-items: center;
+            width: 100%;
           }
         }
 
@@ -433,8 +438,10 @@ export default function ProductListPage({
           max-width: 1280px;
           margin: 0 auto;
           padding: 32px 16px;
+          width: 350px;
+          box-sizing: border-box;
         }
-        @media (min-width: 640px) { .main-content { padding: 32px 24px; } }
+        @media (min-width: 640px) { .main-content { padding: 32px 24px; width: 100%; } }
 
         .product-grid {
           display: grid;

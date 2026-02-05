@@ -1,13 +1,9 @@
 import { useState, useEffect } from "react";
 
-// 카테고리별 기본 이미지 반환
-function getCategoryDefaultImage(category) {
-  const imageMap = {
-    "전자기기": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop",
-    "액세서리": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-    "생활": "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400&h=400&fit=crop"
-  };
-  return imageMap[category] || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+// 랜덤 이미지 URL 생성 (picsum.photos 사용)
+function getRandomImage() {
+  const randomId = Math.floor(Math.random() * 1000) + 1;
+  return `https://picsum.photos/seed/${randomId}/400/400`;
 }
 
 export default function AdminPage({ products = [], onBack, onUpdateProducts, onAccessDenied, apiBase }) {
@@ -278,7 +274,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           ...newProduct,
           id: Math.max(...products.map((p) => p.id), 0) + 1,
           price: newProduct.discountedPrice,
-          imageUrl: getCategoryDefaultImage(newProduct.category),
+          imageUrl: getRandomImage(),
           description: `${newProduct.name} 상품입니다.`,
           active: true,
         });
@@ -871,7 +867,6 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
               <table>
                 <thead>
                   <tr>
-                    <th>ID</th>
                     <th>이미지</th>
                     <th>상품명</th>
                     <th>카테고리</th>
@@ -879,6 +874,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                     <th>할인가</th>
                     <th>할인율</th>
                     <th>상태</th>
+                    <th>ID</th>
                     <th>작업</th>
                   </tr>
                 </thead>
@@ -892,8 +888,6 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                   ) : (
                     products.map((product) => (
                       <tr key={product.id}>
-                        <td>{product.id}</td>
-
                         <td>
                           <img
                             src={product.imageUrl || "/placeholder.svg"}
@@ -989,6 +983,8 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                             {product.active !== false ? "활성" : "비활성"}
                           </span>
                         </td>
+
+                        <td>{product.id}</td>
 
                         <td>
                           <div className="action-buttons">

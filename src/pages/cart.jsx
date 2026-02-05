@@ -281,6 +281,7 @@ export default function CartPage({
     position: sticky;
     top: 0;
     z-index: 10;
+    width: 100%;
   }
 
   .header-content {
@@ -291,6 +292,7 @@ export default function CartPage({
     align-items: center;
     gap: 12px;
     width: 350px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
@@ -345,6 +347,7 @@ export default function CartPage({
     flex-direction: column;
     gap: 20px;
     width: 350px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
