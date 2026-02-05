@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import QAGuide from "./QAGuide.jsx";
 
 // ============================================
@@ -51,6 +51,22 @@ export default function HomePage({
   const [showQAGuide, setShowQAGuide] = useState(false);
 
   const categories = ["전체", "전자기기", "액세서리", "생활"];
+
+  // 스크롤 위치 복원 (페이지 돌아올 때)
+  useEffect(() => {
+    const savedScrollPosition = sessionStorage.getItem('homePageScrollPosition');
+    if (savedScrollPosition) {
+      window.scrollTo(0, parseInt(savedScrollPosition, 10));
+      sessionStorage.removeItem('homePageScrollPosition');
+    }
+  }, []);
+
+  // 스크롤 위치 저장 (페이지 떠날 때)
+  useEffect(() => {
+    return () => {
+      sessionStorage.setItem('homePageScrollPosition', window.scrollY.toString());
+    };
+  }, []);
 
   // ============================================
   // 검색 필터링 (appliedKeyword 기준 - 검색 버튼 클릭 후 적용)
@@ -243,6 +259,8 @@ export default function HomePage({
                 setAppliedKeyword("");
                 setActiveCategory("전체");
                 setSortBy("default");
+                sessionStorage.removeItem('homePageScrollPosition');
+                window.scrollTo(0, 0);
                 onGoHome?.();
               }}
               role="button"
@@ -253,6 +271,8 @@ export default function HomePage({
                   setAppliedKeyword("");
                   setActiveCategory("전체");
                   setSortBy("default");
+                  sessionStorage.removeItem('homePageScrollPosition');
+                  window.scrollTo(0, 0);
                   onGoHome?.();
                 }
               }}
