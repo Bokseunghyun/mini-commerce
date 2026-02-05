@@ -142,18 +142,8 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         : p
     );
 
-    // localStorage도 업데이트
-    const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
-    const updatedLocalProducts = existingLocalProducts.map((p) =>
-      p.id === editingId
-        ? {
-            ...p,
-            ...editForm,
-            price: editForm.discountedPrice || editForm.originalPrice,
-          }
-        : p
-    );
-    localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
+    // localStorage에 전체 상품 목록의 변경사항 저장
+    localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
     onUpdateProducts(updatedProducts);
     setEditingId(null);
@@ -213,12 +203,8 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         p.id === productId ? { ...p, active: newActiveValue } : p
       );
 
-      // localStorage도 업데이트
-      const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
-      const updatedLocalProducts = existingLocalProducts.map((p) =>
-        p.id === productId ? { ...p, active: newActiveValue } : p
-      );
-      localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
+      // localStorage에 전체 상품 목록 저장
+      localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
       onUpdateProducts(updatedProducts);
       
@@ -287,12 +273,12 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           active: true,
         });
 
-      // localStorage에 추가된 상품 저장
-      const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
-      existingLocalProducts.push(added);
-      localStorage.setItem('adminProducts', JSON.stringify(existingLocalProducts));
+      const updatedProducts = [...products, added];
+      
+      // localStorage에 전체 상품 목록 저장
+      localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
-      onUpdateProducts([...products, added]);
+      onUpdateProducts(updatedProducts);
       setIsAdding(false);
       setAddForm({
         name: "",
@@ -345,12 +331,11 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
       alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
 
-    // localStorage에서도 삭제
-    const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
-    const updatedLocalProducts = existingLocalProducts.filter(p => p.id !== productId);
-    localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
-
     const updatedProducts = products.filter((p) => p.id !== productId);
+    
+    // localStorage에 전체 상품 목록 저장
+    localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
+    
     onUpdateProducts(updatedProducts);
     alert("상품이 삭제되었습니다.");
   };

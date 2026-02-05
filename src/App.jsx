@@ -169,6 +169,19 @@ export default function App() {
       setIsLoadingProducts(true);
       const token = localStorage.getItem('token');
 
+      // localStorage에 저장된 전체 상품 목록이 있으면 우선 사용
+      const savedProducts = localStorage.getItem('allProductsModifications');
+      if (savedProducts) {
+        try {
+          const parsedProducts = JSON.parse(savedProducts);
+          setProducts(parsedProducts.map(normalizeProduct));
+          setIsLoadingProducts(false);
+          return;
+        } catch (e) {
+          // localStorage 파싱 실패 시 API 호출로 fallback
+        }
+      }
+
       fetch(`${API_BASE}/api/products`, {
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
@@ -183,18 +196,7 @@ export default function App() {
           const list = Array.isArray(data.products) ? data.products : [];
           const apiProducts = list.map(normalizeProduct);
           
-          // localStorage에서 Admin이 추가한 상품 가져오기
-          const localProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
-          
-          // API 상품과 localStorage 상품 병합 (중복 제거)
-          const merged = [...apiProducts];
-          localProducts.forEach(localProd => {
-            if (!merged.find(p => p.id === localProd.id)) {
-              merged.push(normalizeProduct(localProd));
-            }
-          });
-          
-          setProducts(merged);
+          setProducts(apiProducts);
         })
         .catch(() => {
           setProducts([]);
@@ -209,6 +211,23 @@ export default function App() {
     try {
       const pid = Number(id);
 
+      // 먼저 localStorage에서 찾기 (Admin이 추가/수정한 상품)
+      const savedProducts = localStorage.getItem('allProductsModifications');
+      if (savedProducts) {
+        try {
+          const parsedProducts = JSON.parse(savedProducts);
+          const localProduct = parsedProducts.find(p => Number(p.id) === pid);
+          if (localProduct) {
+            setSelectedProduct(normalizeProduct(localProduct));
+            setPage('productDetail');
+            return;
+          }
+        } catch (e) {
+          // localStorage 파싱 실패 시 API 호출로 fallback
+        }
+      }
+
+      // localStorage에 없으면 API 호출
       const res = await fetch(`${API_BASE}/api/products/${pid}`);
       const data = await res.json().catch(() => ({}));
 
