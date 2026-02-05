@@ -947,11 +947,64 @@ GET /api/admin (일반 사용자 토큰) → 403`}</pre>
 
               <section style={styles.section}>
                 <h3 style={styles.sectionTitle}>📊 상태 코드 연습 API</h3>
-                <p style={styles.text}><code>/api/status-codes?code=N</code> 으로 원하는 상태 코드를 직접 트리거 가능합니다.</p>
-                <pre style={styles.code}>{`GET /api/status-codes?code=200 → 200
-GET /api/status-codes?code=404 → 404
-GET /api/status-codes?code=429 → 429 (Retry-After 헤더 포함)
-GET /api/status-codes?code=500 → 500`}</pre>
+                <p style={styles.text}>
+                  <code>/api/status-codes?code=N</code> 으로 원하는 상태 코드를 직접 트리거할 수 있습니다.
+                </p>
+                
+                <div style={{ ...styles.note, marginBottom: '20px', padding: '16px', backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>💡 사용 방법</p>
+                  <p style={{ margin: 0, fontSize: '13px', marginBottom: '8px' }}>
+                    이 API는 다양한 HTTP 상태 코드를 테스트하기 위한 연습용 엔드포인트입니다. 
+                    쿼리 파라미터 <code>code</code>에 원하는 상태 코드 번호를 넣으면 해당 상태 코드로 응답합니다.
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
+                    <strong>사용 예시:</strong>
+                  </p>
+                  <ul style={{ ...styles.list, marginTop: '4px', fontSize: '13px' }}>
+                    <li>브라우저 주소창에 직접 입력: <code>https://your-domain.com/api/status-codes?code=404</code></li>
+                    <li>Playwright 테스트: <code>await page.request.get('/api/status-codes?code=500')</code></li>
+                    <li>fetch 사용: <code>fetch('/api/status-codes?code=429').then(res =&gt; console.log(res.status))</code></li>
+                  </ul>
+                </div>
+
+                <h4 style={styles.subsectionTitle}>지원하는 상태 코드</h4>
+                <pre style={styles.code}>{`GET /api/status-codes?code=200 → 200 OK
+  응답: { "message": "200 상태 코드 응답", "code": 200 }
+
+GET /api/status-codes?code=404 → 404 Not Found
+  응답: { "message": "404 상태 코드 응답", "code": 404 }
+
+GET /api/status-codes?code=429 → 429 Too Many Requests
+  응답: { "message": "429 상태 코드 응답", "code": 429 }
+  헤더: Retry-After: 60 (60초 후 재시도)
+
+GET /api/status-codes?code=500 → 500 Internal Server Error
+  응답: { "message": "500 상태 코드 응답", "code": 500 }`}</pre>
+
+                <h4 style={{ ...styles.subsectionTitle, marginTop: '16px' }}>Playwright 테스트 예시</h4>
+                <pre style={styles.code}>{`// 404 Not Found 테스트
+test('상태 코드 404 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=404');
+  expect(response.status()).toBe(404);
+  
+  const data = await response.json();
+  expect(data.code).toBe(404);
+});
+
+// 429 Rate Limit 테스트 (Retry-After 헤더 검증)
+test('상태 코드 429 + Retry-After 헤더 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=429');
+  expect(response.status()).toBe(429);
+  
+  const retryAfter = response.headers()['retry-after'];
+  expect(retryAfter).toBe('60');
+});
+
+// 500 Server Error 테스트
+test('상태 코드 500 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=500');
+  expect(response.status()).toBe(500);
+});`}</pre>
               </section>
             </div>
           )}

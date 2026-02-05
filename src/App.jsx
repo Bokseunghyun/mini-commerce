@@ -181,7 +181,20 @@ export default function App() {
         })
         .then((data) => {
           const list = Array.isArray(data.products) ? data.products : [];
-          setProducts(list.map(normalizeProduct));
+          const apiProducts = list.map(normalizeProduct);
+          
+          // localStorage에서 Admin이 추가한 상품 가져오기
+          const localProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
+          
+          // API 상품과 localStorage 상품 병합 (중복 제거)
+          const merged = [...apiProducts];
+          localProducts.forEach(localProd => {
+            if (!merged.find(p => p.id === localProd.id)) {
+              merged.push(normalizeProduct(localProd));
+            }
+          });
+          
+          setProducts(merged);
         })
         .catch(() => {
           setProducts([]);

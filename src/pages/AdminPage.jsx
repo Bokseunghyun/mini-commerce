@@ -142,6 +142,19 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         : p
     );
 
+    // localStorage도 업데이트
+    const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
+    const updatedLocalProducts = existingLocalProducts.map((p) =>
+      p.id === editingId
+        ? {
+            ...p,
+            ...editForm,
+            price: editForm.discountedPrice || editForm.originalPrice,
+          }
+        : p
+    );
+    localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
+
     onUpdateProducts(updatedProducts);
     setEditingId(null);
     setEditForm({
@@ -199,6 +212,14 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
       const updatedProducts = products.map((p) =>
         p.id === productId ? { ...p, active: newActiveValue } : p
       );
+
+      // localStorage도 업데이트
+      const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
+      const updatedLocalProducts = existingLocalProducts.map((p) =>
+        p.id === productId ? { ...p, active: newActiveValue } : p
+      );
+      localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
+
       onUpdateProducts(updatedProducts);
       
     } catch (err) {
@@ -266,6 +287,11 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           active: true,
         });
 
+      // localStorage에 추가된 상품 저장
+      const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
+      existingLocalProducts.push(added);
+      localStorage.setItem('adminProducts', JSON.stringify(existingLocalProducts));
+
       onUpdateProducts([...products, added]);
       setIsAdding(false);
       setAddForm({
@@ -318,6 +344,11 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
     } catch (e) {
       alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
+
+    // localStorage에서도 삭제
+    const existingLocalProducts = JSON.parse(localStorage.getItem('adminProducts') || '[]');
+    const updatedLocalProducts = existingLocalProducts.filter(p => p.id !== productId);
+    localStorage.setItem('adminProducts', JSON.stringify(updatedLocalProducts));
 
     const updatedProducts = products.filter((p) => p.id !== productId);
     onUpdateProducts(updatedProducts);
