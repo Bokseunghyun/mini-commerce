@@ -1,5 +1,15 @@
 import { useState, useEffect } from "react";
 
+// 카테고리별 기본 이미지 반환
+function getCategoryDefaultImage(category) {
+  const imageMap = {
+    "전자기기": "https://images.unsplash.com/photo-1498049794561-7780e7231661?w=400&h=400&fit=crop",
+    "액세서리": "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
+    "생활": "https://images.unsplash.com/photo-1556911220-bff31c812dba?w=400&h=400&fit=crop"
+  };
+  return imageMap[category] || "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400&h=400&fit=crop";
+}
+
 export default function AdminPage({ products = [], onBack, onUpdateProducts, onAccessDenied, apiBase }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
@@ -268,7 +278,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           ...newProduct,
           id: Math.max(...products.map((p) => p.id), 0) + 1,
           price: newProduct.discountedPrice,
-          imageUrl: "",
+          imageUrl: getCategoryDefaultImage(newProduct.category),
           description: `${newProduct.name} 상품입니다.`,
           active: true,
         });

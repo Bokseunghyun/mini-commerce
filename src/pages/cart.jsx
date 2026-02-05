@@ -360,6 +360,9 @@ export default function CartPage({
     min-width: 0;
     min-height: 520px;
     width: 100%;
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
   }
 
   @media (min-width: 768px) {
@@ -376,6 +379,7 @@ export default function CartPage({
     color: #666666;
     padding-bottom: 8px;
     border-bottom: 1px solid #e5e5e5;
+    background-color: #ffffff;
   }
 
   @media (min-width: 768px) {
@@ -638,8 +642,8 @@ export default function CartPage({
   }
 
   .empty-cart {
-    background-color: #ffffff;
-    border-radius: 12px;
+    background-color: transparent;
+    border-radius: 0;
     padding: 48px 24px;
     text-align: center;
     display: flex;
@@ -653,8 +657,8 @@ export default function CartPage({
   
   @media (min-width: 768px) {
     .empty-cart {
-      min-width: 600px;
-      max-width: 600px;
+      min-width: auto;
+      max-width: none;
     }
   }
 
