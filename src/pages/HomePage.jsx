@@ -56,8 +56,11 @@ export default function HomePage({
   useEffect(() => {
     const savedScrollPosition = sessionStorage.getItem('homePageScrollPosition');
     if (savedScrollPosition) {
-      window.scrollTo(0, parseInt(savedScrollPosition, 10));
-      sessionStorage.removeItem('homePageScrollPosition');
+      // DOM 렌더링 완료 후 스크롤 복원
+      setTimeout(() => {
+        window.scrollTo(0, parseInt(savedScrollPosition, 10));
+        sessionStorage.removeItem('homePageScrollPosition');
+      }, 0);
     }
   }, []);
 
