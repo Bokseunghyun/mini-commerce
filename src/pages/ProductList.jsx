@@ -464,6 +464,7 @@ export default function ProductListPage({
           border-radius: 8px 8px 0 0;
           display: block;
           text-decoration: none;
+          min-height: 200px;
         }
 
         .product-image img {

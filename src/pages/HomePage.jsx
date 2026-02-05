@@ -826,6 +826,7 @@ const styles = {
     aspectRatio: "1 / 1",
     backgroundColor: "#f1f5f9",
     overflow: "hidden",
+    minHeight: "200px",
   },
   productImg: {
     width: "100%",

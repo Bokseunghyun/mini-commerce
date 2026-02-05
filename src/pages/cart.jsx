@@ -290,12 +290,15 @@ export default function CartPage({
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 350px;
   }
 
   @media (min-width: 768px) {
     .header-content {
       padding: 16px;
       gap: 16px;
+      width: 100%;
+      max-width: 1024px;
     }
   }
 

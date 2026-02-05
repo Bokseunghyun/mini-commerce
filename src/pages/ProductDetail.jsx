@@ -386,6 +386,12 @@ export default function ProductDetailPage({
           overflow: hidden;
           background-color: #ffffff;
           border: 1px solid #e5e5e5;
+          min-height: 300px;
+        }
+        @media (min-width: 768px) {
+          .image-wrapper {
+            min-height: 400px;
+          }
         }
         .product-image { width: 100%; height: 100%; object-fit: cover; }
 
