@@ -79,6 +79,11 @@ export default function ProductDetailPage({
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
+  // 페이지 진입 시 스크롤 최상단으로 이동
+  React.useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // 재고 정보 조회
   React.useEffect(() => {
     if (!product?.id) return;
