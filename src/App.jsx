@@ -190,7 +190,7 @@ export default function App() {
           setIsLoadingProducts(false);
         });
     }
-  }, [page]);
+  }, [page, API_BASE]);
 
   const viewProduct = async (id) => {
     try {
