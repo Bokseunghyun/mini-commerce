@@ -52,18 +52,6 @@ export default function HomePage({
 
   const categories = ["전체", "전자기기", "액세서리", "생활"];
 
-  // 스크롤 위치 복원 (페이지 돌아올 때)
-  useEffect(() => {
-    const savedScrollPosition = sessionStorage.getItem('homePageScrollPosition');
-    if (savedScrollPosition) {
-      // DOM 렌더링 완료 후 스크롤 복원
-      setTimeout(() => {
-        window.scrollTo(0, parseInt(savedScrollPosition, 10));
-        sessionStorage.removeItem('homePageScrollPosition');
-      }, 0);
-    }
-  }, []);
-
   // 스크롤 위치 저장 (페이지 떠날 때)
   useEffect(() => {
     return () => {
