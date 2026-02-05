@@ -663,7 +663,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           
           .product-card-header {
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: flex-start;
             margin-bottom: 12px;
             padding-bottom: 12px;
@@ -872,6 +872,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>이미지</th>
                     <th>상품명</th>
                     <th>카테고리</th>
                     <th>정가</th>
@@ -884,7 +885,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan="8" className="empty-table">
+                      <td colSpan="9" className="empty-table">
                         상품이 없습니다. 상단의 상품 추가 버튼을 사용하세요.
                       </td>
                     </tr>
@@ -892,6 +893,19 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                     products.map((product) => (
                       <tr key={product.id}>
                         <td>{product.id}</td>
+
+                        <td>
+                          <img
+                            src={product.imageUrl || "/placeholder.svg"}
+                            alt={product.name}
+                            style={{
+                              width: "60px",
+                              height: "60px",
+                              objectFit: "cover",
+                              borderRadius: "4px"
+                            }}
+                          />
+                        </td>
 
                         <td className="product-name-cell">
                           {editingId === product.id ? (
@@ -1028,21 +1042,34 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                 products.map((product) => (
                   <div key={product.id} className="product-card-mobile">
                     <div className="product-card-header">
-                      <div className="product-card-title">
-                        {editingId === product.id ? (
-                          <input
-                            type="text"
-                            className="edit-input"
-                            value={editForm.name}
-                            onChange={(e) =>
-                              setEditForm({ ...editForm, name: e.target.value })
-                            }
-                          />
-                        ) : (
-                          product.name
-                        )}
+                      <img
+                        src={product.imageUrl || "/placeholder.svg"}
+                        alt={product.name}
+                        style={{
+                          width: "80px",
+                          height: "80px",
+                          objectFit: "cover",
+                          borderRadius: "8px",
+                          marginBottom: "12px"
+                        }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div className="product-card-title">
+                          {editingId === product.id ? (
+                            <input
+                              type="text"
+                              className="edit-input"
+                              value={editForm.name}
+                              onChange={(e) =>
+                                setEditForm({ ...editForm, name: e.target.value })
+                              }
+                            />
+                          ) : (
+                            product.name
+                          )}
+                        </div>
+                        <div className="product-card-id">ID: {product.id}</div>
                       </div>
-                      <div className="product-card-id">ID: {product.id}</div>
                     </div>
 
                     <div className="product-card-body">

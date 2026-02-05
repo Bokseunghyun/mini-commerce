@@ -341,6 +341,7 @@ export default function CartPage({
     display: flex;
     flex-direction: column;
     gap: 20px;
+    width: 350px;
   }
 
   @media (min-width: 768px) {
@@ -349,6 +350,8 @@ export default function CartPage({
       flex-direction: row;
       align-items: flex-start;
       gap: 24px;
+      width: 100%;
+      max-width: 1024px;
     }
   }
 
@@ -359,7 +362,7 @@ export default function CartPage({
     gap: 16px;
     min-width: 0;
     min-height: 520px;
-    width: 100%;
+    width: 350px;
     background-color: #ffffff;
     border-radius: 12px;
     padding: 16px;
@@ -370,6 +373,7 @@ export default function CartPage({
       flex: 1;
       min-width: 600px;
       max-width: 600px;
+      width: auto;
     }
   }
 
@@ -651,7 +655,7 @@ export default function CartPage({
     align-items: center;
     gap: 16px;
     flex: 1;
-    width: 100%;
+    width: 350px;
     justify-content: center;
   }
   
@@ -659,6 +663,7 @@ export default function CartPage({
     .empty-cart {
       min-width: auto;
       max-width: none;
+      width: 100%;
     }
   }
 
@@ -683,7 +688,7 @@ export default function CartPage({
   .continue-shopping-link:hover { background-color: #333333; }
 
   .order-summary-section {
-    width: 100%;
+    width: 350px;
     flex-shrink: 0;
     background-color: #ffffff;
     border-radius: 12px;
