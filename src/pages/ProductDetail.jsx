@@ -300,7 +300,7 @@ export default function ProductDetailPage({
         .header-content {
           max-width: 1280px;
           margin: 0 auto;
-          padding: 12px 12px;
+          padding: 16px 16px;
           display: flex;
           align-items: center;
           justify-content: space-between;

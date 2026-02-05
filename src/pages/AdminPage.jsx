@@ -268,16 +268,22 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         return;
       }
 
-      const added =
-        data.product ||
-        ({
-          ...newProduct,
-          id: Math.max(...products.map((p) => p.id), 0) + 1,
-          price: newProduct.discountedPrice,
-          imageUrl: getRandomImage(),
-          description: `${newProduct.name} 상품입니다.`,
-          active: true,
-        });
+      const added = data.product 
+        ? {
+            ...data.product,
+            price: data.product.price || data.product.discountedPrice || newProduct.discountedPrice,
+            imageUrl: data.product.imageUrl || getRandomImage(),
+            description: data.product.description || `${newProduct.name} 상품입니다.`,
+            active: data.product.active !== undefined ? data.product.active : true,
+          }
+        : {
+            ...newProduct,
+            id: Math.max(...products.map((p) => p.id), 0) + 1,
+            price: newProduct.discountedPrice,
+            imageUrl: getRandomImage(),
+            description: `${newProduct.name} 상품입니다.`,
+            active: true,
+          };
 
       const updatedProducts = [...products, added];
       
@@ -659,8 +665,9 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           
           .product-card-header {
             display: flex;
-            flex-direction: column;
+            flex-direction: row;
             align-items: flex-start;
+            justify-content: space-between;
             margin-bottom: 12px;
             padding-bottom: 12px;
             border-bottom: 1px solid #e5e7eb;
@@ -680,6 +687,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
             padding: 4px 8px;
             border-radius: 4px;
             margin-left: 8px;
+            flex-shrink: 0;
           }
           
           .product-card-body {
@@ -1046,25 +1054,25 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                           height: "80px",
                           objectFit: "cover",
                           borderRadius: "8px",
-                          marginBottom: "12px"
                         }}
                       />
-                      <div style={{ flex: 1 }}>
-                        <div className="product-card-title">
-                          {editingId === product.id ? (
-                            <input
-                              type="text"
-                              className="edit-input"
-                              value={editForm.name}
-                              onChange={(e) =>
-                                setEditForm({ ...editForm, name: e.target.value })
-                              }
-                            />
-                          ) : (
-                            product.name
-                          )}
-                        </div>
-                        <div className="product-card-id">ID: {product.id}</div>
+                      <div className="product-card-id">ID: {product.id}</div>
+                    </div>
+                    
+                    <div style={{ marginBottom: "12px" }}>
+                      <div className="product-card-title">
+                        {editingId === product.id ? (
+                          <input
+                            type="text"
+                            className="edit-input"
+                            value={editForm.name}
+                            onChange={(e) =>
+                              setEditForm({ ...editForm, name: e.target.value })
+                            }
+                          />
+                        ) : (
+                          product.name
+                        )}
                       </div>
                     </div>
 
