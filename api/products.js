@@ -190,7 +190,21 @@ export const PRODUCTS = [
 export default async function productsRoutes(req, res) {
   const user = req.user;
 
-  const safeProducts = PRODUCTS.map((p) => ({
+  // 공유 저장소 import (admin 수정사항 반영)
+  // NOTE: Vercel Serverless 환경에서는 동적 import가 필요하지만
+  // 같은 인스턴스 내에서는 공유됨
+  let productStore = PRODUCTS;
+  
+  try {
+    // productStore 모듈이 있으면 사용 (admin 수정 반영)
+    const { getProductStore } = await import('./_lib/productStore.js');
+    productStore = getProductStore();
+  } catch (err) {
+    // productStore 모듈이 없으면 기본 PRODUCTS 사용
+    console.log('Using default PRODUCTS');
+  }
+
+  const safeProducts = productStore.map((p) => ({
     ...p,
     description: `${p.name} 상품입니다.`,
     details: [

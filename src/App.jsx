@@ -28,6 +28,83 @@ export default function App() {
     localStorage.removeItem('role');
   }, []);
 
+  // URL 기반 라우팅: URL 변경 시 page 상태 업데이트
+  useEffect(() => {
+    const path = window.location.pathname;
+    const searchParams = new URLSearchParams(window.location.search);
+    
+    if (path === '/login') {
+      setPage('login');
+    } else if (path === '/products') {
+      setPage('products');
+    } else if (path.startsWith('/product/')) {
+      const productId = parseInt(path.split('/product/')[1]);
+      if (productId) {
+        setPage('productDetail');
+        // selectedProduct는 별도 로직에서 설정됨
+      }
+    } else if (path === '/cart') {
+      setPage('cart');
+    } else if (path === '/order-complete') {
+      setPage('orderComplete');
+    } else if (path === '/admin') {
+      setPage('admin');
+    } else {
+      setPage('home');
+    }
+  }, []);
+
+  // popstate 이벤트 감지 (브라우저 뒤로가기/앞으로가기)
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname;
+      
+      if (path === '/login') {
+        setPage('login');
+      } else if (path === '/products') {
+        setPage('products');
+      } else if (path.startsWith('/product/')) {
+        const productId = parseInt(path.split('/product/')[1]);
+        if (productId && products.length > 0) {
+          const product = products.find(p => p.id === productId);
+          if (product) {
+            setSelectedProduct(product);
+            setPage('productDetail');
+          }
+        }
+      } else if (path === '/cart') {
+        setPage('cart');
+      } else if (path === '/order-complete') {
+        setPage('orderComplete');
+      } else if (path === '/admin') {
+        setPage('admin');
+      } else {
+        setPage('home');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [products]);
+
+  // page 변경 시 URL 업데이트
+  useEffect(() => {
+    const currentPath = window.location.pathname;
+    let newPath = '/';
+
+    if (page === 'login') newPath = '/login';
+    else if (page === 'products') newPath = '/products';
+    else if (page === 'productDetail' && selectedProduct) newPath = `/product/${selectedProduct.id}`;
+    else if (page === 'cart') newPath = '/cart';
+    else if (page === 'orderComplete') newPath = '/order-complete';
+    else if (page === 'admin') newPath = '/admin';
+    else newPath = '/';
+
+    if (currentPath !== newPath) {
+      window.history.pushState({}, '', newPath);
+    }
+  }, [page, selectedProduct]);
+
   const isLoggedIn = () => {
     return !!localStorage.getItem('token');
   };

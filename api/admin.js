@@ -19,22 +19,16 @@
  */
 
 import { applyCors, requireUser, requireAdmin } from './_lib/common.js';
-import { PRODUCTS } from './products.js';
-
-// ============================================
-// 런타임 상품 저장소
-// 초기값은 공유 PRODUCTS 복사본
-// 세션 중 추가/수정/삭제된 상품이 여기에 반영됨
-// ============================================
-let productStore = PRODUCTS.map((p) => ({ ...p }));
+import { getProductStore, addProduct, updateProduct, deleteProduct } from './_lib/productStore.js';
 
 // ============================================
 // GET – 상품 목록 조회
 // ============================================
 async function handleGet(req, res, user) {
+  const products = getProductStore();
   return res.status(200).json({
     user,
-    products: productStore,
+    products,
   });
 }
 
@@ -63,6 +57,7 @@ async function handlePost(req, res, user) {
   }
 
   // 새 ID = 현재 최대 ID + 1
+  const productStore = getProductStore();
   const maxId = productStore.reduce((max, p) => Math.max(max, p.id), 0);
   const newProduct = {
     id: maxId + 1,
@@ -77,7 +72,7 @@ async function handlePost(req, res, user) {
     details: ["관리자로 추가된 상품"],
   };
 
-  productStore.push(newProduct);
+  addProduct(newProduct);
 
   return res.status(201).json({
     message: "상품이 추가되었습니다",
@@ -90,30 +85,32 @@ async function handlePost(req, res, user) {
 // ============================================
 async function handlePut(req, res, user) {
   const body = req.body || {};
-  const { id, name, originalPrice, discountedPrice, discountRate } = body;
+  const { id, name, originalPrice, discountedPrice, discountRate, active } = body;
 
   if (!id || !Number.isInteger(Number(id))) {
     return res.status(400).json({ message: "수정할 상품의 id가 필수입니다" });
   }
 
   const productId = Number(id);
-  const index = productStore.findIndex((p) => p.id === productId);
+  const productStore = getProductStore();
+  const product = productStore.find((p) => p.id === productId);
 
-  if (index === -1) {
+  if (!product) {
     return res.status(404).json({ message: "해당 상품을 찾을 수 없습니다" });
   }
 
   // 제공된 필드만 수정 (부분 업데이트)
-  const updated = { ...productStore[index] };
-  if (name != null) updated.name = String(name).trim();
-  if (originalPrice != null) updated.originalPrice = Number(originalPrice);
+  const updates = {};
+  if (name != null) updates.name = String(name).trim();
+  if (originalPrice != null) updates.originalPrice = Number(originalPrice);
   if (discountedPrice != null) {
-    updated.discountedPrice = Number(discountedPrice);
-    updated.price = Number(discountedPrice);  // price도 동기
+    updates.discountedPrice = Number(discountedPrice);
+    updates.price = Number(discountedPrice);  // price도 동기
   }
-  if (discountRate != null) updated.discountRate = Number(discountRate);
+  if (discountRate != null) updates.discountRate = Number(discountRate);
+  if (active != null) updates.active = Boolean(active);  // active 필드 추가
 
-  productStore[index] = updated;
+  const updated = updateProduct(productId, updates);
 
   return res.status(200).json({
     message: "상품이 수정되었습니다",
@@ -133,18 +130,16 @@ async function handleDelete(req, res, user) {
   }
 
   const productId = Number(id);
-  const index = productStore.findIndex((p) => p.id === productId);
+  const deleted = deleteProduct(productId);
 
-  if (index === -1) {
+  if (!deleted) {
     return res.status(404).json({ message: "해당 상품을 찾을 수 없습니다" });
   }
-
-  const deleted = productStore.splice(index, 1)[0];
 
   return res.status(200).json({
     message: "상품이 삭제되었습니다",
     deletedProduct: deleted,
-    products: productStore,  // 삭제 후 최신 목록도 반환
+    products: getProductStore(),  // 삭제 후 최신 목록도 반환
   });
 }
 

@@ -56,6 +56,9 @@ export default function HomePage({
   // 검색 필터링 (appliedKeyword 기준 - 검색 버튼 클릭 후 적용)
   // ============================================
   const filteredBySearch = products.filter((product) => {
+    // active가 false인 상품은 제외
+    if (product.active === false) return false;
+    
     const searchLower = appliedKeyword.toLowerCase().trim();
     if (!searchLower) return true;
 
