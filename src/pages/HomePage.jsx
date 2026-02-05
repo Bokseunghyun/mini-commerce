@@ -144,11 +144,6 @@ export default function HomePage({
           display: none;
         }
         @media (max-width: 768px) {
-          .header-inner, .control-inner, .results-info, .product-grid {
-            width: 350px !important;
-            margin: 0 auto !important;
-            box-sizing: border-box !important;
-          }
           .product-grid { 
             grid-template-columns: repeat(2, 1fr) !important; 
             gap: 16px !important;
@@ -606,8 +601,6 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "24px",
-    width: "350px",
-    boxSizing: "border-box",
   },
   logo: {
     fontSize: "24px",
@@ -753,8 +746,6 @@ const styles = {
     alignItems: "center",
     gap: "16px",
     flexWrap: "wrap",
-    width: "350px",
-    boxSizing: "border-box",
   },
   categoryWrapper: {
     display: "flex",
@@ -805,8 +796,6 @@ const styles = {
     padding: "16px 24px 0",
     fontSize: "14px",
     color: "#6b7280",
-    width: "350px",
-    boxSizing: "border-box",
   },
   productGridWrapper: {
     flex: 1,
@@ -821,8 +810,7 @@ const styles = {
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: "24px",
     minHeight: "400px",
-    width: "350px",
-    boxSizing: "border-box",
+    width: "100%",
   },
   productCard: {
     backgroundColor: "#ffffff",
@@ -838,7 +826,6 @@ const styles = {
     aspectRatio: "1 / 1",
     backgroundColor: "#f1f5f9",
     overflow: "hidden",
-    minHeight: "200px",
   },
   productImg: {
     width: "100%",
