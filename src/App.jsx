@@ -80,6 +80,14 @@ export default function App() {
         setPage('admin');
       } else {
         setPage('home');
+        // home으로 돌아올 때 스크롤 복원
+        const savedScrollPosition = sessionStorage.getItem('homePageScrollPosition');
+        if (savedScrollPosition) {
+          setTimeout(() => {
+            window.scrollTo(0, parseInt(savedScrollPosition, 10));
+            sessionStorage.removeItem('homePageScrollPosition');
+          }, 0);
+        }
       }
     };
 
