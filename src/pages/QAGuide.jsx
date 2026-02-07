@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import uiGuideContent from "./UI_AUTOMATION_GUIDE.md?raw";
-import apiGuideContent from "./API_TESTING_GUIDE.md?raw";
+import apiGuideContent from "./API_TESTING_GUIDE2.md?raw";
 
 export default function QAGuide({ onClose }) {
   const [activeTab, setActiveTab] = useState("ui-guide");
