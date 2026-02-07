@@ -273,7 +273,18 @@ export default function CartPage({
     line-height: 1.5;
   }
 
-  .cart-page { min-height: 100vh; background-color: #f8f8f8; }
+  .cart-page { 
+    min-height: 100vh; 
+    background-color: #f8f8f8;
+    width: 350px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 768px) {
+    .cart-page {
+      width: 100%;
+    }
+  }
 
   .page-header {
     background-color: #ffffff;
@@ -281,14 +292,7 @@ export default function CartPage({
     position: sticky;
     top: 0;
     z-index: 10;
-    width: 350px;
-    margin: 0 auto;
-  }
-
-  @media (min-width: 768px) {
-    .page-header {
-      width: 100%;
-    }
+    width: 100%;
   }
 
   .header-content {
@@ -353,7 +357,7 @@ export default function CartPage({
     display: flex;
     flex-direction: column;
     gap: 20px;
-    width: 350px;
+    width: 100%;
     box-sizing: border-box;
   }
 
@@ -375,7 +379,7 @@ export default function CartPage({
     gap: 16px;
     min-width: 0;
     min-height: 520px;
-    width: 350px;
+    width: 100%;
     background-color: #ffffff;
     border-radius: 12px;
     padding: 16px;
@@ -669,7 +673,7 @@ export default function CartPage({
     align-items: center;
     gap: 16px;
     flex: 1;
-    width: 350px;
+    width: 100%;
     justify-content: center;
     box-sizing: border-box;
   }
@@ -703,7 +707,7 @@ export default function CartPage({
   .continue-shopping-link:hover { background-color: #333333; }
 
   .order-summary-section {
-    width: 350px;
+    width: 100%;
     flex-shrink: 0;
     background-color: #ffffff;
     border-radius: 12px;
