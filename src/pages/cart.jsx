@@ -281,14 +281,7 @@ export default function CartPage({
     position: sticky;
     top: 0;
     z-index: 10;
-    width: 350px;
-    margin: 0 auto;
-  }
-
-  @media (min-width: 768px) {
-    .page-header {
-      width: 100%;
-    }
+    width: 100%;
   }
 
   .header-content {
@@ -306,8 +299,6 @@ export default function CartPage({
     .header-content {
       padding: 16px;
       gap: 16px;
-      width: 100%;
-      max-width: 1024px;
     }
   }
 
@@ -349,11 +340,11 @@ export default function CartPage({
   .cart-container {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 12px;
+    padding: 16px 12px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    width: 350px;
+    width: 100%;
     box-sizing: border-box;
   }
 
@@ -363,8 +354,6 @@ export default function CartPage({
       flex-direction: row;
       align-items: flex-start;
       gap: 24px;
-      width: 100%;
-      max-width: 1024px;
     }
   }
 
@@ -375,11 +364,10 @@ export default function CartPage({
     gap: 16px;
     min-width: 0;
     min-height: 520px;
-    width: 350px;
+    width: 100%;
     background-color: #ffffff;
     border-radius: 12px;
     padding: 16px;
-    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
@@ -671,7 +659,6 @@ export default function CartPage({
     flex: 1;
     width: 350px;
     justify-content: center;
-    box-sizing: border-box;
   }
   
   @media (min-width: 768px) {
@@ -709,7 +696,6 @@ export default function CartPage({
     border-radius: 12px;
     padding: 20px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
