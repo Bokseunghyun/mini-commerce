@@ -281,7 +281,14 @@ export default function CartPage({
     position: sticky;
     top: 0;
     z-index: 10;
-    width: 100%;
+    width: 350px;
+    margin: 0 auto;
+  }
+
+  @media (min-width: 768px) {
+    .page-header {
+      width: 100%;
+    }
   }
 
   .header-content {
