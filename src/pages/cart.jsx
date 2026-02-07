@@ -281,21 +281,26 @@ export default function CartPage({
     position: sticky;
     top: 0;
     z-index: 10;
+    width: 100%;
   }
 
   .header-content {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 12px 12px;
+    padding: 12px;
     display: flex;
     align-items: center;
     gap: 12px;
+    width: 350px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
     .header-content {
-      padding: 16px 16px;
+      padding: 16px;
       gap: 16px;
+      width: 100%;
+      max-width: 1024px;
     }
   }
 
@@ -341,6 +346,8 @@ export default function CartPage({
     display: flex;
     flex-direction: column;
     gap: 20px;
+    width: 350px;
+    box-sizing: border-box;
   }
 
   @media (min-width: 768px) {
@@ -349,6 +356,8 @@ export default function CartPage({
       flex-direction: row;
       align-items: flex-start;
       gap: 24px;
+      width: 100%;
+      max-width: 1024px;
     }
   }
 
@@ -359,7 +368,10 @@ export default function CartPage({
     gap: 16px;
     min-width: 0;
     min-height: 520px;
-    width: 100%;
+    width: 350px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    padding: 16px;
   }
 
   @media (min-width: 768px) {
@@ -367,6 +379,7 @@ export default function CartPage({
       flex: 1;
       min-width: 600px;
       max-width: 600px;
+      width: auto;
     }
   }
 
@@ -376,6 +389,7 @@ export default function CartPage({
     color: #666666;
     padding-bottom: 8px;
     border-bottom: 1px solid #e5e5e5;
+    background-color: #ffffff;
   }
 
   @media (min-width: 768px) {
@@ -638,8 +652,8 @@ export default function CartPage({
   }
 
   .empty-cart {
-    background-color: #ffffff;
-    border-radius: 12px;
+    background-color: transparent;
+    border-radius: 0;
     padding: 48px 24px;
     text-align: center;
     display: flex;
@@ -647,14 +661,15 @@ export default function CartPage({
     align-items: center;
     gap: 16px;
     flex: 1;
-    width: 100%;
+    width: 350px;
     justify-content: center;
   }
   
   @media (min-width: 768px) {
     .empty-cart {
-      min-width: 600px;
-      max-width: 600px;
+      min-width: auto;
+      max-width: none;
+      width: 100%;
     }
   }
 
@@ -679,7 +694,7 @@ export default function CartPage({
   .continue-shopping-link:hover { background-color: #333333; }
 
   .order-summary-section {
-    width: 100%;
+    width: 350px;
     flex-shrink: 0;
     background-color: #ffffff;
     border-radius: 12px;
