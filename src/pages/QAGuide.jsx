@@ -11,6 +11,8 @@ export default function QAGuide({ onClose }) {
 
   const tabs = [
     { id: "overview", label: "📌 개요 & UI 포인트" },
+    { id: "ui-guide", label: "🎨 UI 자동화 가이드" },
+    { id: "api-guide", label: "🔌 API 테스트 가이드" },
     { id: "errors", label: "💥 오류 케이스" },
     { id: "scenarios", label: "🎬 테스트 시나리오" },
     { id: "flows", label: "🔄 시스템 흐름" },
@@ -158,6 +160,425 @@ export default function QAGuide({ onClose }) {
                       </tr>
                     </tbody>
                   </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ============ TAB: ui-guide ============ */}
+          {activeTab === "ui-guide" && (
+            <div role="tabpanel" id="tab-panel-ui-guide" aria-labelledby="tab-ui-guide">
+              <section style={styles.section}>
+                <h3 style={styles.sectionTitle}>🎨 UI 자동화 검증 가이드</h3>
+                
+                <div style={styles.subsection}>
+                  <h4 style={styles.subsectionTitle}>📚 목차</h4>
+                  <ul style={styles.list}>
+                    <li><a href="#ui-basic" style={{ color: '#2563eb', textDecoration: 'none' }}>기본 개념</a></li>
+                    <li><a href="#ui-core" style={{ color: '#2563eb', textDecoration: 'none' }}>핵심 함수들</a></li>
+                    <li><a href="#ui-patterns" style={{ color: '#2563eb', textDecoration: 'none' }}>실전 패턴</a></li>
+                    <li><a href="#ui-mistakes" style={{ color: '#2563eb', textDecoration: 'none' }}>자주 하는 실수</a></li>
+                  </ul>
+                </div>
+
+                <div style={styles.subsection} id="ui-basic">
+                  <h4 style={styles.subsectionTitle}>1. 기본 개념</h4>
+                  <p style={styles.text}>
+                    <strong>UI 자동화 검증이란?</strong> 사용자가 화면에서 보고 조작하는 것을 코드로 재현하는 것입니다.
+                  </p>
+                  <pre style={styles.code}>{`// 사용자 행동 → 자동화 코드
+await page.goto('/');              // 페이지 열기
+await page.locator('button').waitFor();  // 버튼 나타날 때까지 대기
+await page.click('button');        // 버튼 클릭
+await expect(page.locator('.success')).toBeVisible();  // 성공 확인`}</pre>
+
+                  <p style={styles.text}>
+                    <strong>Playwright 자동 대기:</strong> 대부분의 액션은 자동으로 대기합니다.
+                  </p>
+                  <pre style={styles.code}>{`await page.click('button');
+// 내부적으로 자동 실행:
+// 1. 요소 존재할 때까지 대기
+// 2. 요소 보일 때까지 대기
+// 3. 요소 활성화될 때까지 대기
+// 4. 클릭 수행`}</pre>
+                </div>
+
+                <div style={styles.subsection} id="ui-core">
+                  <h4 style={styles.subsectionTitle}>2. 핵심 함수들</h4>
+                  
+                  <p style={styles.text}><strong>2.1 안정화 함수</strong></p>
+                  <pre style={styles.code}>{`// waitFor() - 요소 대기
+await page.locator('.loading-spinner').waitFor({ state: 'visible' });
+await page.locator('.loading-spinner').waitFor({ state: 'hidden' });
+
+// waitForURL() - URL 대기
+await page.waitForURL('**/dashboard');
+
+// waitForLoadState() - 페이지 로딩 대기
+await page.waitForLoadState('networkidle');`}</pre>
+
+                  <p style={styles.text}><strong>2.2 로케이터 함수</strong></p>
+                  <pre style={styles.code}>{`// 기본 셀렉터
+page.locator('#login-button')           // ID
+page.locator('.submit-btn')             // Class
+page.getByRole('button', { name: '로그인' })  // Role
+page.getByText('로그인')                 // Text
+
+// 필터링
+page.locator('button').filter({ hasText: '제출' })
+page.locator('button').first()
+page.locator('button').nth(0)`}</pre>
+
+                  <p style={styles.text}><strong>2.3 검증 함수 (expect)</strong></p>
+                  <pre style={styles.code}>{`// 가시성
+await expect(page.locator('.success')).toBeVisible();
+await expect(page.locator('.error')).toBeHidden();
+
+// 텍스트
+await expect(page.locator('h1')).toHaveText('환영합니다');
+await expect(page.locator('.message')).toContainText('성공');
+
+// 개수
+await expect(page.locator('.item')).toHaveCount(5);
+
+// 상태
+await expect(page.locator('button')).toBeEnabled();
+await expect(page.locator('button')).toBeDisabled();
+await expect(page.locator('#agree')).toBeChecked();`}</pre>
+                </div>
+
+                <div style={styles.subsection} id="ui-patterns">
+                  <h4 style={styles.subsectionTitle}>3. 실전 패턴</h4>
+                  
+                  <p style={styles.text}><strong>패턴 1: 로그인 플로우</strong></p>
+                  <pre style={styles.code}>{`test('로그인 성공', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForLoadState('networkidle');
+  
+  await page.click('#login-btn');
+  await page.fill('#username', 'test');
+  await page.fill('#password', '1234');
+  await page.click('#submit');
+  
+  await expect(page).toHaveURL('/dashboard');
+  await expect(page.locator('#logout-btn')).toBeVisible();
+});`}</pre>
+
+                  <p style={styles.text}><strong>패턴 2: 동적 콘텐츠 로딩</strong></p>
+                  <pre style={styles.code}>{`test('상품 목록 로딩', async ({ page }) => {
+  await page.goto('/products');
+  
+  // 로딩 스피너 대기
+  await expect(page.locator('.spinner')).toBeVisible();
+  await page.locator('.spinner').waitFor({ state: 'hidden' });
+  
+  // 상품 목록 확인
+  await expect(page.locator('.product-card')).toHaveCount({ min: 1 });
+});`}</pre>
+
+                  <p style={styles.text}><strong>패턴 3: 폼 유효성 검증</strong></p>
+                  <pre style={styles.code}>{`test('빈 필드 제출 시 에러', async ({ page }) => {
+  await page.goto('/register');
+  await page.click('#submit');
+  
+  await expect(page.locator('.error-username')).toBeVisible();
+  await expect(page.locator('.error-username')).toContainText('필수 입력');
+  await expect(page.locator('#submit')).toBeDisabled();
+});`}</pre>
+                </div>
+
+                <div style={styles.subsection} id="ui-mistakes">
+                  <h4 style={styles.subsectionTitle}>4. 자주 하는 실수</h4>
+                  
+                  <p style={styles.text}><strong>실수 1: 대기 없이 바로 검증</strong></p>
+                  <pre style={styles.code}>{`// ❌ 잘못된 코드
+await page.click('button');
+await expect(page.locator('.result')).toBeVisible();
+
+// ✅ 올바른 코드
+await page.click('button');
+await expect(page.locator('.result')).toBeVisible({ timeout: 5000 });`}</pre>
+
+                  <p style={styles.text}><strong>실수 2: 너무 구체적인 셀렉터</strong></p>
+                  <pre style={styles.code}>{`// ❌ 깨지기 쉬움
+page.locator('div.container > div.form > div.row:nth-child(2) > button')
+
+// ✅ 견고함
+page.locator('#submit-btn')
+page.getByRole('button', { name: '제출' })`}</pre>
+
+                  <p style={styles.text}><strong>실수 3: 하드코딩된 대기</strong></p>
+                  <pre style={styles.code}>{`// ❌ 안 좋은 방법
+await page.click('button');
+await page.waitForTimeout(3000);  // 3초 무조건 대기
+
+// ✅ 좋은 방법
+await page.click('button');
+await page.locator('.result').waitFor();  // 필요한 만큼만 대기`}</pre>
+                </div>
+
+                <div style={styles.subsection}>
+                  <h4 style={styles.subsectionTitle}>빠른 참고 치트시트</h4>
+                  <pre style={styles.code}>{`// 기본 액션
+await page.goto(url)
+await page.click(selector)
+await page.fill(selector, text)
+
+// 대기
+await page.locator(selector).waitFor()
+await page.waitForURL(url)
+await page.waitForLoadState('networkidle')
+
+// 검증
+await expect(locator).toBeVisible()
+await expect(locator).toHaveText(text)
+await expect(locator).toHaveCount(n)
+await expect(page).toHaveURL(url)`}</pre>
+                </div>
+
+                <div style={{ ...styles.note, marginTop: '20px' }}>
+                  <p style={{ margin: 0, fontWeight: 600 }}>💡 핵심 기억 포인트</p>
+                  <ul style={{ ...styles.list, marginTop: '8px' }}>
+                    <li>Playwright는 대부분 자동 대기</li>
+                    <li>느린 요소는 waitFor() 명시</li>
+                    <li>구체적이고 견고한 셀렉터 사용</li>
+                    <li>expect()는 자동 재시도 (타임아웃까지)</li>
+                  </ul>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ============ TAB: api-guide ============ */}
+          {activeTab === "api-guide" && (
+            <div role="tabpanel" id="tab-panel-api-guide" aria-labelledby="tab-api-guide">
+              <section style={styles.section}>
+                <h3 style={styles.sectionTitle}>🔌 API 검증 가이드</h3>
+                
+                <div style={styles.subsection}>
+                  <h4 style={styles.subsectionTitle}>📚 목차</h4>
+                  <ul style={styles.list}>
+                    <li><a href="#api-basic" style={{ color: '#2563eb', textDecoration: 'none' }}>기본 개념</a></li>
+                    <li><a href="#api-core" style={{ color: '#2563eb', textDecoration: 'none' }}>핵심 함수 3가지</a></li>
+                    <li><a href="#api-patterns" style={{ color: '#2563eb', textDecoration: 'none' }}>실전 패턴</a></li>
+                    <li><a href="#api-mistakes" style={{ color: '#2563eb', textDecoration: 'none' }}>자주 하는 실수</a></li>
+                  </ul>
+                </div>
+
+                <div style={styles.subsection} id="api-basic">
+                  <h4 style={styles.subsectionTitle}>1. 기본 개념</h4>
+                  <p style={styles.text}>
+                    <strong>API 검증이란?</strong> 서버와 브라우저 사이의 통신을 확인하는 것입니다.
+                  </p>
+                  <pre style={styles.code}>{`// UI만 검증 (불충분)
+await page.click('#login-btn');
+await expect(page.locator('.success')).toBeVisible();
+// → 화면은 성공이지만 실제 서버 응답은?
+
+// API까지 검증 (완전)
+const response = await page.waitForResponse(
+  res => res.url().includes('/api/login')
+);
+expect(response.status()).toBe(200);
+const data = await response.json();
+expect(data.token).toBeTruthy();`}</pre>
+
+                  <p style={styles.text}>
+                    <strong>왜 필요한가?</strong>
+                  </p>
+                  <ul style={styles.list}>
+                    <li>UI는 성공인데 서버는 에러일 수 있음</li>
+                    <li>토큰, 에러 코드 등 실제 데이터 검증 필요</li>
+                    <li>실무에서 버그의 30%는 API 검증으로만 발견</li>
+                  </ul>
+                </div>
+
+                <div style={styles.subsection} id="api-core">
+                  <h4 style={styles.subsectionTitle}>2. 핵심 함수 3가지</h4>
+                  
+                  <p style={styles.text}><strong>2.1 page.waitForResponse() - 응답 대기</strong></p>
+                  <pre style={styles.code}>{`// 기본 사용
+const response = await page.waitForResponse(
+  res => res.url().includes('/api/login')
+);
+
+// 상태 코드 확인
+expect(response.status()).toBe(200);
+
+// 응답 데이터 확인
+const data = await response.json();
+expect(data.token).toBeTruthy();`}</pre>
+
+                  <p style={styles.text}><strong>2.2 Promise.all() - 동시 실행</strong></p>
+                  <pre style={styles.code}>{`// 클릭과 동시에 응답 대기
+const [response] = await Promise.all([
+  page.waitForResponse(res => res.url().includes('/api/login')),
+  page.click('#login-submit')  // 이 클릭이 API를 호출함
+]);
+
+expect(response.status()).toBe(200);`}</pre>
+
+                  <p style={styles.text}><strong>왜 필요?</strong></p>
+                  <ul style={styles.list}>
+                    <li>waitForResponse는 응답을 기다림</li>
+                    <li>하지만 누가 API를 호출해야 함</li>
+                    <li>Promise.all()로 "대기 시작"과 "API 호출 트리거"를 동시 실행</li>
+                  </ul>
+
+                  <p style={styles.text}><strong>2.3 page.request.get/post() - 직접 호출</strong></p>
+                  <pre style={styles.code}>{`// UI 없이 API만 테스트
+const response = await page.request.get('/api/products/99');
+
+expect(response.status()).toBe(404);
+const body = await response.json();
+expect(body.code).toBe('PRODUCT_NOT_FOUND');`}</pre>
+                </div>
+
+                <div style={styles.subsection} id="api-patterns">
+                  <h4 style={styles.subsectionTitle}>3. 실전 패턴</h4>
+                  
+                  <p style={styles.text}><strong>패턴 1: 로그인 검증</strong></p>
+                  <pre style={styles.code}>{`test('로그인 성공', async ({ page }) => {
+  await page.goto('/');
+  await page.fill('#username', 'test');
+  await page.fill('#password', '1234');
+  
+  // API 응답 캡처
+  const [response] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/login')),
+    page.click('#login-submit')
+  ]);
+  
+  // API 검증
+  expect(response.status()).toBe(200);
+  const data = await response.json();
+  expect(data.token).toBeTruthy();
+  
+  // UI 검증
+  await expect(page.locator('#logout-btn')).toBeVisible();
+});`}</pre>
+
+                  <p style={styles.text}><strong>패턴 2: 에러 처리 검증</strong></p>
+                  <pre style={styles.code}>{`test('잘못된 계정 로그인 실패', async ({ page }) => {
+  await page.goto('/');
+  await page.fill('#username', 'wrong');
+  await page.fill('#password', 'wrong');
+  
+  const [response] = await Promise.all([
+    page.waitForResponse(res => res.url().includes('/api/login')),
+    page.click('#login-submit')
+  ]);
+  
+  // 에러 응답 검증
+  expect(response.status()).toBe(401);
+  const data = await response.json();
+  expect(data.code).toBe('INVALID_CREDENTIALS');
+  
+  // 에러 메시지 UI 확인
+  await expect(page.locator('.error-message'))
+    .toContainText('아이디 또는 비밀번호');
+});`}</pre>
+
+                  <p style={styles.text}><strong>패턴 3: POST 요청 검증</strong></p>
+                  <pre style={styles.code}>{`test('상품 추가', async ({ page }) => {
+  const token = await page.evaluate(() => 
+    localStorage.getItem('token')
+  );
+  
+  // API 직접 호출
+  const response = await page.request.post('/api/products', {
+    headers: {
+      'Authorization': \`Bearer \${token}\`,
+      'Content-Type': 'application/json'
+    },
+    data: {
+      name: '신제품',
+      price: 50000,
+      category: '전자기기'
+    }
+  });
+  
+  expect(response.status()).toBe(201);
+  const data = await response.json();
+  expect(data.product.id).toBeDefined();
+});`}</pre>
+                </div>
+
+                <div style={styles.subsection} id="api-mistakes">
+                  <h4 style={styles.subsectionTitle}>4. 자주 하는 실수</h4>
+                  
+                  <p style={styles.text}><strong>실수 1: Promise.all() 없이 waitForResponse</strong></p>
+                  <pre style={styles.code}>{`// ❌ 잘못된 코드
+await page.waitForResponse(res => res.url().includes('/api/login'));
+await page.click('#login-submit');
+// → 대기만 하고 있어서 타임아웃!
+
+// ✅ 올바른 코드
+const [response] = await Promise.all([
+  page.waitForResponse(res => res.url().includes('/api/login')),
+  page.click('#login-submit')
+]);`}</pre>
+
+                  <p style={styles.text}><strong>실수 2: JSON 파싱 전 확인 누락</strong></p>
+                  <pre style={styles.code}>{`// ❌ 잘못된 코드
+const data = await response.json();
+// → Content-Type이 text/html이면 에러!
+
+// ✅ 올바른 코드
+const contentType = response.headers()['content-type'];
+if (contentType?.includes('application/json')) {
+  const data = await response.json();
+}`}</pre>
+
+                  <p style={styles.text}><strong>실수 3: 헤더에 토큰 빠뜨림</strong></p>
+                  <pre style={styles.code}>{`// ❌ 잘못된 코드
+const response = await page.request.get('/api/admin');
+// → 401 Unauthorized
+
+// ✅ 올바른 코드
+const token = await page.evaluate(() => localStorage.getItem('token'));
+const response = await page.request.get('/api/admin', {
+  headers: { Authorization: \`Bearer \${token}\` }
+});`}</pre>
+                </div>
+
+                <div style={styles.subsection}>
+                  <h4 style={styles.subsectionTitle}>빠른 참고 치트시트</h4>
+                  <pre style={styles.code}>{`// 응답 대기
+const response = await page.waitForResponse(
+  res => res.url().includes('/api/endpoint')
+);
+
+// 클릭과 동시 대기
+const [response] = await Promise.all([
+  page.waitForResponse(res => res.url().includes('/api/endpoint')),
+  page.click('#button')
+]);
+
+// API 직접 호출
+const response = await page.request.get('/api/endpoint');
+const response = await page.request.post('/api/endpoint', {
+  headers: { 'Content-Type': 'application/json' },
+  data: { key: 'value' }
+});
+
+// 상태 코드 검증
+expect(response.status()).toBe(200);
+expect(response.status()).toBe(401);
+
+// 응답 본문 검증
+const data = await response.json();
+expect(data.token).toBeTruthy();`}</pre>
+                </div>
+
+                <div style={{ ...styles.note, marginTop: '20px' }}>
+                  <p style={{ margin: 0, fontWeight: 600 }}>💡 핵심 기억 포인트</p>
+                  <ul style={{ ...styles.list, marginTop: '8px' }}>
+                    <li>UI 검증만으로는 불충분 → API도 검증</li>
+                    <li>Promise.all() 패턴 필수</li>
+                    <li>상태 코드와 응답 데이터 모두 확인</li>
+                    <li>토큰이 필요한 API는 헤더에 포함</li>
+                  </ul>
                 </div>
               </section>
             </div>
