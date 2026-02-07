@@ -300,6 +300,7 @@ export default function CartPage({
       padding: 16px;
       gap: 16px;
       width: 100%;
+      max-width: 1024px;
     }
   }
 
@@ -356,6 +357,7 @@ export default function CartPage({
       align-items: flex-start;
       gap: 24px;
       width: 100%;
+      max-width: 1024px;
     }
   }
 
