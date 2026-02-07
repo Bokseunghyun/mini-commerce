@@ -1,7 +1,7 @@
 /**
  * QA 자동화 가이드 컴포넌트
  * - 프로젝트의 QA 자동화 포인트를 안내
- * - Playwright 테스트 시나리오 예시 제공
+ * - Playwright 테스트 시나리오 예시 제공 (TypeScript 형식)
  */
 
 import { useState } from "react";
@@ -204,41 +204,85 @@ export default function QAGuide({ onClose }) {
           {activeTab === "scenarios" && (
             <div role="tabpanel" id="tab-panel-scenarios" aria-labelledby="tab-scenarios">
               <section style={styles.section}>
-                <h3 style={styles.sectionTitle}>🎬 Playwright 테스트 시나리오</h3>
+                <h3 style={styles.sectionTitle}>🎬 Playwright 테스트 시나리오 (TypeScript)</h3>
+                <div style={{ ...styles.note, marginBottom: '20px', padding: '16px', backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>💡 TypeScript 형식 안내</p>
+                  <p style={{ margin: 0, fontSize: '13px' }}>
+                    모든 테스트 코드는 TypeScript 형식으로 작성되었습니다. Playwright 설치 시 <code>npm init playwright@latest</code> 명령을 사용하면 TypeScript 설정이 자동으로 생성됩니다.
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
+                    <strong>파일 확장자:</strong> <code>.spec.ts</code> (예: <code>login.spec.ts</code>)
+                  </p>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
+                    <strong>import 구문:</strong> <code>import &#123; test, expect &#125; from '@playwright/test';</code>
+                  </p>
+                </div>
 
                 <div style={styles.scenario}>
                   <h4 style={styles.subsectionTitle}>시나리오 1: 로그인 플로우</h4>
-                  <pre style={styles.code}>{`test('로그인 성공', async ({ page }) => {
+                  <p style={styles.text}>
+                    <strong>설명:</strong> 로그인 기능을 테스트합니다. 올바른 계정 정보로 로그인 성공하는 경우, 잘못된 정보로 실패하는 경우, 차단된 계정으로 접근이 차단되는 경우를 검증합니다.
+                  </p>
+                  <p style={styles.text}>
+                    <strong>주요 개념:</strong>
+                  </p>
+                  <ul style={styles.list}>
+                    <li><code>page.goto()</code>: 특정 URL로 이동합니다.</li>
+                    <li><code>page.click()</code>: 요소를 클릭합니다.</li>
+                    <li><code>page.fill()</code>: 입력창에 텍스트를 입력합니다.</li>
+                    <li><code>expect().toBeVisible()</code>: 요소가 화면에 보이는지 확인합니다.</li>
+                    <li><code>expect().toContainText()</code>: 요소에 특정 텍스트가 포함되어 있는지 확인합니다.</li>
+                  </ul>
+                  <pre style={styles.code}>{`// 로그인 성공 테스트
+// 목적: 올바른 계정 정보로 로그인이 정상적으로 되는지 확인
+test('로그인 성공', async ({ page }) => {
+  // 1. 홈페이지로 이동
   await page.goto('/');
+  
+  // 2. 로그인 버튼 클릭
   await page.click('#home-login');
   
+  // 3. 아이디 입력
   await page.fill('#login-username', 'test');
+  
+  // 4. 비밀번호 입력
   await page.fill('#login-password', '1234');
+  
+  // 5. 로그인 제출 버튼 클릭
   await page.click('#login-submit');
   
+  // 6. 로그인 성공 시 로그아웃 버튼이 보여야 함
   await expect(page.locator('#home-logout')).toBeVisible();
 });
 
+// 로그인 실패 테스트
+// 목적: 잘못된 계정 정보로 로그인 시 에러 메시지가 표시되는지 확인
 test('잘못된 계정 로그인 실패', async ({ page }) => {
   await page.goto('/');
   await page.click('#home-login');
   
+  // 존재하지 않는 계정 정보 입력
   await page.fill('#login-username', 'wronguser');
   await page.fill('#login-password', 'wrongpass');
   await page.click('#login-submit');
   
+  // 에러 메시지가 표시되는지 확인
   await expect(page.locator('#login-error'))
     .toContainText('아이디 또는 비밀번호 오류');
 });
 
+// 차단된 계정 테스트
+// 목적: 차단된 계정으로 로그인 시 접근이 차단되는지 확인
 test('차단된 계정 로그인 차단', async ({ page }) => {
   await page.goto('/');
   await page.click('#home-login');
   
+  // 차단된 계정(test2) 정보 입력
   await page.fill('#login-username', 'test2');
   await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
+  // 차단 메시지가 표시되는지 확인
   await expect(page.locator('#login-error'))
     .toContainText('차단된 계정');
 });`}</pre>
@@ -246,27 +290,45 @@ test('차단된 계정 로그인 차단', async ({ page }) => {
 
                 <div style={styles.scenario}>
                   <h4 style={styles.subsectionTitle}>시나리오 2: 상품 상세 오류 검증</h4>
-                  <pre style={styles.code}>{`test('상품 16번 (가습기) 조회 시 404 에러', async ({ page }) => {
+                  <p style={styles.text}>
+                    <strong>설명:</strong> 존재하지 않는 상품을 조회할 때 404 에러가 발생하는지 확인합니다. UI를 통한 방법과 API 직접 호출 두 가지 방법으로 테스트합니다.
+                  </p>
+                  <p style={styles.text}>
+                    <strong>주요 개념:</strong>
+                  </p>
+                  <ul style={styles.list}>
+                    <li><code>page.on('dialog')</code>: 브라우저의 alert, confirm 창을 감지하고 처리합니다.</li>
+                    <li><code>page.request.get()</code>: API를 직접 호출합니다 (UI 거치지 않음).</li>
+                    <li><code>response.status()</code>: HTTP 상태 코드를 확인합니다.</li>
+                  </ul>
+                  <pre style={styles.code}>{`// 상품 404 에러 테스트 - UI 방식
+// 목적: 존재하지 않는 상품 클릭 시 404 에러 alert이 표시되는지 확인
+test('상품 16번 (가습기) 조회 시 404 에러', async ({ page }) => {
   await page.goto('/');
   
-  // 상품 16번 (가습기 초음파 3L 대용량 LED 무드등) 클릭
+  // 상품 16번 (존재하지 않음) 클릭
   const product16 = page.locator('[data-product-id="16"]');
   await product16.click();
   
-  // 에러 alert 확인
+  // alert 창 감지 및 검증
   page.on('dialog', async dialog => {
     expect(dialog.message()).toContain('404');
-    await dialog.accept();
+    await dialog.accept(); // 확인 버튼 클릭
   });
 });
 
+// 상품 404 에러 테스트 - API 직접 호출 방식
+// 목적: API 레벨에서 404 에러와 에러 코드가 정확한지 확인
 test('존재하지 않는 상품 404 - API 직접 호출', async ({ page }) => {
   await page.goto('/');
   
-  // 상품 16번 API 직접 호출로 검증
+  // API 직접 호출
   const response = await page.request.get('/api/products/16');
+  
+  // HTTP 상태 코드 검증
   expect(response.status()).toBe(404);
   
+  // 응답 본문 검증
   const body = await response.json();
   expect(body.message).toBe('상품 없음');
   expect(body.code).toBe('PRODUCT_NOT_FOUND');
@@ -275,31 +337,51 @@ test('존재하지 않는 상품 404 - API 직접 호출', async ({ page }) => {
 
                 <div style={styles.scenario}>
                   <h4 style={styles.subsectionTitle}>시나리오 3: 권한 검증</h4>
-                  <pre style={styles.code}>{`test('비로그인 시 관리자 버튼 클릭하면 오류 발생', async ({ page }) => {
+                  <p style={styles.text}>
+                    <strong>설명:</strong> 관리자 기능에 대한 접근 권한을 테스트합니다. 비로그인 사용자와 일반 사용자가 관리자 페이지나 API에 접근할 때 적절히 차단되는지 확인합니다.
+                  </p>
+                  <p style={styles.text}>
+                    <strong>주요 개념:</strong>
+                  </p>
+                  <ul style={styles.list}>
+                    <li><code>page.evaluate()</code>: 브라우저 컨텍스트에서 JavaScript 코드를 실행합니다 (localStorage 접근 등).</li>
+                    <li><code>headers</code>: HTTP 요청 헤더를 설정합니다 (인증 토큰 등).</li>
+                  </ul>
+                  <pre style={styles.code}>{`// 비로그인 권한 테스트
+// 목적: 로그인하지 않은 사용자가 관리자 기능 접근 시 차단되는지 확인
+test('비로그인 시 관리자 버튼 클릭하면 오류 발생', async ({ page }) => {
   await page.goto('/');
   
-  // 관리자 버튼은 항상 표시됨
+  // 관리자 버튼 존재 확인
   await expect(page.locator('#home-admin-btn')).toBeVisible();
   
-  // 클릭 시 권한 오류 alert 발생
+  // alert 감지 설정
   page.on('dialog', async dialog => {
     expect(dialog.message()).toContain('관리자 권한');
     await dialog.accept();
   });
+  
+  // 관리자 버튼 클릭
   await page.click('#home-admin-btn');
 });
 
+// 일반 사용자 권한 테스트
+// 목적: 일반 사용자가 관리자 API 호출 시 403 에러가 발생하는지 확인
 test('일반 사용자는 관리자 API 접근 불가', async ({ page }) => {
+  // 일반 사용자로 로그인 (헬퍼 함수 사용)
   await loginAs(page, 'test', '1234');
   
+  // localStorage에서 토큰 가져오기
   const token = await page.evaluate(() => 
     localStorage.getItem('token')
   );
   
+  // 관리자 API 호출 (인증 토큰 포함)
   const response = await page.request.get('/api/admin', {
     headers: { Authorization: \`Bearer \${token}\` }
   });
   
+  // 403 Forbidden 에러 확인
   expect(response.status()).toBe(403);
   const body = await response.json();
   expect(body.message).toContain('관리자 권한');
@@ -308,10 +390,15 @@ test('일반 사용자는 관리자 API 접근 불가', async ({ page }) => {
 
                 <div style={styles.scenario}>
                   <h4 style={styles.subsectionTitle}>시나리오 4: 검색 오류 검증</h4>
-                  <pre style={styles.code}>{`test('빈 검색어로 검색 버튼 클릭 시 400 오류', async ({ page }) => {
+                  <p style={styles.text}>
+                    <strong>설명:</strong> 검색 기능의 입력 검증을 테스트합니다. 빈 검색어나 너무 긴 검색어를 입력했을 때 적절한 에러 처리가 되는지 확인합니다.
+                  </p>
+                  <pre style={styles.code}>{`// 빈 검색어 테스트
+// 목적: 검색어 없이 검색 버튼 클릭 시 400 에러가 발생하는지 확인
+test('빈 검색어로 검색 버튼 클릭 시 400 오류', async ({ page }) => {
   await page.goto('/');
   
-  // 검색어 비어있는 상태에서 검색 버튼 클릭
+  // 검색어 입력 없이 검색 버튼 클릭
   await page.click('#home-search-btn');
   
   // 에러 alert 확인
@@ -860,11 +947,64 @@ GET /api/admin (일반 사용자 토큰) → 403`}</pre>
 
               <section style={styles.section}>
                 <h3 style={styles.sectionTitle}>📊 상태 코드 연습 API</h3>
-                <p style={styles.text}><code>/api/status-codes?code=N</code> 으로 원하는 상태 코드를 직접 트리거 가능합니다.</p>
-                <pre style={styles.code}>{`GET /api/status-codes?code=200 → 200
-GET /api/status-codes?code=404 → 404
-GET /api/status-codes?code=429 → 429 (Retry-After 헤더 포함)
-GET /api/status-codes?code=500 → 500`}</pre>
+                <p style={styles.text}>
+                  <code>/api/status-codes?code=N</code> 으로 원하는 상태 코드를 직접 트리거할 수 있습니다.
+                </p>
+                
+                <div style={{ ...styles.note, marginBottom: '20px', padding: '16px', backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>💡 사용 방법</p>
+                  <p style={{ margin: 0, fontSize: '13px', marginBottom: '8px' }}>
+                    이 API는 다양한 HTTP 상태 코드를 테스트하기 위한 연습용 엔드포인트입니다. 
+                    쿼리 파라미터 <code>code</code>에 원하는 상태 코드 번호를 넣으면 해당 상태 코드로 응답합니다.
+                  </p>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>
+                    <strong>사용 예시:</strong>
+                  </p>
+                  <ul style={{ ...styles.list, marginTop: '4px', fontSize: '13px' }}>
+                    <li>브라우저 주소창에 직접 입력: <code>https://your-domain.com/api/status-codes?code=404</code></li>
+                    <li>Playwright 테스트: <code>await page.request.get('/api/status-codes?code=500')</code></li>
+                    <li>fetch 사용: <code>fetch('/api/status-codes?code=429').then(res =&gt; console.log(res.status))</code></li>
+                  </ul>
+                </div>
+
+                <h4 style={styles.subsectionTitle}>지원하는 상태 코드</h4>
+                <pre style={styles.code}>{`GET /api/status-codes?code=200 → 200 OK
+  응답: { "message": "200 상태 코드 응답", "code": 200 }
+
+GET /api/status-codes?code=404 → 404 Not Found
+  응답: { "message": "404 상태 코드 응답", "code": 404 }
+
+GET /api/status-codes?code=429 → 429 Too Many Requests
+  응답: { "message": "429 상태 코드 응답", "code": 429 }
+  헤더: Retry-After: 60 (60초 후 재시도)
+
+GET /api/status-codes?code=500 → 500 Internal Server Error
+  응답: { "message": "500 상태 코드 응답", "code": 500 }`}</pre>
+
+                <h4 style={{ ...styles.subsectionTitle, marginTop: '16px' }}>Playwright 테스트 예시</h4>
+                <pre style={styles.code}>{`// 404 Not Found 테스트
+test('상태 코드 404 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=404');
+  expect(response.status()).toBe(404);
+  
+  const data = await response.json();
+  expect(data.code).toBe(404);
+});
+
+// 429 Rate Limit 테스트 (Retry-After 헤더 검증)
+test('상태 코드 429 + Retry-After 헤더 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=429');
+  expect(response.status()).toBe(429);
+  
+  const retryAfter = response.headers()['retry-after'];
+  expect(retryAfter).toBe('60');
+});
+
+// 500 Server Error 테스트
+test('상태 코드 500 테스트', async ({ page }) => {
+  const response = await page.request.get('/api/status-codes?code=500');
+  expect(response.status()).toBe(500);
+});`}</pre>
               </section>
             </div>
           )}

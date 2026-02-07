@@ -287,7 +287,7 @@ export default function CartPage({
   .header-content {
     max-width: 1024px;
     margin: 0 auto;
-    padding: 12px;
+    padding: 16px 12px;
     display: flex;
     align-items: center;
     gap: 12px;
