@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 
-// UI 자동화 가이드 전체 내용 (1023줄)
+// UI 자동화 가이드 전체 내용
 const UI_GUIDE_FULL_CONTENT = `# 🎨 UI 자동화 검증 가이드
 
 ---
@@ -29,7 +29,7 @@ const UI_GUIDE_FULL_CONTENT = `# 🎨 UI 자동화 검증 가이드
 
 **UI 자동화 검증 = 사용자가 화면에서 보고 조작하는 것을 코드로 재현**
 
-```
+\`\`\`
 사용자 행동               →  자동화 코드
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. 페이지 열기            →  await page.goto('/')
@@ -37,13 +37,13 @@ const UI_GUIDE_FULL_CONTENT = `# 🎨 UI 자동화 검증 가이드
 3. 버튼 보이길 기다림     →  .waitFor()
 4. 버튼 클릭              →  .click()
 5. 성공 메시지 확인       →  expect().toBeVisible()
-```
+\`\`\`
 
 ### 1.2 왜 안정화 코드가 필요한가?
 
 **웹 페이지는 즉시 준비되지 않습니다:**
 
-```typescript
+\`\`\`typescript
 // ❌ 안정화 없이 (불안정함)
 await page.click('button');
 // 버튼이 아직 안 나타났으면? → 에러!
@@ -51,7 +51,7 @@ await page.click('button');
 // ✅ 안정화 추가 (안정적)
 await page.locator('button').waitFor();  // 버튼 나타날 때까지 기다림
 await page.click('button');
-```
+\`\`\`
 
 **문제 상황들:**
 - ⏱️ API 데이터 로딩 중
@@ -63,7 +63,7 @@ await page.click('button');
 
 **대부분의 Playwright 액션은 자동으로 대기합니다:**
 
-```typescript
+\`\`\`typescript
 // Playwright가 자동으로 하는 일:
 await page.click('button');
 
@@ -73,12 +73,12 @@ await page.click('button');
 // 3. 요소 활성화될 때까지 대기
 // 4. 요소 안정될 때까지 대기
 // 5. 클릭 수행
-```
+\`\`\`
 
 **자동 대기가 적용되는 액션들:**
-- `click()`, `fill()`, `check()`, `uncheck()`
-- `selectOption()`, `type()`, `press()`
-- `setInputFiles()`, `focus()`, `blur()`
+- \`click()\`, \`fill()\`, \`check()\`, \`uncheck()\`
+- \`selectOption()\`, \`type()\`, \`press()\`
+- \`setInputFiles()\`, \`focus()\`, \`blur()\`
 
 **명시적 대기가 필요한 경우:**
 - 로딩 스피너가 사라지길 기다릴 때
@@ -96,7 +96,7 @@ await page.click('button');
 **페이지 로딩 상태가 특정 단계에 도달할 때까지 대기**
 
 #### 3가지 상태
-```typescript
+\`\`\`typescript
 // 1. load - HTML 파싱 완료 (기본값)
 await page.goto('/');
 await page.waitForLoadState('load');
@@ -106,11 +106,11 @@ await page.waitForLoadState('domcontentloaded');
 
 // 3. networkidle - 네트워크 요청 거의 없음 (가장 느림)
 await page.waitForLoadState('networkidle');
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 페이지 이동 직후
 await page.goto('/products');
 await page.waitForLoadState('load');  // 페이지 로딩 완료 대기
@@ -124,11 +124,11 @@ await page.waitForLoadState('networkidle');  // API 호출 완료 대기
 await page.locator('button').waitFor();
 await page.click('button');
 // → locator.waitFor()가 이미 안정화 제공
-```
+\`\`\`
 
 #### 실전 예시
 
-```typescript
+\`\`\`typescript
 test('상품 목록 페이지 로딩', async ({ page }) => {
   await page.goto('/products');
   
@@ -141,7 +141,7 @@ test('상품 목록 페이지 로딩', async ({ page }) => {
   // 3. 이제 안전하게 검증
   await expect(page.locator('.product-card')).toHaveCount(10);
 });
-```
+\`\`\`
 
 ---
 
@@ -150,13 +150,13 @@ test('상품 목록 페이지 로딩', async ({ page }) => {
 #### 역할
 **CSS 선택자로 요소가 나타날 때까지 대기**
 
-```typescript
+\`\`\`typescript
 await page.waitForSelector('.success-message');
-```
+\`\`\`
 
 #### ⚠️ 주의: 권장하지 않음!
 
-```typescript
+\`\`\`typescript
 // ❌ 구식 방법 (Playwright 공식 비추천)
 await page.waitForSelector('button');
 await page.click('button');
@@ -167,10 +167,10 @@ await page.click('button');
 
 // 또는 더 간단하게
 await page.click('button');  // Playwright가 자동으로 대기
-```
+\`\`\`
 
 **왜 비추천?**
-- `locator()` 방식이 더 강력함
+- \`locator()\` 방식이 더 강력함
 - Auto-waiting 기능이 더 좋음
 - 코드가 더 간결함
 
@@ -181,28 +181,28 @@ await page.click('button');  // Playwright가 자동으로 대기
 #### 역할
 **특정 요소가 원하는 상태가 될 때까지 대기**
 
-```typescript
+\`\`\`typescript
 const button = page.locator('button');
 await button.waitFor();  // 기본: visible 상태 대기
-```
+\`\`\`
 
 #### ⚠️ 대부분의 경우 불필요합니다!
 
 **Playwright의 스마트 대기 덕분에:**
-```typescript
+\`\`\`typescript
 // ❌ 불필요한 명시적 대기
 await page.locator('button').waitFor();
 await page.click('button');
 
 // ✅ 간단하게 (자동으로 대기됨)
 await page.click('button');
-```
+\`\`\`
 
 #### 언제 명시적으로 써야 하나?
 
 **특별한 상태 대기가 필요할 때만:**
 
-```typescript
+\`\`\`typescript
 // 1. hidden - 로딩 스피너가 사라지길 기다릴 때
 await page.locator('.loading-spinner').waitFor({ state: 'hidden' });
 // 로딩이 완전히 끝난 후 작업 진행
@@ -218,11 +218,11 @@ await page.locator('.modal').waitFor({ state: 'detached' });
 // 4. visible - 명시적으로 표시하고 싶을 때 (가독성)
 await page.locator('.success-message').waitFor({ state: 'visible' });
 await expect(page.locator('.success-message')).toBeVisible();
-```
+\`\`\`
 
 #### 4가지 상태 옵션
 
-```typescript
+\`\`\`typescript
 // visible - 보이는 상태 (기본값)
 await page.locator('.message').waitFor({ state: 'visible' });
 
@@ -234,11 +234,11 @@ await page.locator('#hidden-input').waitFor({ state: 'attached' });
 
 // detached - DOM에서 제거됨
 await page.locator('.modal').waitFor({ state: 'detached' });
-```
+\`\`\`
 
 #### 실전 예시
 
-```typescript
+\`\`\`typescript
 test('로딩 후 콘텐츠 확인', async ({ page }) => {
   await page.goto('/dashboard');
   
@@ -251,7 +251,7 @@ test('로딩 후 콘텐츠 확인', async ({ page }) => {
   // 3. 안전하게 검증
   await expect(page.locator('.dashboard-content')).toBeVisible();
 });
-```
+\`\`\`
 
 ---
 
@@ -260,13 +260,13 @@ test('로딩 후 콘텐츠 확인', async ({ page }) => {
 #### 역할
 **무조건 지정된 시간만큼 대기**
 
-```typescript
+\`\`\`typescript
 await page.waitForTimeout(3000);  // 3초 무조건 대기
-```
+\`\`\`
 
 #### ⚠️ 안티패턴! 절대 쓰지 마세요!
 
-```typescript
+\`\`\`typescript
 // ❌ 나쁜 예시 (비추천)
 await page.click('button');
 await page.waitForTimeout(3000);  // 왜 3초? 2초면? 5초면?
@@ -276,7 +276,7 @@ await expect(page.locator('.result')).toBeVisible();
 await page.click('button');
 await page.locator('.result').waitFor();  // 나타날 때까지만 대기
 await expect(page.locator('.result')).toBeVisible();
-```
+\`\`\`
 
 **왜 안티패턴?**
 1. **불필요하게 느림**: 1초면 되는데 3초 기다림
@@ -285,10 +285,10 @@ await expect(page.locator('.result')).toBeVisible();
 
 #### 예외적으로 쓸 수 있는 경우 (1%)
 
-```typescript
+\`\`\`typescript
 // 디버깅할 때만 (테스트 코드에는 넣지 말 것!)
 await page.waitForTimeout(5000);  // 화면 보려고 잠깐 멈춤
-```
+\`\`\`
 
 ---
 
@@ -297,27 +297,27 @@ await page.waitForTimeout(5000);  // 화면 보려고 잠깐 멈춤
 #### 역할
 **URL이 특정 패턴과 일치할 때까지 대기**
 
-```typescript
+\`\`\`typescript
 await page.waitForURL('/dashboard');
-```
+\`\`\`
 
 #### 3가지 매칭 방식
 
-```typescript
+\`\`\`typescript
 // 1. 문자열 포함 (가장 많이 사용)
 await page.waitForURL('/dashboard');
 await page.waitForURL('**/products/**');
 
 // 2. 정규식
-await page.waitForURL(/\/products\/\d+/);
+await page.waitForURL(/\\/products\\/\\d+/);
 
 // 3. 함수
 await page.waitForURL((url) => url.searchParams.get('page') === '2');
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 페이지 이동 후 URL 확인
 await page.click('a[href="/login"]');
 await page.waitForURL('/login');
@@ -333,11 +333,11 @@ await page.waitForURL('**/products');
 // ❌ 불필요: expect와 중복
 await page.waitForURL('/dashboard');
 await expect(page).toHaveURL('/dashboard');  // 중복!
-```
+\`\`\`
 
 #### 실전 예시
 
-```typescript
+\`\`\`typescript
 test('로그인 후 대시보드 이동', async ({ page }) => {
   await page.goto('/login');
   
@@ -351,7 +351,7 @@ test('로그인 후 대시보드 이동', async ({ page }) => {
   // 이제 안전하게 검증
   await expect(page.locator('h1')).toHaveText('대시보드');
 });
-```
+\`\`\`
 
 ---
 
@@ -360,13 +360,13 @@ test('로그인 후 대시보드 이동', async ({ page }) => {
 #### 역할
 **JavaScript 조건이 true가 될 때까지 대기**
 
-```typescript
+\`\`\`typescript
 await page.waitForFunction(() => document.querySelectorAll('.item').length > 5);
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 복잡한 조건
 await page.waitForFunction(() => {
   const items = document.querySelectorAll('.product-card');
@@ -385,11 +385,11 @@ await page.waitForFunction(() => {
 // ❌ 불필요: 간단한 요소 대기
 await page.waitForFunction(() => document.querySelector('button'));
 // → 대신 locator.waitFor() 사용
-```
+\`\`\`
 
 #### 실전 예시
 
-```typescript
+\`\`\`typescript
 test('무한 스크롤 로딩', async ({ page }) => {
   await page.goto('/products');
   
@@ -403,7 +403,7 @@ test('무한 스크롤 로딩', async ({ page }) => {
   
   await expect(page.locator('.product-card')).toHaveCount(20);
 });
-```
+\`\`\`
 
 ---
 
@@ -414,16 +414,16 @@ test('무한 스크롤 로딩', async ({ page }) => {
 #### 역할
 **CSS 선택자로 요소 찾기 (가장 범용적)**
 
-```typescript
+\`\`\`typescript
 page.locator('button')
 page.locator('.submit-btn')
 page.locator('#login-form')
 page.locator('[data-testid="product-card"]')
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: CSS 클래스가 명확할 때
 await page.locator('.btn-primary').click();
 
@@ -439,7 +439,7 @@ await page.locator('div.card > button.delete').click();
 // ❌ 비추천: 텍스트로 찾을 때
 await page.locator('button:has-text("로그인")').click();
 // → 대신 getByRole() 또는 getByText() 사용
-```
+\`\`\`
 
 ---
 
@@ -448,15 +448,15 @@ await page.locator('button:has-text("로그인")').click();
 #### 역할
 **ARIA role로 요소 찾기 (가장 권장)**
 
-```typescript
+\`\`\`typescript
 page.getByRole('button', { name: '로그인' })
 page.getByRole('textbox', { name: '이메일' })
 page.getByRole('link', { name: '회원가입' })
-```
+\`\`\`
 
 #### 주요 role 종류
 
-```typescript
+\`\`\`typescript
 // button
 await page.getByRole('button', { name: '제출' }).click();
 
@@ -477,11 +477,11 @@ await page.getByRole('listitem').first().click();
 
 // img
 await expect(page.getByRole('img', { name: '로고' })).toBeVisible();
-```
+\`\`\`
 
 #### 왜 가장 권장될까?
 
-```typescript
+\`\`\`typescript
 // ✅ 접근성 기반 (스크린리더 사용자 경험과 동일)
 await page.getByRole('button', { name: '로그인' }).click();
 
@@ -492,11 +492,11 @@ await page.getByRole('button', { name: '로그인' }).click();
 
 // ✅ 다국어 지원
 await page.getByRole('button', { name: /로그인|Login/ }).click();
-```
+\`\`\`
 
 #### 실전 예시
 
-```typescript
+\`\`\`typescript
 test('회원가입 폼', async ({ page }) => {
   await page.goto('/signup');
   
@@ -509,7 +509,7 @@ test('회원가입 폼', async ({ page }) => {
   
   await expect(page.getByRole('heading', { name: '가입 완료' })).toBeVisible();
 });
-```
+\`\`\`
 
 ---
 
@@ -518,15 +518,15 @@ test('회원가입 폼', async ({ page }) => {
 #### 역할
 **텍스트 내용으로 요소 찾기**
 
-```typescript
+\`\`\`typescript
 page.getByText('로그인')
 page.getByText(/로그인|Login/)  // 정규식
 page.getByText('로그인', { exact: true })  // 정확히 일치
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 일반 텍스트 요소
 await page.getByText('환영합니다').waitFor();
 
@@ -536,11 +536,11 @@ await page.getByText(/성공|완료/).waitFor();
 // ❌ 비추천: 버튼, 링크
 await page.getByText('클릭').click();
 // → 대신 getByRole() 사용
-```
+\`\`\`
 
 #### exact 옵션
 
-```typescript
+\`\`\`typescript
 // 기본: 부분 일치
 await page.getByText('로그인').click();
 // "로그인", "로그인하기", "로그인 버튼" 모두 매칭
@@ -548,7 +548,7 @@ await page.getByText('로그인').click();
 // exact: 정확히 일치
 await page.getByText('로그인', { exact: true }).click();
 // "로그인"만 매칭
-```
+\`\`\`
 
 ---
 
@@ -557,14 +557,14 @@ await page.getByText('로그인', { exact: true }).click();
 #### 역할
 **label 텍스트로 input 찾기**
 
-```typescript
+\`\`\`typescript
 page.getByLabel('이메일')
 page.getByLabel('비밀번호')
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 폼 input
 await page.getByLabel('이메일').fill('test@example.com');
 await page.getByLabel('비밀번호').fill('password123');
@@ -577,7 +577,7 @@ await page.getByLabel('비밀번호').fill('password123');
 //   이메일
 //   <input />
 // </label>
-```
+\`\`\`
 
 ---
 
@@ -586,18 +586,18 @@ await page.getByLabel('비밀번호').fill('password123');
 #### 역할
 **placeholder로 input 찾기**
 
-```typescript
+\`\`\`typescript
 page.getByPlaceholder('이메일을 입력하세요')
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: label 없는 input
 await page.getByPlaceholder('검색어를 입력하세요').fill('Playwright');
 
 // ❌ 비추천: label 있으면 getByLabel() 사용
-```
+\`\`\`
 
 ---
 
@@ -606,14 +606,14 @@ await page.getByPlaceholder('검색어를 입력하세요').fill('Playwright');
 #### 역할
 **data-testid로 요소 찾기**
 
-```typescript
+\`\`\`typescript
 page.getByTestId('submit-button')
 page.getByTestId('product-card-1')
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 다른 방법으로 못 찾을 때
 await page.getByTestId('complex-component').click();
 
@@ -624,7 +624,7 @@ await page.getByTestId('complex-component').click();
 // 1순위: getByRole()
 // 2순위: getByLabel(), getByText()
 // 3순위: getByTestId()
-```
+\`\`\`
 
 ---
 
@@ -635,13 +635,13 @@ await page.getByTestId('complex-component').click();
 #### 역할
 **요소가 화면에 보이는지 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page.locator('.message')).toBeVisible();
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 성공 메시지 확인
 await page.click('#submit');
 await expect(page.locator('.success-message')).toBeVisible();
@@ -653,7 +653,7 @@ await expect(page.locator('.modal')).toBeVisible();
 // ⚠️ 주의: display:none은 false
 // <div style="display:none">숨김</div>
 await expect(page.locator('div')).not.toBeVisible();
-```
+\`\`\`
 
 ---
 
@@ -662,13 +662,13 @@ await expect(page.locator('div')).not.toBeVisible();
 #### 역할
 **요소의 텍스트 내용 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page.locator('h1')).toHaveText('환영합니다');
-```
+\`\`\`
 
 #### 3가지 방식
 
-```typescript
+\`\`\`typescript
 // 1. 정확히 일치
 await expect(page.locator('h1')).toHaveText('환영합니다');
 
@@ -677,7 +677,7 @@ await expect(page.locator('h1')).toContainText('환영');
 
 // 3. 정규식
 await expect(page.locator('h1')).toHaveText(/환영|Welcome/);
-```
+\`\`\`
 
 ---
 
@@ -686,13 +686,13 @@ await expect(page.locator('h1')).toHaveText(/환영|Welcome/);
 #### 역할
 **input 값 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page.locator('#username')).toHaveValue('test');
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: input 값 확인
 await page.fill('#username', 'test');
 await expect(page.locator('#username')).toHaveValue('test');
@@ -700,7 +700,7 @@ await expect(page.locator('#username')).toHaveValue('test');
 // ✅ 사용: 자동 완성 확인
 await page.click('.autofill-suggestion');
 await expect(page.locator('#address')).toHaveValue('서울시 강남구...');
-```
+\`\`\`
 
 ---
 
@@ -709,14 +709,14 @@ await expect(page.locator('#address')).toHaveValue('서울시 강남구...');
 #### 역할
 **요소 활성화/비활성화 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page.locator('button')).toBeEnabled();
 await expect(page.locator('button')).toBeDisabled();
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 조건부 버튼 활성화
 await expect(page.locator('#submit')).toBeDisabled();
 
@@ -724,7 +724,7 @@ await page.fill('#username', 'test');
 await page.fill('#password', 'test1234');
 
 await expect(page.locator('#submit')).toBeEnabled();
-```
+\`\`\`
 
 ---
 
@@ -733,19 +733,19 @@ await expect(page.locator('#submit')).toBeEnabled();
 #### 역할
 **요소 개수 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page.locator('.product-card')).toHaveCount(10);
-```
+\`\`\`
 
 #### 언제 써야 하나?
 
-```typescript
+\`\`\`typescript
 // ✅ 사용: 목록 개수 확인
 await expect(page.locator('.search-result')).toHaveCount(5);
 
 // ✅ 사용: 요소 없는지 확인
 await expect(page.locator('.error')).toHaveCount(0);
-```
+\`\`\`
 
 ---
 
@@ -754,22 +754,22 @@ await expect(page.locator('.error')).toHaveCount(0);
 #### 역할
 **현재 URL 확인**
 
-```typescript
+\`\`\`typescript
 await expect(page).toHaveURL('/dashboard');
-```
+\`\`\`
 
 #### 3가지 방식
 
-```typescript
+\`\`\`typescript
 // 1. 정확히 일치
 await expect(page).toHaveURL('https://example.com/dashboard');
 
 // 2. 부분 일치
-await expect(page).toHaveURL(/\/dashboard/);
+await expect(page).toHaveURL(/\\/dashboard/);
 
 // 3. 패턴 매칭
 await expect(page).toHaveURL('**/products/**');
-```
+\`\`\`
 
 ---
 
@@ -777,7 +777,7 @@ await expect(page).toHaveURL('**/products/**');
 
 ### 5.1 로딩 → 클릭 패턴
 
-```typescript
+\`\`\`typescript
 // 패턴 1: 스마트 대기 활용 (가장 간단) ⭐
 await page.click('button');
 // Playwright가 알아서:
@@ -792,10 +792,10 @@ await page.click('button');
 // 패턴 3: 특별한 조건이 필요할 때만
 await page.locator('button').waitFor();  // 명시적으로 표시
 await page.click('button');
-```
+\`\`\`
 
 **언제 어떤 패턴을 쓸까?**
-```typescript
+\`\`\`typescript
 // 일반적인 경우 (90%) - 패턴 1
 await page.click('button');
 
@@ -806,13 +806,13 @@ await page.click('button');
 // 가독성을 위해 (1%) - 패턴 3
 await page.locator('button').waitFor();
 await page.click('button');
-```
+\`\`\`
 
 ---
 
 ### 5.2 페이지 이동 패턴
 
-```typescript
+\`\`\`typescript
 // 패턴 1: URL 변경 대기
 await page.click('a[href="/products"]');
 await page.waitForURL('/products');
@@ -824,13 +824,13 @@ await page.waitForLoadState('networkidle');
 // 패턴 3: 특정 요소 나타날 때까지 대기
 await page.goto('/');
 await page.locator('.main-content').waitFor();
-```
+\`\`\`
 
 ---
 
 ### 5.3 폼 입력 패턴
 
-```typescript
+\`\`\`typescript
 // 패턴 1: label 기반 (가장 권장)
 await page.getByLabel('이메일').fill('test@example.com');
 await page.getByLabel('비밀번호').fill('password123');
@@ -840,13 +840,13 @@ await page.getByRole('textbox', { name: '이메일' }).fill('test@example.com');
 
 // 패턴 3: placeholder 기반
 await page.getByPlaceholder('이메일 입력').fill('test@example.com');
-```
+\`\`\`
 
 ---
 
 ### 5.4 목록 검증 패턴
 
-```typescript
+\`\`\`typescript
 // 패턴 1: 개수만 확인
 await expect(page.locator('.item')).toHaveCount(10);
 
@@ -857,7 +857,7 @@ await expect(page.locator('.item').first()).toBeVisible();
 const items = page.locator('.item');
 await expect(items.nth(0)).toHaveText('첫 번째');
 await expect(items.nth(1)).toHaveText('두 번째');
-```
+\`\`\`
 
 ---
 
@@ -865,7 +865,7 @@ await expect(items.nth(1)).toHaveText('두 번째');
 
 ### 실수 1: waitForTimeout() 남용
 
-```typescript
+\`\`\`typescript
 // ❌ 나쁜 예
 await page.click('button');
 await page.waitForTimeout(3000);
@@ -873,13 +873,13 @@ await page.waitForTimeout(3000);
 // ✅ 좋은 예
 await page.click('button');
 await page.locator('.result').waitFor();
-```
+\`\`\`
 
 ---
 
 ### 실수 2: 불필요한 명시적 대기
 
-```typescript
+\`\`\`typescript
 // ❌ 불필요한 중복 (스마트 대기 무시)
 await page.locator('button').waitFor();
 await page.click('button');
@@ -893,10 +893,10 @@ await page.click('button');
 // - 요소 보임
 // - 요소 활성화
 // - 요소 안정
-```
+\`\`\`
 
 **예외: 명시적 대기가 필요한 경우**
-```typescript
+\`\`\`typescript
 // ✅ hidden 대기 (스마트 대기가 안 함)
 await page.locator('.loading').waitFor({ state: 'hidden' });
 
@@ -906,19 +906,19 @@ await page.locator('.modal').waitFor({ state: 'detached' });
 // ✅ 가독성을 위해 (선택적)
 await page.locator('.content').waitFor();  // "콘텐츠 나타날 때까지" 명시
 await expect(page.locator('.content')).toBeVisible();
-```
+\`\`\`
 
 ---
 
 ### 실수 3: 잘못된 로케이터
 
-```typescript
+\`\`\`typescript
 // ❌ 취약한 선택자
 await page.locator('div > div > button').click();
 
 // ✅ 의미있는 선택자
 await page.getByRole('button', { name: '제출' }).click();
-```
+\`\`\`
 
 ---
 
@@ -926,7 +926,7 @@ await page.getByRole('button', { name: '제출' }).click();
 
 ### 7.1 우선순위
 
-```typescript
+\`\`\`typescript
 // 1순위: getByRole()
 await page.getByRole('button', { name: '로그인' }).click();
 
@@ -938,14 +938,14 @@ await page.getByTestId('submit-btn').click();
 
 // 4순위: CSS 선택자
 await page.locator('.btn-primary').click();
-```
+\`\`\`
 
 ---
 
 ### 7.2 안정화 코드 사용 가이드
 
 #### 스마트 대기 활용 (기본)
-```typescript
+\`\`\`typescript
 // ✅ 대부분의 경우: 그냥 사용 (자동 대기됨)
 await page.click('button');
 await page.fill('input', 'text');
@@ -956,10 +956,10 @@ await page.selectOption('select', 'option');
 // - 요소 보일 때까지 대기
 // - 요소 활성화까지 대기
 // - 요소 안정될 때까지 대기
-```
+\`\`\`
 
 #### 명시적 대기가 필요한 경우
-```typescript
+\`\`\`typescript
 // ✅ 페이지 이동 시
 await page.goto('/dashboard');
 await page.waitForLoadState('load');
@@ -980,16 +980,16 @@ const [response] = await Promise.all([
   page.waitForResponse(res => res.url().includes('/api/data')),
   page.click('button')
 ]);
-```
+\`\`\`
 
 #### 절대 사용 금지
-```typescript
+\`\`\`typescript
 // ❌ waitForTimeout() - 안티패턴!
 await page.waitForTimeout(3000);
 
 // ✅ 대신 조건 기반 대기
 await page.locator('.element').waitFor();
-```
+\`\`\`
 
 ---
 
@@ -997,7 +997,7 @@ await page.locator('.element').waitFor();
 
 ### 필수 암기 4가지
 
-```typescript
+\`\`\`typescript
 // 1. 스마트 대기 믿기 (가장 중요!) ⭐
 await page.click('button');  // waitFor() 불필요
 
@@ -1009,11 +1009,11 @@ await page.locator('.loading').waitFor({ state: 'hidden' });
 
 // 4. waitForTimeout() 절대 금지
 // await page.waitForTimeout(3000);  // ❌ 절대 사용 금지!
-```
+\`\`\`
 
 ### 스마트 대기 vs 명시적 대기
 
-```typescript
+\`\`\`typescript
 // 스마트 대기 (자동) - 90%의 경우
 await page.click('button');
 await page.fill('input', 'text');
@@ -1023,7 +1023,7 @@ await page.check('checkbox');
 await page.locator('.loading').waitFor({ state: 'hidden' });
 await page.waitForURL('/dashboard');
 await page.waitForLoadState('networkidle');
-```
+\`\`\`
 
 **기억하세요:**
 - ✅ 대부분: 스마트 대기에 맡기기
@@ -1033,7 +1033,7 @@ await page.waitForLoadState('networkidle');
 **이것만 기억하면 90% 해결!** 🎉
 `;
 
-// API 검증 가이드 전체 내용 (1377줄)
+// API 검증 가이드 전체 내용
 const API_GUIDE_FULL_CONTENT = `# API 검증 가이드
 
 ---
@@ -1057,7 +1057,7 @@ const API_GUIDE_FULL_CONTENT = `# API 검증 가이드
 
 **API 검증 = 서버와 브라우저 사이의 대화를 엿듣는 것**
 
-```
+\`\`\`
 [브라우저] ━━ "로그인해줘!" ━━▶ [서버]
            ◀━━ "OK! 토큰 줄게" ━━
 
@@ -1065,11 +1065,11 @@ API 검증 = 이 대화 내용을 확인하는 것
 - "서버가 제대로 응답했나?"
 - "토큰을 진짜 줬나?"
 - "에러는 없나?"
-```
+\`\`\`
 
 ### 1.2 UI 검증 vs API 검증
 
-```typescript
+\`\`\`typescript
 // UI 검증 (당신이 익숙한 것)
 await page.click('button');
 await expect(page.locator('.success-message')).toBeVisible();
@@ -1078,9 +1078,9 @@ await expect(page.locator('.success-message')).toBeVisible();
 // 하지만...
 // 서버: { error: "DB connection failed" } 
 // → UI는 성공 보여줬지만 실제론 실패!
-```
+\`\`\`
 
-```typescript
+\`\`\`typescript
 // API 검증 (새로 배울 것)
 const response = await page.waitForResponse((res) => 
   res.url().includes('/api/login')
@@ -1093,7 +1093,7 @@ expect(data.error).toBeUndefined();       // 에러 없나?
 
 await expect(page.locator('.success-message')).toBeVisible();
 // → 서버 응답까지 확인 → 진짜 성공!
-```
+\`\`\`
 
 **핵심 차이:**
 - **UI 검증**: "화면이 맞나?" (표면만 봄)
@@ -1106,7 +1106,7 @@ await expect(page.locator('.success-message')).toBeVisible();
 ### 2.1 실무 사례로 이해하기
 
 #### 🐛 사례 1: UI는 성공인데 실제론 실패
-```typescript
+\`\`\`typescript
 // 로그인 버튼 클릭
 await page.click('#login-submit');
 
@@ -1126,10 +1126,10 @@ await expect(page).toHaveURL('/dashboard');
 // - 프론트엔드가 에러를 무시하고 dashboard로 이동
 // - 토큰이 없어서 다음 API 호출 시 전부 401 에러
 // - 사용자는 "로그인됐다고 했는데 왜 안 돼?" 하고 문의
-```
+\`\`\`
 
 **API 검증으로 잡는 법:**
-```typescript
+\`\`\`typescript
 const [response] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
   page.click('#login-submit')
@@ -1145,12 +1145,12 @@ expect(data.error).toBeUndefined();   // ❌ 에러 있으면 여기서 실패!
 
 // UI 확인
 await expect(page.locator('.success')).toBeVisible();
-```
+\`\`\`
 
 ---
 
 #### 🐛 사례 2: 재고 부족 에러 놓침
-```typescript
+\`\`\`typescript
 // 주문하기 버튼 클릭
 await page.click('text=주문하기');
 
@@ -1169,10 +1169,10 @@ await expect(page).toHaveURL('/order-complete');
 // - 프론트엔드가 에러 무시하고 완료 페이지로 이동
 // - 실제론 주문 안 됨
 // - 결제는 되는데 배송은 안 됨 → 환불 처리 필요
-```
+\`\`\`
 
 **API 검증으로 잡는 법:**
-```typescript
+\`\`\`typescript
 const [orderResponse] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/order')),
   page.click('text=주문하기')
@@ -1192,13 +1192,13 @@ if (orderResponse.status() === 409) {  // Conflict
   // UI에 에러 메시지 떠야 함
   await expect(page.locator('text=재고가 부족')).toBeVisible();
 }
-```
+\`\`\`
 
 ---
 
 ### 2.2 API 검증으로 잡을 수 있는 것들
 
-```typescript
+\`\`\`typescript
 // 1️⃣ 서버 에러 (500, 502, 503)
 expect(response.status()).not.toBe(500);
 
@@ -1224,13 +1224,13 @@ expect(data.password).toBeUndefined();    // 비밀번호 노출되면 안 됨!
 // 7️⃣ 성능 이슈
 const responseTime = Date.now() - startTime;
 expect(responseTime).toBeLessThan(1000);  // 1초 넘으면 느림!
-```
+\`\`\`
 
 ---
 
 ### 2.3 검증 레벨별 차이
 
-```typescript
+\`\`\`typescript
 // 🥉 레벨 1: 최소 검증 (상태 코드만)
 expect(response.status()).toBe(200);
 // → "서버가 성공 응답은 했구나"
@@ -1256,13 +1256,13 @@ const request = response.request();
 const requestBody = JSON.parse(request.postData() || '{}');
 expect(requestBody.password.length).toBeGreaterThan(8);
 // → "비밀번호도 8자 이상으로 보냈구나"
-```
+\`\`\`
 
 ---
 
 ### 2.4 왜 이 순서로 검증해야 하나?
 
-```typescript
+\`\`\`typescript
 // ❌ 잘못된 순서 (에러 발생!)
 const data = await response.json();       // 500 에러면 여기서 터짐!
 expect(response.status()).toBe(200);      // 실행 안 됨
@@ -1276,7 +1276,7 @@ expect(data.token).toBeTruthy();          // 3. 데이터 검증
 // - 500 에러일 때 response.json() 호출하면 에러 발생
 // - "Unexpected token < in JSON" 같은 에러 뜸
 // - HTML 에러 페이지가 와서 JSON 파싱 실패
-```
+\`\`\`
 
 ---
 
@@ -1287,14 +1287,14 @@ expect(data.token).toBeTruthy();          // 3. 데이터 검증
 #### 역할
 **브라우저가 특정 API 응답을 받을 때까지 기다림**
 
-```typescript
+\`\`\`typescript
 const response = await page.waitForResponse(predicate);
-```
+\`\`\`
 
 #### predicate가 뭔데?
 **"이런 조건의 응답이 오면 잡아줘"라고 알려주는 함수**
 
-```typescript
+\`\`\`typescript
 // 조건: URL에 '/api/login' 포함
 (res) => res.url().includes('/api/login')
 
@@ -1302,11 +1302,11 @@ const response = await page.waitForResponse(predicate);
 // 1. 브라우저가 모든 네트워크 요청 모니터링
 // 2. 응답 올 때마다 이 함수 실행
 // 3. true 반환하면 그 응답을 잡아서 리턴
-```
+\`\`\`
 
 #### 예시로 이해하기
 
-```typescript
+\`\`\`typescript
 // 예시 1: 단순 URL 매칭
 const response = await page.waitForResponse((res) => 
   res.url().includes('/api/products')
@@ -1328,14 +1328,14 @@ const response = await page.waitForResponse(
 
 // 예시 4: 정규식
 const response = await page.waitForResponse((res) => 
-  /\/api\/products\/\d+/.test(res.url())
+  /\\/api\\/products\\/\\d+/.test(res.url())
 );
 // "URL이 /api/products/1, /api/products/2 같은 패턴인 응답 잡아줘"
-```
+\`\`\`
 
 #### ⚠️ 주의사항: 타이밍이 생명!
 
-```typescript
+\`\`\`typescript
 // ❌ 잘못된 사용 (응답 놓침!)
 await page.click('button');  // 1. 클릭 (API 호출 발생)
 const response = await page.waitForResponse(...);  // 2. 대기 시작 (이미 늦음!)
@@ -1354,7 +1354,7 @@ const [response] = await Promise.all([
 // [대기 시작] ━━━━━━━━━━━━━━▶ [응답 캐치!] ✅
 //     ↓
 // [클릭] ━▶ [API 호출] ━▶ [응답 도착]
-```
+\`\`\`
 
 ---
 
@@ -1365,7 +1365,7 @@ const [response] = await Promise.all([
 
 #### 왜 필요한가? (타임라인으로 이해)
 
-```typescript
+\`\`\`typescript
 // 방법 1: 순차 실행 (느림 + 응답 놓칠 수 있음)
 await page.click('button');           // 1초 걸림
 const response = await page.waitForResponse(...); // 응답 이미 지나감!
@@ -1383,13 +1383,13 @@ const [response] = await Promise.all([
 // [대기 시작] ━━━━━━━━━━━━━━▶ ✅ (응답 캐치!)
 //     ↓
 // [클릭] ━━━▶ [응답 도착]
-```
+\`\`\`
 
 #### 배열 구조 분해 할당 완전 이해
 
 **Promise.all은 항상 배열을 반환합니다:**
 
-```typescript
+\`\`\`typescript
 // Promise.all의 반환값
 const result = await Promise.all([
   page.waitForResponse(...),  // 첫 번째 작업 → 응답객체
@@ -1400,11 +1400,11 @@ const result = await Promise.all([
 // result = [응답객체, undefined]
 // result[0] = 응답객체
 // result[1] = undefined
-```
+\`\`\`
 
 **이걸 더 편하게 쓰는 방법이 배열 구조 분해:**
 
-```typescript
+\`\`\`typescript
 // 방법 1: 첫 번째 값만 꺼내기 (가장 많이 사용) ⭐
 const [response] = await Promise.all([
   page.waitForResponse(...),
@@ -1427,11 +1427,11 @@ const result = await Promise.all([
   page.click('button')
 ]);
 const response = result[0];  // 인덱스로 접근해야 함
-```
+\`\`\`
 
-**왜 `const [response]`를 주로 쓸까?**
+**왜 \`const [response]\`를 주로 쓸까?**
 
-```typescript
+\`\`\`typescript
 // ❌ 방법 1: result 사용 (번거로움)
 const result = await Promise.all([...]);
 const response = result[0];
@@ -1440,11 +1440,11 @@ expect(response.status()).toBe(200);
 // ✅ 방법 2: [response] 사용 (간결함)
 const [response] = await Promise.all([...]);
 expect(response.status()).toBe(200);
-```
+\`\`\`
 
 **실전 예시:**
 
-```typescript
+\`\`\`typescript
 // 예시 1: 응답만 필요 (99% 케이스)
 const [loginResponse] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -1462,12 +1462,12 @@ const [productsRes, categoriesRes, userRes] = await Promise.all([
 // productsRes = 첫 번째 응답
 // categoriesRes = 두 번째 응답
 // userRes = 세 번째 응답
-```
+\`\`\`
 
 **핵심 정리:**
-- `const [response]` = 첫 번째 값만 꺼냄 (추천 ⭐)
-- `const result` = 전체 배열 받음 (비추천)
-- 두 방식 모두 동작은 같지만, `[response]`가 더 깔끔함!
+- \`const [response]\` = 첫 번째 값만 꺼냄 (추천 ⭐)
+- \`const result\` = 전체 배열 받음 (비추천)
+- 두 방식 모두 동작은 같지만, \`[response]\`가 더 깔끔함!
 
 ---
 
@@ -1477,7 +1477,7 @@ const [productsRes, categoriesRes, userRes] = await Promise.all([
 
 **1️⃣ 여러 API를 동시에 기다릴 때**
 
-```typescript
+\`\`\`typescript
 // 사례: 페이지 로드 시 3개 API 동시 호출
 const [productsRes, categoriesRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
@@ -1490,11 +1490,11 @@ const [productsRes, categoriesRes, userRes] = await Promise.all([
 expect(productsRes.status()).toBe(200);
 expect(categoriesRes.status()).toBe(200);
 expect(userRes.status()).toBe(200);
-```
+\`\`\`
 
 **2️⃣ API 응답 + UI 변화를 동시에 기다릴 때**
 
-```typescript
+\`\`\`typescript
 // 사례: 로그인 시 API 응답 + 페이지 이동 동시 발생
 const [loginRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -1505,11 +1505,11 @@ const [loginRes] = await Promise.all([
 // API와 UI 모두 검증
 expect(loginRes.status()).toBe(200);
 await expect(page).toHaveURL('/dashboard');
-```
+\`\`\`
 
 **3️⃣ 여러 요소가 나타나길 기다릴 때**
 
-```typescript
+\`\`\`typescript
 // 사례: 검색 결과가 로딩되면서 여러 요소 나타남
 const [searchRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/search')),
@@ -1521,11 +1521,11 @@ const [searchRes] = await Promise.all([
 // 모두 나타났는지 확인
 await expect(page.locator('.search-result')).toHaveCount(5);
 await expect(page.locator('.result-count')).toHaveText('5개');
-```
+\`\`\`
 
 **4️⃣ 연속된 API 호출을 동시에 캐치**
 
-```typescript
+\`\`\`typescript
 // 사례: 상품 추가 시 추가 API + 목록 갱신 API 연속 호출
 const [addRes, listRes] = await Promise.all([
   page.waitForResponse((res) => 
@@ -1541,11 +1541,11 @@ const [addRes, listRes] = await Promise.all([
 // 둘 다 검증
 expect(addRes.status()).toBe(201);   // 추가 성공
 expect(listRes.status()).toBe(200);  // 목록 조회 성공
-```
+\`\`\`
 
 #### 주의사항
 
-```typescript
+\`\`\`typescript
 // ⚠️ 순서 주의!
 const [res1, res2] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
@@ -1571,7 +1571,7 @@ const [productsRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/user')),
   page.goto('/')
 ]);
-```
+\`\`\`
 
 ---
 
@@ -1580,7 +1580,7 @@ const [productsRes, userRes] = await Promise.all([
 #### response.status()
 **역할:** HTTP 상태 코드 반환 (숫자)
 
-```typescript
+\`\`\`typescript
 const status: number = response.status();
 
 // 성공
@@ -1599,10 +1599,10 @@ const status: number = response.status();
 500  // Internal Server Error - 서버 에러
 502  // Bad Gateway - 게이트웨이 에러
 503  // Service Unavailable - 서비스 중단
-```
+\`\`\`
 
 **사용 예시:**
-```typescript
+\`\`\`typescript
 // 성공 확인
 expect(response.status()).toBe(200);
 
@@ -1612,14 +1612,14 @@ if (response.status() === 401) {
 } else if (response.status() === 500) {
   console.log('서버 에러 발생!');
 }
-```
+\`\`\`
 
 ---
 
 #### response.ok()
 **역할:** 응답이 성공(200-299)인지 확인 (boolean)
 
-```typescript
+\`\`\`typescript
 const isSuccess: boolean = response.ok();
 // 200-299 → true
 // 그 외 → false
@@ -1636,23 +1636,23 @@ if (response.ok()) {
 // response.status()와 차이
 response.status() === 200  // 정확히 200만
 response.ok()              // 200, 201, 204 모두 true
-```
+\`\`\`
 
 ---
 
 #### response.json()
 **역할:** 응답 본문(body)을 JSON으로 파싱
 
-```typescript
+\`\`\`typescript
 const data: any = await response.json();
 // { token: "eyJ...", user: {...} }
 
 expect(data.token).toBeTruthy();
 expect(data.user.name).toBe('test');
-```
+\`\`\`
 
 **⚠️ 주의사항:**
-```typescript
+\`\`\`typescript
 // 1. await 필수! (비동기 함수)
 const data = await response.json();  // ✅
 const data = response.json();        // ❌ Promise 객체 반환됨
@@ -1667,14 +1667,14 @@ if (response.status() === 500) {
 // 3. 한 번만 호출 가능
 const data1 = await response.json();  // ✅
 const data2 = await response.json();  // ❌ 에러 발생!
-```
+\`\`\`
 
 ---
 
 #### response.request()
 **역할:** 이 응답을 발생시킨 요청(Request) 객체 반환
 
-```typescript
+\`\`\`typescript
 const request = response.request();
 
 // 1. HTTP 메서드 확인
@@ -1694,18 +1694,18 @@ console.log(body);  // { username: "test", password: "..." }
 // 4. 요청 URL 확인
 const url: string = request.url();
 console.log(url);  // "https://api.example.com/login"
-```
+\`\`\`
 
 ---
 
 ### 3.5 변수명: response vs loginResponse?
 
-**Q: `response`만 써도 되나요?**
+**Q: \`response\`만 써도 되나요?**
 
 **A: 상황에 따라 다릅니다!**
 
 #### 1. API가 1개만 있을 때
-```typescript
+\`\`\`typescript
 test('로그인', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -1717,10 +1717,10 @@ test('로그인', async ({ page }) => {
   const data = await response.json();
   expect(data.token).toBeTruthy();
 });
-```
+\`\`\`
 
 #### 2. API가 여러 개 있을 때
-```typescript
+\`\`\`typescript
 test('상품 추가 후 목록 조회', async ({ page }) => {
   // ✅ 명확함
   const [addResponse] = await Promise.all([
@@ -1738,11 +1738,11 @@ test('상품 추가 후 목록 조회', async ({ page }) => {
   ]);
   expect(listResponse.status()).toBe(200);
 });
-```
+\`\`\`
 
 **결론:**
-- 🟢 하나만 있으면 `response` OK
-- 🟡 여러 개면 `loginResponse`, `orderResponse` 처럼 구체적으로!
+- 🟢 하나만 있으면 \`response\` OK
+- 🟡 여러 개면 \`loginResponse\`, \`orderResponse\` 처럼 구체적으로!
 - 🔴 절대 같은 이름 재사용 금지!
 
 ---
@@ -1758,12 +1758,12 @@ test('상품 추가 후 목록 조회', async ({ page }) => {
 2. Network 탭 선택
 3. 사이트 사용하면서 API 관찰
 
-```
+\`\`\`
 예시: 로그인 버튼 클릭
 → Network 탭에 "login" 요청 보임
 → Status: 200
 → Response: { "token": "eyJ..." }
-```
+\`\`\`
 
 **1단계 졸업 기준:**
 - [ ] 버튼 클릭 시 어떤 API 호출될지 예측 가능
@@ -1775,7 +1775,7 @@ test('상품 추가 후 목록 조회', async ({ page }) => {
 ### 🎯 2단계: 첫 API 검증 코드 작성 (1주)
 
 **필수 암기 패턴:**
-```typescript
+\`\`\`typescript
 // 패턴 1: 단순 응답 대기
 const response = await page.waitForResponse((res) => 
   res.url().includes('/api/엔드포인트')
@@ -1793,14 +1793,14 @@ expect(response.status()).toBe(200);
 // 패턴 4: 응답 데이터 검증
 const data = await response.json();
 expect(data.필드명).toBe(기대값);
-```
+\`\`\`
 
 ---
 
 ### 🎯 3단계: 다양한 시나리오 연습 (2주)
 
 #### 패턴 1: 에러 응답 검증
-```typescript
+\`\`\`typescript
 test('잘못된 비밀번호 로그인', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -1815,10 +1815,10 @@ test('잘못된 비밀번호 로그인', async ({ page }) => {
   expect(data.code).toBe('AUTH_INVALID');
   expect(data.message).toContain('비밀번호');
 });
-```
+\`\`\`
 
 #### 패턴 2: 여러 API 순차 검증
-```typescript
+\`\`\`typescript
 test('상품 추가 → 수정 → 삭제', async ({ page }) => {
   // 1. 추가
   const [addResponse] = await Promise.all([
@@ -1857,13 +1857,13 @@ test('상품 추가 → 수정 → 삭제', async ({ page }) => {
   
   expect(deleteResponse.status()).toBe(200);
 });
-```
+\`\`\`
 
 ---
 
 ### 🎯 4단계: 통합 시나리오 (1주)
 
-```typescript
+\`\`\`typescript
 test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
   // 1. 로그인
   await page.goto('/');
@@ -1918,7 +1918,7 @@ test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
     expect(error.code).toBe('INSUFFICIENT_STOCK');
   }
 });
-```
+\`\`\`
 
 ---
 
@@ -1927,7 +1927,7 @@ test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
 ### 5.1 기본 로깅
 
 #### 응답 전체 구조 보기
-```typescript
+\`\`\`typescript
 test('API 응답 구조 파악', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -1948,10 +1948,10 @@ test('API 응답 구조 파악', async ({ page }) => {
   const headers = response.headers();
   console.log('Headers:', headers);
 });
-```
+\`\`\`
 
 **출력 예시:**
-```
+\`\`\`
 Status: 200
 URL: https://example.com/api/login
 Response Data: {
@@ -1966,13 +1966,13 @@ Headers: {
   'content-type': 'application/json',
   'set-cookie': 'session=abc123...'
 }
-```
+\`\`\`
 
 ---
 
 ### 5.2 Request 정보 로깅
 
-```typescript
+\`\`\`typescript
 test('Request 정보 확인', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/reviews')),
@@ -1996,10 +1996,10 @@ test('Request 정보 확인', async ({ page }) => {
     console.log('Request Body:', JSON.stringify(JSON.parse(postData), null, 2));
   }
 });
-```
+\`\`\`
 
 **출력 예시:**
-```
+\`\`\`
 Method: POST
 Request URL: https://example.com/api/reviews
 Request Headers: {
@@ -2011,13 +2011,13 @@ Request Body: {
   "rating": 5,
   "comment": "정말 좋은 상품입니다!"
 }
-```
+\`\`\`
 
 ---
 
 ### 5.3 여러 API 비교 로깅
 
-```typescript
+\`\`\`typescript
 test('API 응답 비교', async ({ page }) => {
   await page.goto('/');
   
@@ -2047,10 +2047,10 @@ test('API 응답 비교', async ({ page }) => {
     }
   ]);
 });
-```
+\`\`\`
 
 **출력 예시:**
-```
+\`\`\`
 ┌─────────┬──────────────┬────────┬───────────────────────────────┐
 │ (index) │     API      │ Status │              URL              │
 ├─────────┼──────────────┼────────┼───────────────────────────────┤
@@ -2058,13 +2058,13 @@ test('API 응답 비교', async ({ page }) => {
 │    1    │ 'Categories' │  200   │ 'https://example.com/api/...' │
 │    2    │    'User'    │  200   │ 'https://example.com/api/...' │
 └─────────┴──────────────┴────────┴───────────────────────────────┘
-```
+\`\`\`
 
 ---
 
 ### 5.4 에러 디버깅
 
-```typescript
+\`\`\`typescript
 test('에러 상황 디버깅', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/order')),
@@ -2095,10 +2095,10 @@ test('에러 상황 디버깅', async ({ page }) => {
     }
   }
 });
-```
+\`\`\`
 
 **출력 예시 (에러 발생 시):**
-```
+\`\`\`
 === API 응답 디버깅 ===
 Status: 409
 OK: false
@@ -2115,13 +2115,13 @@ Full Error: {
 Request Method: POST
 Request URL: https://example.com/api/order
 Request Body: {"productId":1,"quantity":5}
-```
+\`\`\`
 
 ---
 
 ### 5.5 성능 디버깅
 
-```typescript
+\`\`\`typescript
 test('API 성능 측정', async ({ page }) => {
   await page.goto('/');
   
@@ -2156,17 +2156,17 @@ test('API 성능 측정', async ({ page }) => {
   });
   
   // 테이블로 출력
-  console.log('\n=== API 성능 측정 ===');
+  console.log('\\n=== API 성능 측정 ===');
   console.table(performanceData);
   
   // 평균 계산
   const avgTime = performanceData.reduce((sum, d) => sum + d.time, 0) / performanceData.length;
-  console.log(`\n평균 응답 시간: ${avgTime.toFixed(2)}ms`);
+  console.log(\`\\n평균 응답 시간: \${avgTime.toFixed(2)}ms\`);
 });
-```
+\`\`\`
 
 **출력 예시:**
-```
+\`\`\`
 === API 성능 측정 ===
 ┌─────────┬──────────┬──────┬────────┐
 │ (index) │   api    │ time │ status │
@@ -2176,13 +2176,13 @@ test('API 성능 측정', async ({ page }) => {
 └─────────┴──────────┴──────┴────────┘
 
 평균 응답 시간: 345.00ms
-```
+\`\`\`
 
 ---
 
 ### 5.6 조건부 로깅 (개발 환경에서만)
 
-```typescript
+\`\`\`typescript
 // 환경 변수 설정
 const DEBUG = process.env.DEBUG === 'true';
 
@@ -2206,16 +2206,16 @@ test('조건부 로깅', async ({ page }) => {
 // 실행 방법:
 // DEBUG=true npx playwright test  → 로그 출력됨
 // npx playwright test              → 로그 출력 안 됨
-```
+\`\`\`
 
 ---
 
 ### 5.7 헬퍼 함수로 재사용하기
 
-```typescript
+\`\`\`typescript
 // helpers/debug.ts
 export async function logApiResponse(response: Response, label: string = 'API Response') {
-  console.log(`\n=== ${label} ===`);
+  console.log(\`\\n=== \${label} ===\`);
   console.log('URL:', response.url());
   console.log('Status:', response.status());
   console.log('OK:', response.ok());
@@ -2234,7 +2234,7 @@ export async function logApiResponse(response: Response, label: string = 'API Re
   if (postData) {
     console.log('Request Body:', postData);
   }
-  console.log('========================\n');
+  console.log('========================\\n');
 }
 
 // 사용 예시
@@ -2255,13 +2255,13 @@ test('헬퍼로 간단하게 로깅', async ({ page }) => {
   
   await logApiResponse(productsRes, '상품 조회 API');
 });
-```
+\`\`\`
 
 ---
 
 ### 5.8 실전 디버깅 체크리스트
 
-```typescript
+\`\`\`typescript
 test('완벽한 API 디버깅', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -2302,9 +2302,9 @@ test('완벽한 API 디버깅', async ({ page }) => {
   });
   console.log('8. Timing:', timing);
   
-  console.log('============================\n');
+  console.log('============================\\n');
 });
-```
+\`\`\`
 
 ---
 
@@ -2312,26 +2312,26 @@ test('완벽한 API 디버깅', async ({ page }) => {
 
 ### 프로젝트 1: 로그인 완전 정복 (1일)
 
-```typescript
+\`\`\`typescript
 test('로그인 성공', async ({ page }) => { /* ... */ });
 test('비밀번호 틀림', async ({ page }) => { /* ... */ });
 test('존재하지 않는 계정', async ({ page }) => { /* ... */ });
-```
+\`\`\`
 
 ### 프로젝트 2: 상품 관리 CRUD (2일)
 
-```typescript
+\`\`\`typescript
 test('상품 추가', async ({ page }) => { /* ... */ });
 test('상품 수정', async ({ page }) => { /* ... */ });
 test('상품 삭제', async ({ page }) => { /* ... */ });
-```
+\`\`\`
 
 ---
 
 ## 7. 체화 훈련
 
 **Day 1-2: 기본 패턴 20번 반복**
-```typescript
+\`\`\`typescript
 const [response] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/엔드포인트')),
   page.click('button')
@@ -2340,13 +2340,13 @@ const [response] = await Promise.all([
 expect(response.status()).toBe(200);
 const data = await response.json();
 expect(data.필드).toBe(값);
-```
+\`\`\`
 
 ---
 
 ## 8. API 성능 테스트
 
-```typescript
+\`\`\`typescript
 test('API 응답 시간', async ({ page }) => {
   const startTime = Date.now();
   
@@ -2357,17 +2357,17 @@ test('API 응답 시간', async ({ page }) => {
   
   const responseTime = Date.now() - startTime;
   
-  console.log(`응답 시간: ${responseTime}ms`);
+  console.log(\`응답 시간: \${responseTime}ms\`);
   expect(responseTime).toBeLessThan(1000);
 });
-```
+\`\`\`
 
 ---
 
 ## 9. 자주 하는 실수
 
 ### 실수 1: API 응답 안 기다림
-```typescript
+\`\`\`typescript
 // ❌ 잘못된 코드
 await page.click('button');
 const response = await page.waitForResponse(...);
@@ -2377,17 +2377,17 @@ const [response] = await Promise.all([
   page.waitForResponse(...),
   page.click('button')
 ]);
-```
+\`\`\`
 
 ### 실수 2: JSON 파싱 안 함
-```typescript
+\`\`\`typescript
 // ❌ 잘못된 코드
 expect(response.token).toBeTruthy();
 
 // ✅ 올바른 코드
 const data = await response.json();
 expect(data.token).toBeTruthy();
-```
+\`\`\`
 
 ---
 
@@ -2395,7 +2395,7 @@ expect(data.token).toBeTruthy();
 
 ### 필수 암기 코드 3줄
 
-```typescript
+\`\`\`typescript
 // 1. API 대기
 const [response] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/엔드포인트')),
@@ -2408,7 +2408,7 @@ expect(response.status()).toBe(200);
 // 3. 데이터 검증
 const data = await response.json();
 expect(data.필드).toBe(값);
-```
+\`\`\`
 
 **이 3줄만 손에 익으면 90% 끝!** 🎉
 `;
@@ -2421,7 +2421,7 @@ const renderMarkdown = (content) => {
     h3: { fontSize: '18px', fontWeight: '600', color: '#374151', marginTop: '24px', marginBottom: '12px' },
     h4: { fontSize: '16px', fontWeight: '600', color: '#4b5563', marginTop: '16px', marginBottom: '8px' },
     p: { fontSize: '15px', color: '#4b5563', lineHeight: 1.7, margin: '0 0 12px 0' },
-    li: { fontSize: '14px', color: '#4b5563', lineHeight: 1.8, margin: '4px 0', listStyle: 'disc', marginLeft: '20px' },
+    li: { fontSize: '14px', color: '#4b5563', lineHeight: 1.8, margin: '4px 0' },
     code: { backgroundColor: '#f3f4f6', color: '#e11d48', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '13px' },
     pre: { backgroundColor: '#1f2937', color: '#d1d5db', padding: '16px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '13px', lineHeight: 1.6, overflowX: 'auto', margin: '12px 0', whiteSpace: 'pre' },
   };
@@ -3608,6 +3608,7 @@ test('상태 코드 500 테스트', async ({ page }) => {
             </div>
           )}
         </div>
+
         <div style={styles.footer}>
           <button
             id="qa-guide-close-bottom"
