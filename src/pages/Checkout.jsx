@@ -570,9 +570,11 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       .checkout-back-btn:hover { background-color: #f5f5f5; }
       .checkout-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
       .checkout-container {
+        width: 100%;
         max-width: 1200px;
         margin: 0 auto;
         padding: 24px 16px;
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
         gap: 20px;
@@ -883,14 +885,18 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       .checkout-empty-card {
         background-color: #ffffff;
         border-radius: 12px;
-        padding: 60px 24px;
+        padding: 80px 24px;
         text-align: center;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
         gap: 16px;
-        max-width: 520px;
-        margin: 40px auto;
+        width: calc(100% - 32px);
+        max-width: 1200px;
+        min-height: 40vh;
+        margin: 24px auto;
+        box-sizing: border-box;
       }
       .checkout-empty-text { font-size: 1rem; color: #666666; margin: 0; }
       .checkout-go-home-btn {
