@@ -398,7 +398,7 @@ export async function getReview(id) {
 }
 
 export async function createReview({ productId, username, rating, comment, images = [] }) {
-  // (product_id, username) UNIQUE 제약 — 중복 작성 시 23505 throw, 호출부에서 409로 매핑
+  // 한 사용자가 같은 상품에 여러 건 작성 가능 — 각 리뷰는 고유 id 를 가진다
   const { rows } = await query(
     `INSERT INTO reviews (product_id, username, rating, comment, images)
      VALUES ($1, $2, $3, $4, $5)

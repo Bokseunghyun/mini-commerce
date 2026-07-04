@@ -3,8 +3,8 @@
  *
  * Endpoints (모두 /api/admin):
  *   GET    – 상품 목록 조회 (비활성 상품 포함 전체 목록)
- *   POST   – 상품 추가 (body: { name, category, originalPrice, discountedPrice, discountRate })
- *   PUT    – 상품 수정 (body: { id, name, originalPrice, discountedPrice, discountRate, active })
+ *   POST   – 상품 추가 (body: { name, category, originalPrice, discountedPrice, discountRate, stock })
+ *   PUT    – 상품 수정 (body: { id, name, originalPrice, discountedPrice, discountRate, active, stock })
  *   DELETE – 상품 삭제 (body: { id })
  *
  * 상품 데이터는 Postgres에 저장되므로 여러 인스턴스/재배포에도 변경사항이 유지된다.
@@ -44,7 +44,7 @@ async function handleGet(req, res, user) {
 // ============================================
 async function handlePost(req, res) {
   const body = req.body || {};
-  const { name, category, originalPrice, discountedPrice, discountRate } = body;
+  const { name, category, originalPrice, discountedPrice, discountRate, stock } = body;
 
   // 필수 필드 검증 (name은 문자열 타입까지 확인 — 숫자 등이 오면 .trim()에서 500 방지)
   if (typeof name !== 'string' || !name.trim()) {
@@ -67,6 +67,10 @@ async function handlePost(req, res) {
   if (discountRate != null && (!Number.isFinite(Number(discountRate)) || Number(discountRate) < 0 || Number(discountRate) > 100)) {
     return res.status(400).json({ message: "할인율(discountRate)은 0~100 사이 숫자여야 합니다", code: 'INVALID_DISCOUNT_RATE' });
   }
+  // 재고 검증 (선택 · 제공된 경우 0 이상 정수, 미입력 시 기본 20)
+  if (stock != null && (!Number.isInteger(Number(stock)) || Number(stock) < 0)) {
+    return res.status(400).json({ message: "재고(stock)는 0 이상의 정수여야 합니다", code: 'INVALID_STOCK' });
+  }
 
   // 이미지: 클라이언트가 보낸 imageUrl 사용, 없으면 서버에서 랜덤 이미지 생성
   const imageUrl =
@@ -86,6 +90,7 @@ async function handlePost(req, res) {
     imageUrl,
     images,
     description: `${name.trim()} 상품입니다.`,
+    stock: stock != null ? Number(stock) : 20,
   });
 
   return res.status(201).json({
@@ -99,7 +104,7 @@ async function handlePost(req, res) {
 // ============================================
 async function handlePut(req, res) {
   const body = req.body || {};
-  const { id, name, originalPrice, discountedPrice, discountRate, active } = body;
+  const { id, name, originalPrice, discountedPrice, discountRate, active, stock } = body;
 
   if (!id || !Number.isInteger(Number(id))) {
     return res.status(400).json({ message: "수정할 상품의 id가 필수입니다", code: 'INVALID_ID' });
@@ -125,6 +130,10 @@ async function handlePut(req, res) {
   if (discountRate != null && (!Number.isFinite(Number(discountRate)) || Number(discountRate) < 0 || Number(discountRate) > 100)) {
     return res.status(400).json({ message: "할인율(discountRate)은 0~100 사이 숫자여야 합니다", code: 'INVALID_DISCOUNT_RATE' });
   }
+  // 재고 검증 (제공된 경우 0 이상 정수 — 0으로 지정하면 품절 처리)
+  if (stock != null && (!Number.isInteger(Number(stock)) || Number(stock) < 0)) {
+    return res.status(400).json({ message: "재고(stock)는 0 이상의 정수여야 합니다", code: 'INVALID_STOCK' });
+  }
 
   // 제공된 필드만 수정 (부분 업데이트)
   const updates = {};
@@ -136,6 +145,7 @@ async function handlePut(req, res) {
   }
   if (discountRate != null) updates.discountRate = Number(discountRate);
   if (active != null) updates.active = Boolean(active);
+  if (stock != null) updates.stock = Number(stock);
 
   const updated = await updateProduct(productId, updates);
 

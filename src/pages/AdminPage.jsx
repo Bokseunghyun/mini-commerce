@@ -13,6 +13,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
     originalPrice: 0,
     discountedPrice: 0,
     discountRate: 0,
+    stock: 0,
   });
 
   const [isAdding, setIsAdding] = useState(false);
@@ -22,6 +23,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
     originalPrice: "",
     discountedPrice: "",
     discountRate: "",
+    stock: "",
   });
   const [addError, setAddError] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
@@ -110,6 +112,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       originalPrice: Number(product.originalPrice ?? 0),
       discountedPrice: Number(product.discountedPrice ?? 0),
       discountRate: Number(product.discountRate ?? 0),
+      stock: Number(product.stock ?? 0),
     });
   };
 
@@ -158,6 +161,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       originalPrice: 0,
       discountedPrice: 0,
       discountRate: 0,
+      stock: 0,
     });
     alert("상품 정보가 수정되었습니다.");
   };
@@ -169,6 +173,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       originalPrice: 0,
       discountedPrice: 0,
       discountRate: 0,
+      stock: 0,
     });
   };
 
@@ -232,6 +237,11 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       return "할인가는 정가보다 작아야 합니다.";
     if (addForm.discountRate !== "" && Number(addForm.discountRate) < 0)
       return "할인율은 0 이상이어야 합니다.";
+    if (
+      addForm.stock !== "" &&
+      (!Number.isInteger(Number(addForm.stock)) || Number(addForm.stock) < 0)
+    )
+      return "재고는 0 이상의 정수여야 합니다.";
     return "";
   };
 
@@ -254,6 +264,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       originalPrice: orig,
       discountedPrice: disc,
       discountRate: addForm.discountRate !== "" ? Number(addForm.discountRate) : autoRate,
+      stock: addForm.stock !== "" ? Number(addForm.stock) : 20, // 선택 · 미입력 시 기본 20
       imageUrl, // 홈/목록 썸네일에 반영되도록 서버로 전송
       images: [imageUrl],
     };
@@ -320,6 +331,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       originalPrice: "",
       discountedPrice: "",
       discountRate: "",
+      stock: "",
     });
     setAddError("");
   };
@@ -612,6 +624,22 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
         .status-active { background-color: #d1fae5; color: #065f46; }
         .status-inactive { background-color: #fee2e2; color: #991b1b; }
 
+        /* 재고 / 품절 표시 */
+        .stock-badge {
+          display: inline-block;
+          padding: 4px 10px;
+          font-size: 12px;
+          font-weight: 600;
+          border-radius: 12px;
+          background-color: #eef2ff;
+          color: #3730a3;
+        }
+        .stock-badge.soldout { background-color: #fee2e2; color: #991b1b; }
+
+        /* 비활성 상품 행/카드 시각적 흐림 처리 */
+        .row-inactive { opacity: 0.55; }
+        .card-inactive { opacity: 0.55; }
+
         .empty-table {
           text-align: center;
           padding: 48px;
@@ -826,6 +854,25 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                     }
                   />
                 </div>
+
+                <div className="form-group">
+                  <label className="form-label" htmlFor="admin-add-stock">
+                    재고 <span style={{ color: "#9ca3af", fontWeight: 400 }}>(선택 · 미입력 시 20)</span>
+                  </label>
+                  <input
+                    id="admin-add-stock"
+                    data-testid="admin-add-stock"
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    placeholder="미입력 시 20"
+                    value={addForm.stock}
+                    onChange={(e) => {
+                      setAddForm({ ...addForm, stock: e.target.value });
+                      setAddError("");
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="add-form-actions">
@@ -850,6 +897,7 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                     <th>정가</th>
                     <th>할인가</th>
                     <th>할인율</th>
+                    <th>재고</th>
                     <th>상태</th>
                     <th>ID</th>
                     <th>작업</th>
@@ -858,13 +906,17 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                 <tbody>
                   {products.length === 0 ? (
                     <tr>
-                      <td colSpan="9" className="empty-table">
+                      <td colSpan="10" className="empty-table">
                         상품이 없습니다. 상단의 상품 추가 버튼을 사용하세요.
                       </td>
                     </tr>
                   ) : (
                     products.map((product) => (
-                      <tr key={product.id} data-testid={`admin-row-${product.id}`}>
+                      <tr
+                        key={product.id}
+                        data-testid={`admin-row-${product.id}`}
+                        className={product.active === false ? "row-inactive" : undefined}
+                      >
                         <td>
                           <img
                             src={product.imageUrl || "/placeholder.svg"}
@@ -950,14 +1002,43 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                         </td>
 
                         <td>
+                          {editingId === product.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              className="edit-input"
+                              value={editForm.stock}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  stock: Number(e.target.value),
+                                })
+                              }
+                            />
+                          ) : (
+                            <span
+                              data-testid={`admin-stock-${product.id}`}
+                              className={`stock-badge ${
+                                Number(product.stock ?? 0) === 0 ? "soldout" : ""
+                              }`}
+                            >
+                              {Number(product.stock ?? 0) === 0
+                                ? "품절"
+                                : `${Number(product.stock ?? 0)}개`}
+                            </span>
+                          )}
+                        </td>
+
+                        <td>
                           <span
+                            data-testid={`admin-status-${product.id}`}
                             className={`status-badge ${
                               product.active !== false
                                 ? "status-active"
                                 : "status-inactive"
                             }`}
                           >
-                            {product.active !== false ? "활성" : "비활성"}
+                            {product.active !== false ? "활성" : "비활성화"}
                           </span>
                         </td>
 
@@ -1024,7 +1105,12 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                 </div>
               ) : (
                 products.map((product) => (
-                  <div key={product.id} className="product-card-mobile">
+                  <div
+                    key={product.id}
+                    className={`product-card-mobile${
+                      product.active === false ? " card-inactive" : ""
+                    }`}
+                  >
                     <div className="product-card-header">
                       <img
                         src={product.imageUrl || "/placeholder.svg"}
@@ -1129,15 +1215,48 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                       </div>
 
                       <div className="product-card-row">
+                        <span className="product-card-label">재고</span>
+                        <span className="product-card-value">
+                          {editingId === product.id ? (
+                            <input
+                              type="number"
+                              min="0"
+                              className="edit-input"
+                              value={editForm.stock}
+                              onChange={(e) =>
+                                setEditForm({
+                                  ...editForm,
+                                  stock: Number(e.target.value),
+                                })
+                              }
+                              style={{ width: '80px' }}
+                            />
+                          ) : (
+                            <span
+                              data-testid={`admin-stock-${product.id}`}
+                              className={`stock-badge ${
+                                Number(product.stock ?? 0) === 0 ? "soldout" : ""
+                              }`}
+                            >
+                              {Number(product.stock ?? 0) === 0
+                                ? "품절"
+                                : `${Number(product.stock ?? 0)}개`}
+                            </span>
+                          )}
+                        </span>
+                      </div>
+
+                      <div className="product-card-row">
                         <span className="product-card-label">상태</span>
                         <span
+                          data-testid={`admin-status-${product.id}`}
                           className={`status-badge ${
                             product.active !== false
                               ? "status-active"
                               : "status-inactive"
                           }`}
                         >
-                          {product.active !== false ? "활성" : "비활성"}
+                          {product.active !== false ? "활성" : "비활성화"}
                         </span>
                       </div>
                     </div>

@@ -1380,15 +1380,15 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                   role="status"
                   style={{ padding: "12px 0", color: "#374151", fontSize: "0.875rem", lineHeight: 1.6 }}
                 >
-                  실제 <strong>KG이니시스 테스트 결제창</strong>(INIpayTest)이 팝업으로 열립니다. 결제 완료 시 자동으로 주문이 생성됩니다.
+                  실제 <strong>KG이니시스 결제창</strong>(INIpayTest)이 열립니다. 결제 후 자동으로 주문이 생성됩니다.
                   <br />
-                  <strong>테스트 카드(예시)</strong> — 카드번호 <code>9410-1234-5678-9012</code>, 유효기간 <code>12/25</code>,
-                  비밀번호 앞 2자리 <code>12</code>, 생년월일 <code>880101</code>
+                  <strong>테스트 방법</strong> — 이니시스 통합테스트(INIpayTest)는 별도의 가짜 테스트 카드가 없고,
+                  <strong>실제 카드</strong>로 결제하면 소액이 승인됐다가 <strong>매일 밤 자동 취소</strong>됩니다.
+                  카드사(현대/신한 등)를 먼저 선택한 뒤 실제 카드번호를 입력하세요.
                   <br />
                   <span style={{ color: "#6b7280" }}>
-                    ※ 국민카드 계열(카카오뱅크 포함)은 테스트 결제 불가. 결제창에 안내되는 테스트 카드가 있으면 그 값을 사용하세요.
-                    팝업 차단을 허용해야 하며, 카드 입력 화면은 이니시스 도메인이라 자동화가 제한됩니다.
-                    자동화 연습에는 위 <strong>모의 PG(신용카드)</strong> 테스트 카드(끝자리 0000/0001/0002/9999)가 확실합니다.
+                    ※ <strong>국민카드 계열(카카오뱅크 포함)은 테스트 불가</strong>. 팝업 차단을 허용해야 하며, 카드 입력 화면은 이니시스 도메인이라 자동화가 제한됩니다.
+                    실제 카드 없이 <strong>승인/거절/한도초과</strong>를 마음대로 재현하려면 위의 <strong>모의 PG(신용카드)</strong> 테스트 카드(끝자리 0000/0001/0002/9999)를 사용하세요.
                   </span>
                 </div>
               ) : paymentMethod === "card" ? (

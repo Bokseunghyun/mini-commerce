@@ -58,8 +58,7 @@ export default async function inventoryHandler(req, res) {
   if (!isConfigured()) return respondDbNotConfigured(res);
 
   try {
-    // 재고 조회 — Postgres products.stock
-    // 의도적 테스트 시나리오: id 18은 시드 재고 0 (재고 부족 네거티브 테스트 픽스처)
+    // 재고 조회 — Postgres products.stock (품절은 실제 재고 0일 때만 파생)
     const stockData = await getStock(pid);
 
     // 존재하지 않는 상품은 404

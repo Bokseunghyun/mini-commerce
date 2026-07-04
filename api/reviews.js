@@ -7,7 +7,7 @@
  * DELETE /api/reviews - 리뷰 삭제
  *
  * 리뷰는 Postgres(reviews 테이블)에 저장된다.
- * - 중복 작성 방지는 DB UNIQUE(product_id, username) 제약 → 23505 를 409로 매핑
+ * - 한 사용자가 같은 상품에 여러 건 작성 가능 (중복 작성 제한 없음)
  * - GET 응답 { count, reviews } 의 count는 limit/offset 적용 전 전체 매칭 건수
  *
  * QA 검증 포인트:
@@ -199,25 +199,14 @@ async function handlePost(req, res, user) {
     });
   }
 
-  // 리뷰 생성 — 중복 작성은 DB UNIQUE(product_id, username) 위반(23505)으로 감지
-  let newReview;
-  try {
-    newReview = await createReview({
-      productId: pid,
-      username: user.username,
-      rating: r,
-      comment: comment.trim(),
-      images: imgResult.images,
-    });
-  } catch (error) {
-    if (error && error.code === '23505') {
-      return res.status(409).json({
-        message: '이미 이 상품에 리뷰를 작성하셨습니다',
-        code: 'REVIEW_ALREADY_EXISTS'
-      });
-    }
-    throw error; // 나머지 DB 오류는 바깥 try에서 500 처리
-  }
+  // 리뷰 생성 — 한 사용자가 같은 상품에 여러 건 작성 가능 (중복 제한 없음)
+  const newReview = await createReview({
+    productId: pid,
+    username: user.username,
+    rating: r,
+    comment: comment.trim(),
+    images: imgResult.images,
+  });
 
   return res.status(201).json({
     message: '리뷰가 작성되었습니다',
