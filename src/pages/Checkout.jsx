@@ -45,6 +45,90 @@ function formatCardCvc(raw) {
   return String(raw).replace(/\D/g, "").slice(0, 4);
 }
 
+// 이니시스 표준결제 SDK 동적 로드
+function loadInicisSdk(url) {
+  return new Promise((resolve, reject) => {
+    if (typeof window !== "undefined" && window.INIStdPay) return resolve();
+    const existing = document.getElementById("inicis-sdk");
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("이니시스 SDK 로드 실패")));
+      return;
+    }
+    const s = document.createElement("script");
+    s.id = "inicis-sdk";
+    s.src = url;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error("이니시스 SDK를 불러오지 못했습니다"));
+    document.head.appendChild(s);
+  });
+}
+
+// 이니시스 결제창 열기 → 팝업 relay(postMessage) 결과로 paymentKey resolve
+function openInicisPayment(params) {
+  return new Promise((resolve, reject) => {
+    const formId = "inicis-payment-form";
+    document.getElementById(formId)?.remove();
+    const form = document.createElement("form");
+    form.id = formId;
+    const fields = {
+      version: "1.0",
+      mid: params.mid,
+      oid: params.oid,
+      price: params.price,
+      timestamp: params.timestamp,
+      signature: params.signature,
+      verification: params.verification,
+      mKey: params.mKey,
+      currency: "WON",
+      goodname: params.goodname,
+      buyername: params.buyername,
+      buyertel: "01000000000",
+      buyeremail: "test@example.com",
+      returnUrl: params.returnUrl,
+      closeUrl: params.closeUrl,
+      gopaymethod: "Card",
+      acceptmethod: "below1000",
+    };
+    Object.entries(fields).forEach(([k, v]) => {
+      const inp = document.createElement("input");
+      inp.type = "hidden";
+      inp.name = k;
+      inp.value = String(v ?? "");
+      form.appendChild(inp);
+    });
+    document.body.appendChild(form);
+
+    let settled = false;
+    const cleanup = () => {
+      window.removeEventListener("message", onMessage);
+      document.getElementById(formId)?.remove();
+    };
+    const onMessage = (ev) => {
+      const d = ev.data;
+      if (!d || d.source !== "inicis") return;
+      settled = true;
+      cleanup();
+      if (d.success && d.paymentKey) resolve(d.paymentKey);
+      else reject(new Error(d.message || (d.canceled ? "결제를 취소했습니다" : "결제에 실패했습니다")));
+    };
+    window.addEventListener("message", onMessage);
+    setTimeout(() => {
+      if (!settled) {
+        cleanup();
+        reject(new Error("결제 시간이 초과되었습니다"));
+      }
+    }, 300000);
+
+    try {
+      window.INIStdPay.pay(formId);
+    } catch {
+      cleanup();
+      reject(new Error("이니시스 결제창을 열 수 없습니다"));
+    }
+  });
+}
+
 function ArrowLeftIcon() {
   return (
     <svg
@@ -289,7 +373,38 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     }
   };
 
-  // '결제하기' 클릭 — 카드 결제(실제 동작) → 성공 시 주문 생성
+  const orderName = () =>
+    items[0]?.name
+      ? `${items[0].name}${items.length > 1 ? ` 외 ${items.length - 1}건` : ""}`
+      : "미니커머스 주문";
+
+  // 이니시스 실결제(샌드박스): 준비 → SDK 로드 → 결제창 → 승인 relay → 주문 생성
+  const handleInicisPay = async () => {
+    setIsPaying(true);
+    try {
+      const token = localStorage.getItem("token");
+      const prepRes = await fetch(`${API_BASE}/api/payment-inicis?step=prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
+        body: JSON.stringify({ amount: finalAmount, orderName: orderName() }),
+      });
+      const prep = await prepRes.json().catch(() => ({}));
+      if (!prepRes.ok || !prep.params) {
+        setPaymentError(prep.message || "이니시스 결제 준비에 실패했습니다");
+        return;
+      }
+      await loadInicisSdk(prep.sdkUrl);
+      const paymentKey = await openInicisPayment(prep.params); // 성공 시 paymentKey, 실패/취소 시 throw
+      setIsPaying(false);
+      await submitOrder(paymentKey);
+    } catch (e) {
+      setPaymentError(e?.message || "이니시스 결제가 취소/실패되었습니다");
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  // '결제하기' 클릭 — 결제수단별 처리 → 성공 시 주문 생성
   const handlePlaceOrder = async () => {
     setSubmitError("");
     setPaymentError("");
@@ -297,9 +412,15 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     if (!validateShipping()) return;
     if (items.length === 0) return;
 
-    // 무통장입금/카카오페이는 연출용 — 실제 결제는 카드만 동작(준비중 안내)
+    // 이니시스 실결제(샌드박스)
+    if (paymentMethod === "inicis") {
+      await handleInicisPay();
+      return;
+    }
+
+    // 무통장입금/카카오페이는 연출용 — 실제 결제는 카드/이니시스만 동작(준비중 안내)
     if (paymentMethod !== "card") {
-      setPaymentError("선택하신 결제수단은 준비 중입니다. 신용카드로 결제해 주세요.");
+      setPaymentError("선택하신 결제수단은 준비 중입니다. 신용카드 또는 이니시스로 결제해 주세요.");
       return;
     }
 
@@ -1121,10 +1242,40 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
                   />
                   카카오페이
                 </label>
+                <label
+                  className={`payment-option${paymentMethod === "inicis" ? " selected" : ""}`}
+                  htmlFor="payment-inicis"
+                >
+                  <input
+                    type="radio"
+                    id="payment-inicis"
+                    data-testid="payment-inicis"
+                    name="payment-method"
+                    value="inicis"
+                    checked={paymentMethod === "inicis"}
+                    onChange={() => setPaymentMethod("inicis")}
+                  />
+                  이니시스 실결제(샌드박스)
+                </label>
               </div>
 
-              {/* 신용카드 선택 시 카드 입력 폼 노출 (무통장/카카오는 준비중 안내) */}
-              {paymentMethod === "card" ? (
+              {/* 신용카드: 카드 입력 폼 / 이니시스: 결제창 안내 / 무통장·카카오: 준비중 */}
+              {paymentMethod === "inicis" ? (
+                <div
+                  id="inicis-notice"
+                  data-testid="inicis-notice"
+                  className="payment-method-notice"
+                  role="status"
+                  style={{ padding: "12px 0", color: "#374151", fontSize: "0.875rem", lineHeight: 1.6 }}
+                >
+                  실제 <strong>KG이니시스 테스트 결제창</strong>이 팝업으로 열립니다. 이니시스가 제공하는{" "}
+                  <strong>테스트 카드</strong>로 결제하면 실제 청구 없이 승인됩니다. 결제 완료 시 자동으로 주문이 생성됩니다.
+                  <br />
+                  <span style={{ color: "#6b7280" }}>
+                    ※ 결제창은 이니시스 도메인(별도 창)이라 팝업 차단을 허용해야 하며, 카드 입력 화면 자체는 자동화가 제한됩니다.
+                  </span>
+                </div>
+              ) : paymentMethod === "card" ? (
                 <div id="card-form" className="card-form" data-testid="card-form">
                   <div className="checkout-field">
                     <label className="checkout-label" htmlFor="card-number">

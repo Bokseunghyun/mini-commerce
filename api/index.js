@@ -19,6 +19,7 @@ import inventoryHandler from './inventory.js';
 import userActionsHandler from './user-actions.js';
 import couponsHandler from './coupons.js';
 import paymentHandler from './payment.js';
+import inicisHandler from './payment-inicis.js';
 import uploadHandler from './upload.js';
 import trackingHandler from './tracking.js';
 import ordersHandler from './orders.js';
@@ -86,6 +87,8 @@ export default async function handler(req, res) {
       return couponsHandler(req, res);
     case 'payment':
       return paymentHandler(req, res);
+    case 'payment-inicis':
+      return inicisHandler(req, res);
     case 'upload':
       return uploadHandler(req, res);
     case 'tracking':

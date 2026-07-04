@@ -15,6 +15,7 @@ import inventoryHandler from './api/inventory.js';
 import userActionsHandler from './api/user-actions.js';
 import couponsHandler from './api/coupons.js';
 import paymentHandler from './api/payment.js';
+import inicisHandler from './api/payment-inicis.js';
 import uploadHandler from './api/upload.js';
 import trackingHandler from './api/tracking.js';
 import ordersHandler from './api/orders.js';
@@ -32,6 +33,8 @@ const app = express();
 // 그보다 큰 요청은 아래 에러 미들웨어가 JSON 413으로 응답한다.
 // (Vercel 서버리스는 본문 4.5MB 제한이라 프로덕션에서도 2MB 이미지는 핸들러에 도달한다)
 app.use(express.json({ limit: '10mb' }));
+// 이니시스 returnUrl 콜백은 application/x-www-form-urlencoded 로 전송된다
+app.use(express.urlencoded({ extended: true, limit: '2mb' }));
 
 // 잘못된 JSON 본문 / 과대 본문도 JSON 형태로 응답 (API 테스트 계약 일관성)
 app.use((err, req, res, next) => {
@@ -75,6 +78,7 @@ app.all('/api/inventory', wrap(inventoryHandler));
 app.all('/api/user-actions', wrap(userActionsHandler));
 app.all('/api/coupons', wrap(couponsHandler));
 app.all('/api/payment', wrap(paymentHandler));
+app.all('/api/payment-inicis', wrap(inicisHandler));
 app.all('/api/upload', wrap(uploadHandler));
 app.all('/api/tracking', wrap(trackingHandler));
 app.all('/api/orders', wrap(ordersHandler));
