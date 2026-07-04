@@ -12,6 +12,7 @@ import WishlistPage from './pages/Wishlist.jsx';
 import AdminPage from "./pages/AdminPage.jsx";
 import ProfilePage from './pages/Profile.jsx';
 import TrackingPage from './pages/Tracking.jsx';
+import InicisCompletePage from './pages/InicisComplete.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 
 // URL 경로 → page 상태 매핑 (초기 진입 시 사용)
@@ -31,6 +32,7 @@ function getPageFromPath(path) {
   if (path === '/admin') return 'admin';
   if (path === '/profile') return 'profile';
   if (path === '/tracking') return 'tracking';
+  if (path === '/payment-inicis-complete') return 'inicisComplete';
   return 'home';
 }
 
@@ -126,6 +128,7 @@ export default function App() {
     else if (page === 'admin') newPath = '/admin';
     else if (page === 'profile') newPath = '/profile';
     else if (page === 'tracking') newPath = '/tracking';
+    else if (page === 'inicisComplete') return; // 쿼리스트링(paymentKey) 보존을 위해 URL 재작성 안 함
     else newPath = '/';
 
     if (currentPath !== newPath) {
@@ -726,6 +729,22 @@ export default function App() {
           onBack={() => setPage('home')}
         />
       </>
+    );
+  }
+
+  if (page === 'inicisComplete') {
+    return (
+      <InicisCompletePage
+        apiBase={API_BASE}
+        onOrderComplete={(order) => {
+          setLastOrder(order || null);
+          setBuyNowItem(null);
+          setCheckoutItems(null);
+          fetchCart();
+          setPage('orderComplete');
+        }}
+        onCancel={() => setPage('checkout')}
+      />
     );
   }
 

@@ -448,11 +448,43 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
       ? `${items[0].name}${items.length > 1 ? ` 외 ${items.length - 1}건` : ""}`
       : "미니커머스 주문";
 
-  // 이니시스 실결제(샌드박스): 준비 → SDK 로드 → 결제창 → 승인 relay → 주문 생성
+  // 결제에 사용할 주문 items 계산 (바로구매/선택항목/전체 장바구니)
+  const orderItemsPayload = () => {
+    if (buyNowItem) {
+      return [{ id: Number(buyNowItem.id), quantity: Math.max(1, Number(buyNowItem.quantity) || 1) }];
+    }
+    if (Array.isArray(selectedItems) && selectedItems.length) {
+      return items.map((it) => ({ id: Number(it.productId), quantity: Math.max(1, Number(it.quantity) || 1) }));
+    }
+    return null; // null = 서버 장바구니 전체
+  };
+
+  // 이니시스 실결제(샌드박스): 준비 → SDK 로드 → 결제창 → (팝업)relay 또는 (리다이렉트)복귀 후 주문
   const handleInicisPay = async () => {
     setIsPaying(true);
     try {
       const token = localStorage.getItem("token");
+
+      // 리다이렉트 방식 대비: 주문 컨텍스트를 sessionStorage에 보존
+      // (이니시스가 전체 페이지를 리다이렉트하면 React 상태가 사라지므로 복귀 후 이 값으로 주문 생성)
+      try {
+        sessionStorage.setItem(
+          "mc_inicis_ctx",
+          JSON.stringify({
+            items: orderItemsPayload(),
+            couponCode: appliedCoupon ? appliedCoupon.code : null,
+            shipping: {
+              name: shipName.trim(),
+              phone: shipPhone.trim(),
+              address: shipAddress.trim(),
+              detail: shipDetail.trim(),
+              memo: shipMemo.trim(),
+            },
+            finalAmount,
+          })
+        );
+      } catch { /* sessionStorage 불가 시 팝업 방식으로만 동작 */ }
+
       const prepRes = await fetch(`${API_BASE}/api/payment-inicis?step=prepare`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },

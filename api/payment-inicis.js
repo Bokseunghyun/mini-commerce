@@ -27,20 +27,30 @@ import {
 } from './_lib/inicis-utils.js';
 
 function htmlRelay(payload) {
-  // 팝업 → opener 로 결과 전달 후 닫기 (실패해도 안내 표시)
+  // 팝업(opener 존재) → 결과 postMessage 후 닫기
+  // 리다이렉트(전체 페이지) → 앱 완료 페이지(/payment-inicis-complete)로 이동해 주문 생성
   const json = JSON.stringify(payload).replace(/</g, '\\u003c');
+  const q =
+    payload.success && payload.paymentKey
+      ? `status=success&paymentKey=${encodeURIComponent(payload.paymentKey)}`
+      : `status=${payload.canceled ? 'canceled' : 'fail'}`;
+  const completeUrl = `/payment-inicis-complete?${q}`;
   return `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>결제 처리</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:40px;color:#374151">
-<p>${payload.success ? '결제가 완료되었습니다. 창이 닫힙니다...' : '결제가 취소/실패되었습니다. 창이 닫힙니다...'}</p>
+<p>${payload.success ? '결제가 완료되었습니다. 잠시만 기다려주세요...' : '결제가 취소/실패되었습니다. 이동 중...'}</p>
 <script>
   (function(){
     var result = ${json};
-    var msg = Object.assign({source:'inicis'}, result);
-    // 이니시스 결제창은 팝업 또는 iframe 오버레이일 수 있으므로 opener/parent/top 모두에 전달
-    [window.opener, window.parent, window.top].forEach(function(w){
-      try { if (w && w !== window) w.postMessage(msg, '*'); } catch(e){}
-    });
-    setTimeout(function(){ try { window.close(); } catch(e){} }, 800);
+    var opener = null;
+    try { if (window.opener && window.opener !== window && !window.opener.closed) opener = window.opener; } catch(e){}
+    if (opener) {
+      // 팝업 방식: 원래 체크아웃 창에 결과 전달 후 닫기
+      try { opener.postMessage(Object.assign({source:'inicis'}, result), '*'); } catch(e){}
+      setTimeout(function(){ try { window.close(); } catch(e){} }, 300);
+    } else {
+      // 리다이렉트 방식: 앱 완료 페이지로 이동 (거기서 보존된 컨텍스트로 주문 생성)
+      location.replace(${JSON.stringify(completeUrl)});
+    }
   })();
 </script>
 </body></html>`;
@@ -56,14 +66,14 @@ export default async function inicisHandler(req, res) {
 
   const query = req.query || {};
 
-  // 창 닫힘 안내
+  // 창 닫힘 안내 (팝업이면 취소 메시지 후 닫기, 리다이렉트면 체크아웃으로 복귀)
   if (req.method === 'GET' && (query.close === '1' || query.close === 'true')) {
     return sendHtml(
       res,
       `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>결제 취소</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:40px;color:#374151">
-<p>결제를 취소했습니다. 창이 닫힙니다...</p>
-<script>(function(){var m={source:'inicis',success:false,canceled:true};[window.opener,window.parent,window.top].forEach(function(w){try{if(w&&w!==window)w.postMessage(m,'*');}catch(e){}});setTimeout(function(){try{window.close();}catch(e){}},600);})();</script>
+<p>결제를 취소했습니다. 이동 중...</p>
+<script>(function(){var opener=null;try{if(window.opener&&window.opener!==window&&!window.opener.closed)opener=window.opener;}catch(e){}if(opener){try{opener.postMessage({source:'inicis',success:false,canceled:true},'*');}catch(e){}setTimeout(function(){try{window.close();}catch(e){}},300);}else{location.replace('/payment-inicis-complete?status=canceled');}})();</script>
 </body></html>`
     );
   }
