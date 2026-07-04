@@ -243,12 +243,19 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
     }
     setAddError("");
 
+    const orig = Number(addForm.originalPrice);
+    const disc = Number(addForm.discountedPrice);
+    // 할인율 미입력 시 가격으로 자동 계산 (필수 아님)
+    const autoRate = orig > 0 ? Math.max(0, Math.round((1 - disc / orig) * 100)) : 0;
+    const imageUrl = getRandomImage();
     const newProduct = {
       name: addForm.name.trim(),
       category: addForm.category,
-      originalPrice: Number(addForm.originalPrice),
-      discountedPrice: Number(addForm.discountedPrice),
-      discountRate: addForm.discountRate !== "" ? Number(addForm.discountRate) : 0,
+      originalPrice: orig,
+      discountedPrice: disc,
+      discountRate: addForm.discountRate !== "" ? Number(addForm.discountRate) : autoRate,
+      imageUrl, // 홈/목록 썸네일에 반영되도록 서버로 전송
+      images: [imageUrl],
     };
 
     try {
@@ -808,11 +815,11 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
                 </div>
 
                 <div className="form-group">
-                  <label className="form-label">할인율 (%)</label>
+                  <label className="form-label">할인율 (%) <span style={{ color: "#9ca3af", fontWeight: 400 }}>(선택 · 미입력 시 자동 계산)</span></label>
                   <input
                     type="number"
                     className="form-input"
-                    placeholder="0"
+                    placeholder="미입력 시 정가·할인가로 자동 계산"
                     value={addForm.discountRate}
                     onChange={(e) =>
                       setAddForm({ ...addForm, discountRate: e.target.value })

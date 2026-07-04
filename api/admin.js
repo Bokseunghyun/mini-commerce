@@ -68,6 +68,13 @@ async function handlePost(req, res) {
     return res.status(400).json({ message: "할인율(discountRate)은 0~100 사이 숫자여야 합니다", code: 'INVALID_DISCOUNT_RATE' });
   }
 
+  // 이미지: 클라이언트가 보낸 imageUrl 사용, 없으면 서버에서 랜덤 이미지 생성
+  const imageUrl =
+    typeof body.imageUrl === 'string' && body.imageUrl.trim()
+      ? body.imageUrl.trim()
+      : `https://picsum.photos/seed/mc${Math.floor(Math.random() * 100000)}/400/400`;
+  const images = Array.isArray(body.images) && body.images.length ? body.images : [imageUrl];
+
   // ID는 DB identity가 발급 (시드 max id 이후부터)
   const newProduct = await createProduct({
     name: name.trim(),
@@ -76,7 +83,8 @@ async function handlePost(req, res) {
     discountedPrice: Number(discountedPrice),
     price: Number(discountedPrice),
     discountRate: discountRate != null ? Number(discountRate) : 0,
-    imageUrl: "",  // 이미지는 추가하지 않음 (placeholder 사용)
+    imageUrl,
+    images,
     description: `${name.trim()} 상품입니다.`,
   });
 

@@ -210,7 +210,8 @@ export async function listProducts({ q, category, minPrice, maxPrice, sort, incl
   }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-  const orderSql = PRODUCT_SORTS[sort] || 'id ASC'; // 화이트리스트 매핑 (값 보간 아님)
+  // 기본 정렬: 최근 등록 상품이 상단에 (신규 상품 우선), 시드 상품은 id 순
+  const orderSql = PRODUCT_SORTS[sort] || 'created_at DESC, id ASC'; // 화이트리스트 매핑 (값 보간 아님)
 
   const { rows } = await query(
     `SELECT * FROM products ${whereSql} ORDER BY ${orderSql}`,

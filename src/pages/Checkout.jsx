@@ -154,7 +154,7 @@ function openInicisPayment(params, registerCancel) {
   });
 }
 
-export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onBack }) {
+export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrderComplete, onBack }) {
   const API_BASE = apiBase || "";
 
   // 주문 상품 목록 (공통 shape: { productId, name, price, imageUrl, quantity })
@@ -211,6 +211,21 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
           quantity: Math.max(1, Number(buyNowItem.quantity) || 1),
         },
       ]);
+      setIsLoading(false);
+      return;
+    }
+
+    // 장바구니에서 선택(체크)한 항목만 넘어온 경우: 서버 재조회 없이 그대로 사용
+    if (Array.isArray(selectedItems) && selectedItems.length) {
+      setItems(
+        selectedItems.map((it) => ({
+          productId: Number(it.productId),
+          name: it.name || "",
+          price: Number(it.price) || 0,
+          imageUrl: it.imageUrl || "",
+          quantity: Math.max(1, Number(it.quantity) || 1),
+        }))
+      );
       setIsLoading(false);
       return;
     }
@@ -382,7 +397,8 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
           memo: shipMemo.trim(),
         },
       };
-      // 바로구매면 해당 상품만 주문, 아니면 서버 장바구니 전체 주문(items 생략)
+      // 바로구매 또는 장바구니 선택 항목이면 해당 상품만 주문(explicit items).
+      // 둘 다 없으면 서버 장바구니 전체 주문(items 생략).
       if (buyNowItem) {
         body.items = [
           {
@@ -390,6 +406,11 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
             quantity: Math.max(1, Number(buyNowItem.quantity) || 1),
           },
         ];
+      } else if (Array.isArray(selectedItems) && selectedItems.length) {
+        body.items = items.map((it) => ({
+          id: Number(it.productId),
+          quantity: Math.max(1, Number(it.quantity) || 1),
+        }));
       }
       if (appliedCoupon) {
         body.couponCode = appliedCoupon.code;

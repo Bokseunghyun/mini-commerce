@@ -44,6 +44,8 @@ export default function App() {
   const [cart, setCart] = useState([]);
   // 바로구매 상품 ({ id, name, price, imageUrl, quantity } | null)
   const [buyNowItem, setBuyNowItem] = useState(null);
+  // 장바구니에서 선택(체크)한 항목만 결제로 (null = 서버 장바구니 전체)
+  const [checkoutItems, setCheckoutItems] = useState(null);
   // 마지막 완료 주문 (주문 완료 페이지 표시용)
   const [lastOrder, setLastOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -606,8 +608,10 @@ export default function App() {
             if (item) updateCartQuantity(productId, Math.max(1, (Number(item.quantity) || 1) - 1));
           }}
           onRemove={(productId) => removeFromCart(productId)}
-          onCheckout={() => {
+          onCheckout={(selected) => {
             setBuyNowItem(null);
+            // 체크한 항목만 결제로 (선택 없으면 전체)
+            setCheckoutItems(Array.isArray(selected) && selected.length ? selected : null);
             setPage('checkout');
           }}
           onBack={() => setPage('home')}
@@ -623,14 +627,30 @@ export default function App() {
         <CheckoutPage
           apiBase={API_BASE}
           buyNowItem={buyNowItem}
-          onOrderComplete={(order) => {
+          selectedItems={checkoutItems}
+          onOrderComplete={async (order) => {
             setLastOrder(order || null);
             setBuyNowItem(null);
+            // 선택 항목만 주문한 경우: 주문한 항목을 장바구니에서 제거
+            if (Array.isArray(checkoutItems) && checkoutItems.length) {
+              const token = localStorage.getItem('token');
+              for (const it of checkoutItems) {
+                try {
+                  await fetch(`${API_BASE}/api/user-actions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token || ''}` },
+                    body: JSON.stringify({ action: 'cart_remove', productId: it.productId }),
+                  });
+                } catch { /* 무시 */ }
+              }
+            }
+            setCheckoutItems(null);
             // 장바구니 주문이면 서버가 장바구니를 비웠으므로 재조회로 동기화
             fetchCart();
             setPage('orderComplete');
           }}
           onBack={() => {
+            setCheckoutItems(null);
             if (buyNowItem) {
               setBuyNowItem(null);
               setPage(selectedProduct ? 'productDetail' : 'home');

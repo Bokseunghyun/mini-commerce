@@ -218,9 +218,9 @@ export default function CartPage({
     0
   );
 
-  // 주문하기: 주문/결제 페이지로 이동 (실제 주문 생성은 결제 페이지에서 수행)
+  // 주문하기: 체크한 항목만 주문/결제 페이지로 전달 (실제 주문 생성은 결제 페이지에서 수행)
   const handleCheckout = () => {
-    onCheckout();
+    onCheckout(selectedCartItems);
   };
 
   const allSelected = cartItems.length > 0 && selectedItems.length === cartItems.length;
