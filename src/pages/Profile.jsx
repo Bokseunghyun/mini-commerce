@@ -283,32 +283,6 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
     <div id="profile-page" className="profile-page" style={styles.page} data-testid="profile-page">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* Header */}
-      <header
-        id="profile-header"
-        className="profile-header"
-        style={styles.header}
-        role="banner"
-        data-testid="profile-header"
-      >
-        <div style={styles.headerInner}>
-          <button
-            type="button"
-            id="profile-back"
-            className="btn btn-ghost profile-back-button"
-            aria-label="뒤로 가기"
-            onClick={onBack}
-            style={styles.backBtn}
-            data-testid="profile-back"
-          >
-            ← 뒤로
-          </button>
-          <h1 style={styles.headerTitle} className="page-title profile-title">
-            내 프로필
-          </h1>
-        </div>
-      </header>
-
       <main style={styles.container} className="profile-container">
         {isLoading ? (
           <LoadingSpinner />

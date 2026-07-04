@@ -12,6 +12,7 @@ import WishlistPage from './pages/Wishlist.jsx';
 import AdminPage from "./pages/AdminPage.jsx";
 import ProfilePage from './pages/Profile.jsx';
 import TrackingPage from './pages/Tracking.jsx';
+import SiteHeader from './components/SiteHeader.jsx';
 
 // URL 경로 → page 상태 매핑 (초기 진입 시 사용)
 function getPageFromPath(path) {
@@ -452,6 +453,27 @@ export default function App() {
     goWithLoginCheck('products');
   };
 
+  // 서브 페이지 전역 공통 헤더 (홈/로그인/회원가입 제외한 모든 페이지 상단에 렌더)
+  const siteHeader = (
+    <SiteHeader
+      onBack={() => window.history.back()}
+      onGoHome={() => setPage('home')}
+      onGoProducts={handleGoToProducts}
+      onGoCart={() => goWithLoginCheck('cart')}
+      onGoWishlist={() => goWithLoginCheck('wishlist')}
+      onGoOrders={() => goWithLoginCheck('orders')}
+      onGoProfile={() => goWithLoginCheck('profile')}
+      onGoTracking={() => setPage('tracking')}
+      onGoAdmin={() => setPage('admin')}
+      onGoLogin={() => setPage('login')}
+      onGoSignup={() => setPage('signup')}
+      onLogout={handleLogout}
+      isLoggedIn={isLoggedIn()}
+      role={localStorage.getItem('role') || ''}
+      cartCount={cartCount}
+    />
+  );
+
   if (page === 'home') {
     return (
       <HomePage
@@ -499,15 +521,18 @@ export default function App() {
 
   if (page === 'products') {
     return (
-      <ProductListPage
-        products={products}
-        onView={handleView}
-        cartCount={cartCount}
-        setPage={setPage}
-        onAddToCart={(product, qty = 1) => addToCart(product, qty)}
-        isLoading={isLoadingProducts}
-        onBack={() => setPage('home')}
-      />
+      <>
+        {siteHeader}
+        <ProductListPage
+          products={products}
+          onView={handleView}
+          cartCount={cartCount}
+          setPage={setPage}
+          onAddToCart={(product, qty = 1) => addToCart(product, qty)}
+          isLoading={isLoadingProducts}
+          onBack={() => setPage('home')}
+        />
+      </>
     );
   }
 
@@ -549,126 +574,153 @@ export default function App() {
 
   if (page === "productDetail" && selectedProduct) {
     return (
-      <ProductDetailPage
-        product={selectedProduct}
-        cartCount={cartCount}
-        onBack={() => setPage("home")}
-        onGoCart={() => goWithLoginCheck('cart')}
-        onAddToCart={(qty) => {
-          addToCart(selectedProduct, qty);
-        }}
-        onBuyNow={(qty) => buyNow(selectedProduct, qty)}
-        isLoggedIn={isLoggedIn()}
-      />
+      <>
+        {siteHeader}
+        <ProductDetailPage
+          product={selectedProduct}
+          cartCount={cartCount}
+          onBack={() => setPage("home")}
+          onGoCart={() => goWithLoginCheck('cart')}
+          onAddToCart={(qty) => {
+            addToCart(selectedProduct, qty);
+          }}
+          onBuyNow={(qty) => buyNow(selectedProduct, qty)}
+          isLoggedIn={isLoggedIn()}
+        />
+      </>
     );
   }
 
   if (page === 'cart') {
     return (
-      <CartPage
-        cartItems={cart}
-        onIncrease={(productId) => {
-          const item = cart.find((x) => Number(x.productId) === Number(productId));
-          if (item) updateCartQuantity(productId, (Number(item.quantity) || 1) + 1);
-        }}
-        onDecrease={(productId) => {
-          const item = cart.find((x) => Number(x.productId) === Number(productId));
-          if (item) updateCartQuantity(productId, Math.max(1, (Number(item.quantity) || 1) - 1));
-        }}
-        onRemove={(productId) => removeFromCart(productId)}
-        onCheckout={() => {
-          setBuyNowItem(null);
-          setPage('checkout');
-        }}
-        onBack={() => setPage('home')}
-      />
+      <>
+        {siteHeader}
+        <CartPage
+          cartItems={cart}
+          onIncrease={(productId) => {
+            const item = cart.find((x) => Number(x.productId) === Number(productId));
+            if (item) updateCartQuantity(productId, (Number(item.quantity) || 1) + 1);
+          }}
+          onDecrease={(productId) => {
+            const item = cart.find((x) => Number(x.productId) === Number(productId));
+            if (item) updateCartQuantity(productId, Math.max(1, (Number(item.quantity) || 1) - 1));
+          }}
+          onRemove={(productId) => removeFromCart(productId)}
+          onCheckout={() => {
+            setBuyNowItem(null);
+            setPage('checkout');
+          }}
+          onBack={() => setPage('home')}
+        />
+      </>
     );
   }
 
   if (page === 'checkout') {
     return (
-      <CheckoutPage
-        apiBase={API_BASE}
-        buyNowItem={buyNowItem}
-        onOrderComplete={(order) => {
-          setLastOrder(order || null);
-          setBuyNowItem(null);
-          // 장바구니 주문이면 서버가 장바구니를 비웠으므로 재조회로 동기화
-          fetchCart();
-          setPage('orderComplete');
-        }}
-        onBack={() => {
-          if (buyNowItem) {
+      <>
+        {siteHeader}
+        <CheckoutPage
+          apiBase={API_BASE}
+          buyNowItem={buyNowItem}
+          onOrderComplete={(order) => {
+            setLastOrder(order || null);
             setBuyNowItem(null);
-            setPage(selectedProduct ? 'productDetail' : 'home');
-          } else {
-            setPage('cart');
-          }
-        }}
-      />
+            // 장바구니 주문이면 서버가 장바구니를 비웠으므로 재조회로 동기화
+            fetchCart();
+            setPage('orderComplete');
+          }}
+          onBack={() => {
+            if (buyNowItem) {
+              setBuyNowItem(null);
+              setPage(selectedProduct ? 'productDetail' : 'home');
+            } else {
+              setPage('cart');
+            }
+          }}
+        />
+      </>
     );
   }
 
   if (page === "orderComplete") {
     return (
-      <OrderCompletePage
-        order={lastOrder}
-        onGoOrders={() => setPage('orders')}
-        onRestart={restartApp}
-      />
+      <>
+        {siteHeader}
+        <OrderCompletePage
+          order={lastOrder}
+          onGoOrders={() => setPage('orders')}
+          onRestart={restartApp}
+        />
+      </>
     );
   }
 
   if (page === 'orders') {
     return (
-      <OrderHistoryPage
-        apiBase={API_BASE}
-        onBack={() => setPage('home')}
-        onGoHome={() => setPage('home')}
-      />
+      <>
+        {siteHeader}
+        <OrderHistoryPage
+          apiBase={API_BASE}
+          onBack={() => setPage('home')}
+          onGoHome={() => setPage('home')}
+        />
+      </>
     );
   }
 
   if (page === 'wishlist') {
     return (
-      <WishlistPage
-        apiBase={API_BASE}
-        onBack={() => setPage('home')}
-        onView={handleView}
-        onAddToCart={(product, qty = 1) => addToCart(product, qty, false)}
-      />
+      <>
+        {siteHeader}
+        <WishlistPage
+          apiBase={API_BASE}
+          onBack={() => setPage('home')}
+          onView={handleView}
+          onAddToCart={(product, qty = 1) => addToCart(product, qty, false)}
+        />
+      </>
     );
   }
 
   if (page === 'profile') {
     return (
-      <ProfilePage
-        apiBase={API_BASE}
-        onBack={() => setPage('home')}
-        onGoOrders={() => setPage('orders')}
-        onGoTracking={() => setPage('tracking')}
-      />
+      <>
+        {siteHeader}
+        <ProfilePage
+          apiBase={API_BASE}
+          onBack={() => setPage('home')}
+          onGoOrders={() => setPage('orders')}
+          onGoTracking={() => setPage('tracking')}
+        />
+      </>
     );
   }
 
   if (page === 'tracking') {
     return (
-      <TrackingPage
-        apiBase={API_BASE}
-        onBack={() => setPage('home')}
-      />
+      <>
+        {siteHeader}
+        <TrackingPage
+          apiBase={API_BASE}
+          onBack={() => setPage('home')}
+        />
+      </>
     );
   }
 
   if (page === "admin") {
     return (
-      <AdminPage
-        products={products}
-        onBack={() => setPage('home')}
-        onUpdateProducts={(updatedProducts) => setProducts(updatedProducts)}
-        onAccessDenied={() => setPage('home')}
-        apiBase={API_BASE}
-      />
+      <>
+        {siteHeader}
+        <AdminPage
+          products={products}
+          onBack={() => setPage('home')}
+          onUpdateProducts={(updatedProducts) => setProducts(updatedProducts)}
+          onAccessDenied={() => setPage('home')}
+          apiBase={API_BASE}
+        />
+      </>
     );
   }
 

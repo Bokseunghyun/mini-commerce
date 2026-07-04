@@ -89,27 +89,6 @@ function TrashIcon({ className }) {
   );
 }
 
-// 뒤로가기 아이콘
-function ArrowLeftIcon({ className }) {
-  return (
-    <svg
-      className={className}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m12 19-7-7 7-7" />
-      <path d="M19 12H5" />
-    </svg>
-  );
-}
-
 // 가격 포맷
 function formatPrice(price) {
   const n = Number(price) || 0;
@@ -752,23 +731,6 @@ export default function CartPage({
 `}</style>
 
       <main id="cart-page" className="cart-page">
-        <header className="page-header">
-          <div className="header-content">
-            <button
-              type="button"
-              className="back-link"
-              aria-label="상품 목록으로 돌아가기"
-              onClick={onBack}
-            >
-              <ArrowLeftIcon className="back-icon" />
-            </button>
-            <h1 className="page-title">
-              <ShoppingBagIcon className="cart-icon-header" />
-              장바구니
-            </h1>
-          </div>
-        </header>
-
         <div className="cart-container">
           <section className="cart-items-section" aria-label="장바구니 상품 목록">
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

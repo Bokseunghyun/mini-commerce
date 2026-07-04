@@ -89,17 +89,11 @@ const TAB_DEFS = [
 // 상품 상세
 // props:
 // - product: selectedProduct
-// - cartCount: 장바구니 총 수량(뱃지용)
-// - onBack(): 목록으로
-// - onGoCart(): 장바구니로
 // - onAddToCart(qty): "장바구니 담기" (이동 X)
 // - onBuyNow(qty): "바로구매" (order 동일)
 // ============================================
 export default function ProductDetailPage({
   product,
-  cartCount = 0,
-  onBack,
-  onGoCart,
   onAddToCart,
   onBuyNow,
   isLoggedIn = false,
@@ -880,27 +874,6 @@ export default function ProductDetailPage({
       `}</style>
 
       <div className="page-container" data-testid="product-detail">
-        <header className="page-header">
-          <nav className="header-content">
-            <button type="button" className="back-button" onClick={onBack} aria-label="상품 목록으로 돌아가기">
-              <ChevronLeftIcon className="back-icon" />
-              <span>목록</span>
-            </button>
-
-            {}
-            <button
-              type="button"
-              className="cart-button"
-              aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
-              onClick={onGoCart}
-            >
-              <ShoppingCartIcon className="cart-icon" />
-              <span>장바구니</span>
-              {cartCount > 0 && <span className="cart-badge">{cartCount}</span>}
-            </button>
-          </nav>
-        </header>
-
         <main className="main-content">
           <article className="product-layout">
             <section className="image-section" aria-label="상품 이미지">

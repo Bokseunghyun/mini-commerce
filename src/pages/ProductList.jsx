@@ -211,7 +211,6 @@ function ProductGrid({ products, onView, onAdd, wishlistIds, onToggleWishlist })
 export default function ProductListPage({
   products,
   onView,
-  cartCount,
   setPage,
   onAddToCart,
   isLoading = false // 로딩 상태 prop 추가
@@ -887,31 +886,6 @@ export default function ProductListPage({
       `}</style>
 
       <main className="page-container">
-        <header className="page-header">
-          <div className="header-content">
-            <div className="header-top">
-              <div>
-                <h1 className="page-title">베스트 상품</h1>
-                <p className="page-subtitle">
-                  지금 가장 인기있는 상품을 만나보세요
-                </p>
-              </div>
-
-              <button
-                type="button"
-                className="go-to-cart-btn"
-                onClick={() => setPage("cart")}
-                aria-label={`장바구니로 이동 (총 ${cartCount}개)`}
-                data-testid="cart-button"
-              >
-                <ShoppingCartIcon className="cart-icon-large" />
-                {cartCount > 0 && <span className="cart-badge" data-testid="cart-badge">{cartCount}</span>}
-                <span>장바구니</span>
-              </button>
-            </div>
-          </div>
-        </header>
-
         {/* 검색 및 필터 영역 */}
         <div className="search-filter-container">
           <div className="search-box">

@@ -64,7 +64,7 @@ function LoadingSpinner() {
   );
 }
 
-export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
+export default function OrderHistoryPage({ apiBase, onGoHome }) {
   const API_BASE = apiBase || "";
 
   const [isLoading, setIsLoading] = useState(true);
@@ -314,32 +314,6 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
       data-testid="order-history-page"
     >
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      {/* Header */}
-      <header
-        id="order-history-header"
-        className="order-history-header"
-        style={styles.header}
-        role="banner"
-        data-testid="order-history-header"
-      >
-        <div style={styles.headerInner}>
-          <button
-            type="button"
-            id="order-history-back"
-            className="btn btn-ghost order-history-back-button"
-            aria-label="뒤로 가기"
-            onClick={onBack}
-            style={styles.backBtn}
-            data-testid="order-history-back"
-          >
-            ← 뒤로
-          </button>
-          <h1 style={styles.headerTitle} className="page-title order-history-title">
-            주문 내역
-          </h1>
-        </div>
-      </header>
 
       <main style={styles.container} className="order-history-container">
         {isLoading ? (

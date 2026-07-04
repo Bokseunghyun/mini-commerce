@@ -131,32 +131,6 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
     >
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
-      {/* Header */}
-      <header
-        id="wishlist-header"
-        className="wishlist-header"
-        style={styles.header}
-        role="banner"
-        data-testid="wishlist-header"
-      >
-        <div style={styles.headerInner}>
-          <button
-            type="button"
-            id="wishlist-back"
-            className="btn btn-ghost wishlist-back-button"
-            aria-label="뒤로 가기"
-            onClick={onBack}
-            style={styles.backBtn}
-            data-testid="wishlist-back"
-          >
-            ← 뒤로
-          </button>
-          <h1 style={styles.headerTitle} className="page-title wishlist-title">
-            위시리스트
-          </h1>
-        </div>
-      </header>
-
       <main style={styles.container} className="wishlist-container">
         {isLoading ? (
           <LoadingSpinner />

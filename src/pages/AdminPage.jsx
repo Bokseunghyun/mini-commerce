@@ -6,7 +6,7 @@ function getRandomImage() {
   return `https://picsum.photos/seed/${randomId}/400/400`;
 }
 
-export default function AdminPage({ products = [], onBack, onUpdateProducts, onAccessDenied, apiBase }) {
+export default function AdminPage({ products = [], onUpdateProducts, onAccessDenied, apiBase }) {
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -363,47 +363,20 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
 
-        .admin-header {
-          background-color: #1a1a1a;
-          color: #ffffff;
-          padding: 20px 24px;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-
-        .admin-header-inner {
-          max-width: 1200px;
-          margin: 0 auto;
+        .admin-toolbar {
           display: flex;
           justify-content: space-between;
           align-items: center;
           gap: 12px;
+          flex-wrap: wrap;
+          margin-bottom: 24px;
         }
 
         .admin-title {
           font-size: 24px;
           font-weight: 700;
-        }
-
-        .header-buttons {
-          display: flex;
-          gap: 10px;
-          align-items: center;
-          flex-wrap: wrap;
-        }
-
-        .back-btn {
-          padding: 10px 20px;
-          background-color: #ffffff;
           color: #1a1a1a;
-          border: none;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background-color 0.2s;
         }
-
-        .back-btn:hover { background-color: #e5e5e5; }
 
         .add-product-btn {
           padding: 10px 20px;
@@ -645,12 +618,10 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         }
 
         @media (max-width: 768px) {
-          .admin-header { padding: 16px 12px; }
-          .admin-header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+          .admin-toolbar { flex-direction: column; align-items: flex-start; gap: 12px; }
           .admin-title { font-size: 20px; }
-          .header-buttons { width: 100%; justify-content: flex-start; }
           .admin-content { padding: 16px 12px !important; }
-          
+
           /* 모바일에서 테이블 숨기고 카드 표시 */
           .table-wrapper { display: none; }
           
@@ -727,9 +698,8 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
           .info-box { padding: 12px; margin-bottom: 16px; }
         }
         @media (max-width: 480px) {
-          .admin-header { padding: 12px 8px; }
           .admin-title { font-size: 18px; }
-          .back-btn, .add-product-btn { padding: 8px 16px; font-size: 13px; }
+          .add-product-btn { padding: 8px 16px; font-size: 13px; }
           .admin-content { padding: 12px 8px !important; }
           .add-form-section { padding: 12px; }
           .product-card-mobile { padding: 12px; }
@@ -737,31 +707,23 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
       `}</style>
 
       <div className="admin-page">
-        <header className="admin-header">
-          <div className="admin-header-inner">
+        <div className="admin-content">
+          <div className="admin-toolbar">
             <h1 className="admin-title">관리자 페이지</h1>
 
-            <div className="header-buttons">
-              {!isAdding && (
-                <button
-                  onClick={() => {
-                    setIsAdding(true);
-                    setAddError("");
-                  }}
-                  className="add-product-btn"
-                >
-                  + 상품 추가
-                </button>
-              )}
-
-              <button onClick={onBack} className="back-btn">
-                홈으로 돌아가기
+            {!isAdding && (
+              <button
+                onClick={() => {
+                  setIsAdding(true);
+                  setAddError("");
+                }}
+                className="add-product-btn"
+              >
+                + 상품 추가
               </button>
-            </div>
+            )}
           </div>
-        </header>
 
-        <div className="admin-content">
           <div className="info-box">
             <div className="info-box-title">상품 관리</div>
             <div className="info-box-text">

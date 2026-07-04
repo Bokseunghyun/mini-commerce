@@ -34,7 +34,7 @@ function statusMeta(status) {
   return STATUS_META[status] || { label: status || "-", color: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb" };
 }
 
-export default function TrackingPage({ apiBase, onBack }) {
+export default function TrackingPage({ apiBase }) {
   const API_BASE = apiBase || "";
 
   const [trackingNumber, setTrackingNumber] = useState("");
@@ -97,32 +97,6 @@ export default function TrackingPage({ apiBase, onBack }) {
       data-testid="tracking-page"
     >
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-      {/* Header */}
-      <header
-        id="tracking-header"
-        className="tracking-header"
-        style={styles.header}
-        role="banner"
-        data-testid="tracking-header"
-      >
-        <div style={styles.headerInner}>
-          <button
-            type="button"
-            id="tracking-back"
-            className="btn btn-ghost tracking-back-button"
-            aria-label="뒤로 가기"
-            onClick={onBack}
-            style={styles.backBtn}
-            data-testid="tracking-back"
-          >
-            ← 뒤로
-          </button>
-          <h1 style={styles.headerTitle} className="page-title tracking-title">
-            배송조회
-          </h1>
-        </div>
-      </header>
 
       <main style={styles.container} className="tracking-container">
         <p style={styles.intro} className="tracking-intro">

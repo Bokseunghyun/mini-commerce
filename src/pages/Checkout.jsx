@@ -154,25 +154,6 @@ function openInicisPayment(params, registerCancel) {
   });
 }
 
-function ArrowLeftIcon() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="m12 19-7-7 7-7" />
-      <path d="M19 12H5" />
-    </svg>
-  );
-}
-
 export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onBack }) {
   const API_BASE = apiBase || "";
 
@@ -943,31 +924,12 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     `}</style>
   );
 
-  const header = (
-    <header className="checkout-header">
-      <div className="checkout-header-content">
-        <button
-          type="button"
-          id="checkout-back-btn"
-          className="checkout-back-btn"
-          data-testid="checkout-back-btn"
-          aria-label="이전 페이지로 돌아가기"
-          onClick={onBack}
-        >
-          <ArrowLeftIcon />
-        </button>
-        <h1 className="checkout-title">주문/결제</h1>
-      </div>
-    </header>
-  );
-
   // 로딩 중
   if (isLoading) {
     return (
       <>
         {styleBlock}
         <main id="checkout-page" className="checkout-page">
-          {header}
           <div
             data-testid="loading-spinner"
             style={{
@@ -1002,7 +964,6 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       <>
         {styleBlock}
         <main id="checkout-page" className="checkout-page">
-          {header}
           <div className="checkout-empty-card" data-testid="checkout-empty">
             <p className="checkout-empty-text">주문할 상품이 없습니다</p>
             <button
@@ -1024,8 +985,6 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     <>
       {styleBlock}
       <main id="checkout-page" className="checkout-page">
-        {header}
-
         <div className="checkout-container">
           <div className="checkout-main">
             {/* (a) 주문 상품 목록 */}
