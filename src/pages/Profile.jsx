@@ -30,6 +30,22 @@ function getCurrentUsername() {
   }
 }
 
+// 쿠폰 상태별 배지 스타일
+const COUPON_STATUS = {
+  AVAILABLE: { label: "사용가능", color: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0" },
+  USED: { label: "사용됨", color: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb" },
+  EXPIRED: { label: "만료", color: "#dc2626", bg: "#fef2f2", border: "#fecaca" },
+  INACTIVE: { label: "비활성", color: "#92400e", bg: "#fffbeb", border: "#fde68a" },
+};
+
+function couponDesc(c) {
+  const amt = c.type === "percent" ? `${c.amount}%` : `${Number(c.amount).toLocaleString("ko-KR")}원`;
+  const cond = [];
+  if (c.minOrder) cond.push(`최소주문 ${Number(c.minOrder).toLocaleString("ko-KR")}원`);
+  if (c.maxDiscount) cond.push(`최대 ${Number(c.maxDiscount).toLocaleString("ko-KR")}원`);
+  return `${amt} 할인${cond.length ? " · " + cond.join(" · ") : ""}`;
+}
+
 function LoadingSpinner() {
   return (
     <div style={styles.loadingContainer} data-testid="loading-spinner">
@@ -55,6 +71,12 @@ export default function ProfilePage({ apiBase, onBack }) {
   // 배송지 데모 표시 필드
   const [zonecode, setZonecode] = useState("");
   const [address, setAddress] = useState("");
+
+  // 내 쿠폰
+  const [coupons, setCoupons] = useState([]);
+  const [couponCode, setCouponCode] = useState("");
+  const [couponMessage, setCouponMessage] = useState(null);
+  const [registering, setRegistering] = useState(false);
 
   const fetchProfile = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -93,6 +115,58 @@ export default function ProfilePage({ apiBase, onBack }) {
   useEffect(() => {
     fetchProfile();
   }, [fetchProfile]);
+
+  const fetchCoupons = useCallback(async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions?type=coupons`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setCoupons(Array.isArray(data.coupons) ? data.coupons : []);
+    } catch {
+      /* 쿠폰 목록 로드 실패는 조용히 무시 */
+    }
+  }, [API_BASE]);
+
+  useEffect(() => {
+    fetchCoupons();
+  }, [fetchCoupons]);
+
+  const handleRegisterCoupon = async (e) => {
+    e?.preventDefault?.();
+    const code = couponCode.trim();
+    if (!code) {
+      setCouponMessage({ type: "error", text: "쿠폰 번호를 입력해주세요" });
+      return;
+    }
+    setRegistering(true);
+    setCouponMessage(null);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}` },
+        body: JSON.stringify({ action: "register_coupon", code }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setCouponMessage({
+          type: "error",
+          text: data.message || data.code || `쿠폰 등록 실패 (status=${res.status})`,
+        });
+        return;
+      }
+      setCouponMessage({ type: "success", text: data.message || "쿠폰이 등록되었습니다" });
+      setCouponCode("");
+      fetchCoupons();
+    } catch (err) {
+      setCouponMessage({ type: "error", text: `쿠폰 등록 중 오류가 발생했습니다: ${err.message}` });
+    } finally {
+      setRegistering(false);
+    }
+  };
 
   // ImageUpload 성공 → set_avatar 로 서버에 프로필 아바타 반영
   const handleAvatarUploaded = async (url) => {
@@ -317,6 +391,97 @@ export default function ProfilePage({ apiBase, onBack }) {
                 </div>
               </div>
             </section>
+
+            {/* ===== 내 쿠폰 ===== */}
+            <section
+              className="profile-section"
+              style={styles.section}
+              data-testid="profile-coupons-section"
+              aria-label="내 쿠폰"
+            >
+              <h2 style={styles.sectionTitle}>내 쿠폰</h2>
+              <p style={styles.sectionDesc}>
+                쿠폰 번호를 입력해 내 쿠폰함에 등록하세요. 결제 시 드롭다운으로 선택할 수 있습니다.
+              </p>
+
+              <form onSubmit={handleRegisterCoupon} style={styles.couponForm} className="coupon-register-form">
+                <input
+                  type="text"
+                  id="coupon-register-input"
+                  data-testid="coupon-register-input"
+                  className="coupon-register-input"
+                  value={couponCode}
+                  onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                  placeholder="쿠폰 번호 (예: WELCOME10)"
+                  style={styles.couponInput}
+                  aria-label="쿠폰 번호 입력"
+                />
+                <button
+                  type="submit"
+                  id="coupon-register-btn"
+                  data-testid="coupon-register-btn"
+                  className="coupon-register-btn"
+                  disabled={registering}
+                  style={styles.couponRegisterBtn}
+                >
+                  {registering ? "등록 중..." : "쿠폰 등록"}
+                </button>
+              </form>
+
+              {couponMessage && (
+                <p
+                  id="coupon-register-message"
+                  data-testid="coupon-register-message"
+                  className={`coupon-register-message coupon-register-message-${couponMessage.type}`}
+                  role={couponMessage.type === "success" ? "status" : "alert"}
+                  aria-live="polite"
+                  style={{
+                    ...styles.messageBox,
+                    ...(couponMessage.type === "success" ? styles.messageSuccess : styles.messageError),
+                  }}
+                >
+                  {couponMessage.text}
+                </p>
+              )}
+
+              {coupons.length === 0 ? (
+                <p id="coupons-empty" data-testid="coupons-empty" style={styles.couponsEmpty}>
+                  보유한 쿠폰이 없습니다.
+                </p>
+              ) : (
+                <ul style={styles.couponList} data-testid="coupon-list">
+                  {coupons.map((c) => {
+                    const meta = COUPON_STATUS[c.status] || COUPON_STATUS.INACTIVE;
+                    return (
+                      <li
+                        key={c.code}
+                        data-testid={`coupon-item-${c.code}`}
+                        data-status={c.status}
+                        className="coupon-item"
+                        style={styles.couponItem}
+                      >
+                        <div style={styles.couponItemMain}>
+                          <span style={styles.couponCode}>{c.code}</span>
+                          <span style={styles.couponDescText}>{couponDesc(c)}</span>
+                        </div>
+                        <span
+                          data-testid={`coupon-status-${c.code}`}
+                          className={`coupon-status coupon-status-${c.status}`}
+                          style={{
+                            ...styles.couponBadge,
+                            color: meta.color,
+                            backgroundColor: meta.bg,
+                            border: `1px solid ${meta.border}`,
+                          }}
+                        >
+                          {meta.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
           </>
         )}
       </main>
@@ -454,6 +619,79 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "12px",
+  },
+  couponForm: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  couponInput: {
+    flex: 1,
+    minWidth: "180px",
+    padding: "10px 12px",
+    fontSize: "14px",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    textTransform: "uppercase",
+  },
+  couponRegisterBtn: {
+    padding: "10px 20px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#ffffff",
+    backgroundColor: "#1a1a1a",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  couponsEmpty: {
+    fontSize: "14px",
+    color: "#6b7280",
+    margin: 0,
+    padding: "16px 0",
+    textAlign: "center",
+  },
+  couponList: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  couponItem: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "14px 16px",
+    border: "1px dashed #d1d5db",
+    borderRadius: "10px",
+    backgroundColor: "#fafafa",
+    flexWrap: "wrap",
+  },
+  couponItemMain: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+  },
+  couponCode: {
+    fontSize: "15px",
+    fontWeight: "700",
+    color: "#1a1a1a",
+    letterSpacing: "0.5px",
+  },
+  couponDescText: {
+    fontSize: "13px",
+    color: "#6b7280",
+  },
+  couponBadge: {
+    fontSize: "12px",
+    fontWeight: "700",
+    padding: "4px 10px",
+    borderRadius: "999px",
+    whiteSpace: "nowrap",
   },
   fieldRow: {
     display: "flex",

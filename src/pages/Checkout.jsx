@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import AddressSearch from "../components/AddressSearch";
 
 /**
  * 주문/결제 페이지
@@ -82,6 +83,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   const [appliedCoupon, setAppliedCoupon] = useState(null); // { code, discount }
   const [couponMessage, setCouponMessage] = useState(null); // { type: 'success' | 'error', text }
   const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
+  const [myCoupons, setMyCoupons] = useState([]); // 보유 쿠폰(사용가능) — 드롭다운용
 
   // 결제수단 / 약관
   const [paymentMethod, setPaymentMethod] = useState("card");
@@ -141,6 +143,22 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 내 보유 쿠폰(사용가능) 로드 — 드롭다운 선택용
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    fetch(`${API_BASE}/api/user-actions?type=coupons`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => {
+        const list = Array.isArray(data.coupons) ? data.coupons : [];
+        setMyCoupons(list.filter((c) => c.status === "AVAILABLE"));
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const subtotal = items.reduce(
     (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
     0
@@ -148,9 +166,9 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   const discount = appliedCoupon ? Math.min(Number(appliedCoupon.discount) || 0, subtotal) : 0;
   const finalAmount = subtotal - discount;
 
-  // 쿠폰 적용
-  const handleApplyCoupon = async () => {
-    const code = couponInput.trim();
+  // 쿠폰 적용 (드롭다운 선택 시 overrideCode 로 즉시 적용)
+  const handleApplyCoupon = async (overrideCode) => {
+    const code = (typeof overrideCode === "string" ? overrideCode : couponInput).trim();
     setCouponMessage(null);
 
     if (!code) {
@@ -916,6 +934,16 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
                     {fieldErrors.address}
                   </p>
                 )}
+                <div style={{ marginTop: "8px" }} data-testid="checkout-address-search">
+                  <AddressSearch
+                    buttonLabel="주소 검색"
+                    onComplete={({ zonecode, address }) => {
+                      if (!address) return;
+                      setShipAddress(zonecode ? `[${zonecode}] ${address}` : address);
+                      setFieldErrors((prev) => ({ ...prev, address: undefined }));
+                    }}
+                  />
+                </div>
               </div>
 
               <div className="checkout-field">
@@ -942,6 +970,48 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
               data-testid="checkout-coupon-section"
             >
               <h2 className="checkout-card-title">쿠폰</h2>
+
+              {myCoupons.length > 0 ? (
+                <div className="coupon-select-row" style={{ marginBottom: "10px" }}>
+                  <label className="checkout-label" htmlFor="coupon-select">
+                    보유 쿠폰에서 선택
+                  </label>
+                  <select
+                    id="coupon-select"
+                    data-testid="coupon-select"
+                    className="checkout-input"
+                    value=""
+                    disabled={!!appliedCoupon}
+                    onChange={(e) => {
+                      const code = e.target.value;
+                      if (!code) return;
+                      setCouponInput(code);
+                      handleApplyCoupon(code);
+                    }}
+                    aria-label="보유 쿠폰 선택"
+                  >
+                    <option value="">쿠폰을 선택하세요</option>
+                    {myCoupons.map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.code} (
+                        {c.type === "percent"
+                          ? `${c.amount}%`
+                          : `${Number(c.amount).toLocaleString("ko-KR")}원`}
+                        )
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <p
+                  data-testid="coupon-select-empty"
+                  className="coupon-select-empty"
+                  style={{ fontSize: "0.8125rem", color: "#6b7280", margin: "0 0 10px" }}
+                >
+                  보유 쿠폰이 없습니다. 코드를 직접 입력하거나 내 정보에서 쿠폰을 등록하세요.
+                </p>
+              )}
+
               <div className="coupon-row">
                 <input
                   type="text"

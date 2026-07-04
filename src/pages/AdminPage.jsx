@@ -1214,8 +1214,180 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
               )}
             </div>
           </div>
+
+          {/* ===== 쿠폰 관리 ===== */}
+          <CouponAdminSection apiBase={API_BASE} />
         </div>
       </div>
     </>
   );
 }
+
+// 어드민 쿠폰 생성/목록 (자체 상태·스타일 포함)
+function CouponAdminSection({ apiBase }) {
+  const API_BASE = apiBase || "";
+  const [coupons, setCoupons] = useState([]);
+  const [form, setForm] = useState({
+    code: "",
+    type: "percent",
+    amount: "",
+    minOrder: "",
+    maxDiscount: "",
+    expiresAt: "",
+  });
+  const [message, setMessage] = useState(null); // { type, text }
+  const [creating, setCreating] = useState(false);
+
+  const fetchCoupons = async () => {
+    const token = localStorage.getItem("token");
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/coupons`, {
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setCoupons(Array.isArray(data.coupons) ? data.coupons : []);
+    } catch {
+      /* 목록 로드 실패는 무시 */
+    }
+  };
+
+  useEffect(() => {
+    fetchCoupons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const handleCreate = async (e) => {
+    e?.preventDefault?.();
+    setMessage(null);
+    setCreating(true);
+    try {
+      const token = localStorage.getItem("token");
+      const body = {
+        code: form.code.trim().toUpperCase(),
+        type: form.type,
+        amount: Number(form.amount),
+        minOrder: form.minOrder === "" ? 0 : Number(form.minOrder),
+        maxDiscount: form.maxDiscount === "" ? null : Number(form.maxDiscount),
+        expiresAt: form.expiresAt || null,
+      };
+      const res = await fetch(`${API_BASE}/api/admin/coupons`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: token ? `Bearer ${token}` : "" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessage({ type: "error", text: data.message || data.code || `쿠폰 생성 실패 (status=${res.status})` });
+        return;
+      }
+      setMessage({ type: "success", text: data.message || "쿠폰이 생성되었습니다" });
+      setForm({ code: "", type: "percent", amount: "", minOrder: "", maxDiscount: "", expiresAt: "" });
+      fetchCoupons();
+    } catch (err) {
+      setMessage({ type: "error", text: `쿠폰 생성 중 오류가 발생했습니다: ${err.message}` });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const s = couponStyles;
+  return (
+    <section style={s.section} data-testid="admin-coupon-section" aria-label="쿠폰 관리">
+      <h2 style={s.title}>쿠폰 관리</h2>
+      <p style={s.desc}>쿠폰 번호를 생성하면 사용자가 내 정보에서 등록해 결제 시 사용할 수 있습니다.</p>
+
+      <form onSubmit={handleCreate} style={s.form} className="admin-coupon-form">
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-code">쿠폰 번호</label>
+          <input id="admin-coupon-code" data-testid="admin-coupon-code" style={s.input}
+            value={form.code} onChange={set("code")} placeholder="예: SUMMER30 (영문/숫자 4~20자)" />
+        </div>
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-type">할인 유형</label>
+          <select id="admin-coupon-type" data-testid="admin-coupon-type" style={s.input}
+            value={form.type} onChange={set("type")}>
+            <option value="percent">정률(%)</option>
+            <option value="fixed">정액(원)</option>
+          </select>
+        </div>
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-amount">할인 값</label>
+          <input id="admin-coupon-amount" data-testid="admin-coupon-amount" style={s.input} type="number"
+            value={form.amount} onChange={set("amount")}
+            placeholder={form.type === "percent" ? "1~100 (%)" : "할인 금액(원)"} />
+        </div>
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-min-order">최소 주문금액</label>
+          <input id="admin-coupon-min-order" data-testid="admin-coupon-min-order" style={s.input} type="number"
+            value={form.minOrder} onChange={set("minOrder")} placeholder="0 (선택)" />
+        </div>
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-max-discount">최대 할인금액</label>
+          <input id="admin-coupon-max-discount" data-testid="admin-coupon-max-discount" style={s.input} type="number"
+            value={form.maxDiscount} onChange={set("maxDiscount")} placeholder="정률 쿠폰 상한 (선택)" />
+        </div>
+        <div style={s.row}>
+          <label style={s.label} htmlFor="admin-coupon-expiry">만료일</label>
+          <input id="admin-coupon-expiry" data-testid="admin-coupon-expiry" style={s.input} type="date"
+            value={form.expiresAt} onChange={set("expiresAt")} />
+        </div>
+        <button type="submit" id="admin-coupon-create-btn" data-testid="admin-coupon-create-btn"
+          style={s.createBtn} disabled={creating}>
+          {creating ? "생성 중..." : "쿠폰 생성"}
+        </button>
+      </form>
+
+      {message && (
+        <p id="admin-coupon-message" data-testid="admin-coupon-message"
+          role={message.type === "success" ? "status" : "alert"}
+          style={{ ...s.message, ...(message.type === "success" ? s.msgOk : s.msgErr) }}>
+          {message.text}
+        </p>
+      )}
+
+      <div style={s.listHead}>
+        <strong>전체 쿠폰</strong>
+        <span data-testid="admin-coupon-count">{coupons.length}개</span>
+      </div>
+      {coupons.length === 0 ? (
+        <p data-testid="admin-coupons-empty" style={s.empty}>생성된 쿠폰이 없습니다.</p>
+      ) : (
+        <ul style={s.list} data-testid="admin-coupon-list">
+          {coupons.map((c) => (
+            <li key={c.code} data-testid={`admin-coupon-row-${c.code}`} style={s.item}>
+              <span style={s.itemCode}>{c.code}</span>
+              <span style={s.itemDesc}>
+                {c.type === "percent" ? `${c.amount}%` : `${Number(c.amount).toLocaleString("ko-KR")}원`} 할인
+                {c.minOrder ? ` · 최소 ${Number(c.minOrder).toLocaleString("ko-KR")}원` : ""}
+                {c.maxDiscount ? ` · 최대 ${Number(c.maxDiscount).toLocaleString("ko-KR")}원` : ""}
+                {c.expiresAt ? ` · ~${String(c.expiresAt).slice(0, 10)}` : ""}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+const couponStyles = {
+  section: { backgroundColor: "#ffffff", borderRadius: "12px", boxShadow: "0 1px 3px rgba(0,0,0,0.1)", padding: "24px", marginTop: "20px", display: "flex", flexDirection: "column", gap: "14px" },
+  title: { fontSize: "18px", fontWeight: 700, color: "#1a1a1a", margin: 0 },
+  desc: { fontSize: "13px", color: "#6b7280", margin: 0 },
+  form: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: "12px", alignItems: "end" },
+  row: { display: "flex", flexDirection: "column", gap: "6px" },
+  label: { fontSize: "13px", fontWeight: 600, color: "#374151" },
+  input: { padding: "10px 12px", fontSize: "14px", border: "1px solid #d1d5db", borderRadius: "8px" },
+  createBtn: { padding: "12px 20px", fontSize: "14px", fontWeight: 700, color: "#ffffff", backgroundColor: "#1a1a1a", border: "none", borderRadius: "8px", cursor: "pointer", whiteSpace: "nowrap", height: "42px" },
+  message: { margin: 0, padding: "10px 12px", borderRadius: "8px", fontSize: "13px", fontWeight: 500 },
+  msgOk: { backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#16a34a" },
+  msgErr: { backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626" },
+  listHead: { display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px", color: "#374151", borderTop: "1px solid #f0f0f0", paddingTop: "14px" },
+  empty: { fontSize: "14px", color: "#6b7280", textAlign: "center", padding: "16px 0", margin: 0 },
+  list: { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "8px" },
+  item: { display: "flex", alignItems: "center", gap: "12px", padding: "12px 14px", border: "1px dashed #d1d5db", borderRadius: "10px", backgroundColor: "#fafafa", flexWrap: "wrap" },
+  itemCode: { fontSize: "15px", fontWeight: 700, color: "#1a1a1a", letterSpacing: "0.5px", minWidth: "120px" },
+  itemDesc: { fontSize: "13px", color: "#6b7280" },
+};

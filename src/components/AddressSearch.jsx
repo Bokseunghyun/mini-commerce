@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 /**
  * Daum(카카오) 우편번호 위젯 래퍼 (재사용 컴포넌트)
@@ -75,41 +75,29 @@ export default function AddressSearch({ onComplete, buttonLabel = "주소 검색
   const [status, setStatus] = useState("idle"); // idle | loading | open | failed
   const [manualZonecode, setManualZonecode] = useState("");
   const [manualAddress, setManualAddress] = useState("");
-  const layerRef = useRef(null);
-
-  // 컴포넌트 언마운트 시 임베드 레이어 정리를 위한 상태
-  useEffect(() => {
-    const layer = layerRef.current;
-    return () => {
-      if (layer) layer.innerHTML = "";
-    };
-  }, []);
 
   const handleOpen = async () => {
     if (status === "loading") return;
     setStatus("loading");
     try {
       await loadPostcodeScript();
-      setStatus("open");
-      // 레이어(div)에 임베드 (window.daum 은 외부 스크립트가 주입)
       const daum = window.daum;
       if (!daum || !daum.Postcode) throw new Error("SCRIPT_LOADED_BUT_API_MISSING");
 
+      // 팝업(별도 창)으로 우편번호 검색 열기 — 팝업 핸들링 자동화 연습용
       new daum.Postcode({
         oncomplete: (data) => {
           const zonecode = data.zonecode || "";
           const address = data.roadAddress || data.address || data.jibunAddress || "";
           onComplete?.({ zonecode, address });
           setStatus("idle");
-          if (layerRef.current) layerRef.current.innerHTML = "";
         },
         onclose: () => {
           setStatus("idle");
-          if (layerRef.current) layerRef.current.innerHTML = "";
         },
-        width: "100%",
-        height: "100%",
-      }).embed(layerRef.current);
+      }).open();
+      // 팝업은 별도 창이므로 버튼은 바로 다시 활성화
+      setStatus("idle");
     } catch {
       // 스크립트 차단/실패/타임아웃 → 수동 입력 모드로 전환
       setStatus("failed");
@@ -136,18 +124,6 @@ export default function AddressSearch({ onComplete, buttonLabel = "주소 검색
       >
         {status === "loading" ? "불러오는 중..." : buttonLabel}
       </button>
-
-      {/* 우편번호 위젯 임베드 레이어 */}
-      <div
-        ref={layerRef}
-        id="address-search-layer"
-        data-testid="address-search-layer"
-        className="address-search-layer"
-        style={{
-          ...styles.layer,
-          display: status === "open" ? "block" : "none",
-        }}
-      />
 
       {/* 외부 스크립트 로드 실패 시 fallback (수동 입력) */}
       {status === "failed" && (
