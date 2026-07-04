@@ -1,5 +1,7 @@
 # API 통합 변경사항 (Vercel 12개 함수 제한 대응)
 
+> 과거 `/api/cart`, `/api/order`, `/api/wishlist` 를 `/api/user-actions` 로 통합한 기록 문서입니다 (현재 유효한 계약은 [API_TESTING_GUIDE.md](API_TESTING_GUIDE.md) 참고).
+
 ## 📋 변경 개요
 
 Vercel 무료 플랜의 **12개 서버리스 함수 제한**에 맞추기 위해 API를 통합했습니다.

@@ -1,5 +1,38 @@
 # 🎨 UI 자동화 검증 가이드
 
+> **⚠️ 본 레포는 "테스트 대상 사이트"입니다.**
+> 자동화(테스트) 코드는 이 레포가 아니라 **여러분의 별도 테스트 레포**에 작성하고, `http://localhost:5173`(vite dev 서버)을 대상으로 실행하세요. 이 문서의 Playwright 예시는 학습용 자료이며, 이 레포 안에 `tests/` 디렉터리를 만들지 않습니다.
+
+## 🧭 본 실습 사이트 요약 (코드 기준 검증됨)
+
+| 항목 | 값 |
+|---|---|
+| 테스트 계정 | `test` / `1234` (일반), `admin` / `1234` (관리자), `test2` / `1234` (차단 계정 → 로그인 403, 의도적). 회원가입으로 만든 계정도 로그인 가능(USER) |
+| 라우트 (전부 딥링크 가능) | `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/order-complete`, `/admin` |
+| 로그인 페이지 셀렉터 | `#login-username`, `#login-password`, `#login-submit` (data-testid: `login-submit-button`) |
+| 홈 헤더 셀렉터 | `#home-login`·`#home-signup-btn`(비로그인 시), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`(로그인 시), `#home-admin-btn`(항상 표시, 권한 체크는 클릭 후), `#home-cart-btn` |
+| 상품 버튼 (data-testid) | `view-detail-btn-{id}`(상세 보기), `add-to-cart-btn-{id}`(장바구니 담기), `wishlist-toggle-{id}`(하트, `aria-pressed`) |
+| 딥링크 | 위 라우트 전부 `page.goto()` 직접 진입 가능 — 단 REQ-1 때문에 딥링크 직후엔 항상 **비로그인** 상태 |
+
+**주요 data-testid (코드에서 확인된 이름):**
+`login-submit-button`, `loading-spinner`, `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn`), `admin-row-{id}`, `soldout-badge-{id}`, `search-result-count`
+— 신규 페이지(회원가입/체크아웃/주문내역/위시리스트/상세 탭·리뷰)의 셀렉터 전체 목록은 [8장](#8-본-사이트-신규-기능-연습-시나리오) 참고.
+
+**의도적 제약 (REQ-1):** 앱 진입 시 항상 로그아웃 상태로 초기화됩니다(진입 시 localStorage 토큰 제거). 따라서 Playwright `storageState` 재사용으로 로그인 상태를 유지할 수 없고, 각 테스트에서 UI 로그인을 수행해야 합니다. `/checkout`, `/orders` 같은 딥링크로 진입해도 마찬가지로 비로그인 상태에서 시작합니다(주문내역은 `orders-login-required`, 위시리스트는 `wishlist-login-required` 표시). 버그가 아니라 연습용 의도적 설계입니다.
+
+**서버 장바구니(계정 영속):** 장바구니는 클라이언트 상태가 아니라 **서버(DB)에 계정 단위로 저장**됩니다(`GET /api/user-actions?type=cart`). 같은 계정으로 다른 브라우저/시크릿 창에서 로그인해도 장바구니가 그대로 유지됩니다. → `storageState`로 장바구니를 "이어받는" 대신, **로그인 후 서버 상태를 검증**하는 연습을 하세요. 테스트 간 격리가 필요하면 `POST /api/reset`(전체 시드 복원) 또는 `cart_update` 수량 0으로 비워야 합니다. localStorage 클리어로는 초기화되지 않습니다.
+
+**다이얼로그 처리 연습 포인트:** 본 사이트는 `alert()` / `confirm()`을 많이 사용합니다(장바구니 담기 alert, 로그인 유도 confirm, 주문 취소 confirm, 로그아웃 confirm 등). Playwright는 리스너가 없으면 다이얼로그를 자동으로 닫아버리므로(dismiss), `page.on('dialog', ...)` 처리를 연습하세요.
+
+```typescript
+page.on('dialog', async (dialog) => {
+  console.log(dialog.message());
+  await dialog.accept(); // confirm 수락 (취소는 dialog.dismiss())
+});
+```
+
+※ 아래 본문 예시 중 `.loading-spinner`, `/dashboard`, `.dashboard-content` 등 일부 셀렉터는 **일반 예시 (본 사이트 셀렉터와 다름)** 입니다. 본 사이트에서는 위 표의 셀렉터/data-testid를 사용하세요. (예: 로딩 스피너는 클래스가 아니라 `page.getByTestId('loading-spinner')`)
+
 ---
 
 ## 📚 목차
@@ -10,6 +43,7 @@
 5. [실전 패턴과 조합](#5-실전-패턴과-조합)
 6. [자주 하는 실수](#6-자주-하는-실수)
 7. [베스트 프랙티스](#7-베스트-프랙티스)
+8. [본 사이트 신규 기능 연습 시나리오](#8-본-사이트-신규-기능-연습-시나리오)
 
 ---
 
@@ -196,6 +230,8 @@ await page.click('button');
 // 1. hidden - 로딩 스피너가 사라지길 기다릴 때
 await page.locator('.loading-spinner').waitFor({ state: 'hidden' });
 // 로딩이 완전히 끝난 후 작업 진행
+// 💡 본 사이트에서는 클래스가 아닌 data-testid 사용:
+//    await page.getByTestId('loading-spinner').waitFor({ state: 'hidden' });
 
 // 2. attached - display:none 같은 숨겨진 요소
 await page.locator('input[type="hidden"]').waitFor({ state: 'attached' });
@@ -312,9 +348,9 @@ await page.waitForURL((url) => url.searchParams.get('page') === '2');
 await page.click('a[href="/login"]');
 await page.waitForURL('/login');
 
-// ✅ 사용: 로그인 후 리다이렉트 확인
+// ✅ 사용: 로그인 후 리다이렉트 확인 (본 사이트: 로그인 성공 시 홈 '/'으로 이동)
 await page.click('#login-submit');
-await page.waitForURL('/dashboard');
+await page.waitForURL('/');
 
 // ✅ 사용: SPA 라우팅 대기
 await page.click('nav a:has-text("상품")');
@@ -328,18 +364,18 @@ await expect(page).toHaveURL('/dashboard');  // 중복!
 #### 실전 예시
 
 ```typescript
-test('로그인 후 대시보드 이동', async ({ page }) => {
+test('로그인 후 홈으로 이동', async ({ page }) => {
   await page.goto('/login');
   
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
-  // URL 변경 대기
-  await page.waitForURL('/dashboard');
+  // URL 변경 대기 (본 사이트는 로그인 성공 시 홈 '/'으로 이동)
+  await page.waitForURL('/');
   
-  // 이제 안전하게 검증
-  await expect(page.locator('h1')).toHaveText('대시보드');
+  // 이제 안전하게 검증 (로그인 후 홈 헤더에 로그아웃 버튼 표시)
+  await expect(page.locator('#home-logout')).toBeVisible();
 });
 ```
 
@@ -417,8 +453,8 @@ page.locator('[data-testid="product-card"]')
 // ✅ 사용: CSS 클래스가 명확할 때
 await page.locator('.btn-primary').click();
 
-// ✅ 사용: ID가 있을 때
-await page.locator('#username').fill('test');
+// ✅ 사용: ID가 있을 때 (본 사이트 로그인 아이디 입력란)
+await page.locator('#login-username').fill('test');
 
 // ✅ 사용: data-testid 사용
 await page.locator('[data-testid="submit-button"]').click();
@@ -484,7 +520,10 @@ await page.getByRole('button', { name: '로그인' }).click();
 await page.getByRole('button', { name: /로그인|Login/ }).click();
 ```
 
-#### 실전 예시
+#### 실전 예시 — 일반 예시 (본 사이트 셀렉터와 다름)
+
+> 본 사이트의 실제 회원가입 페이지(`/signup`)는 `#signup-username`, `#signup-password`,
+> `#signup-password-confirm`, `#signup-email`, `#signup-submit`을 사용합니다. → [8.1 시나리오](#81-회원가입-플로우-중복확인--검증-에러--가입--로그인) 참고
 
 ```typescript
 test('회원가입 폼', async ({ page }) => {
@@ -677,15 +716,15 @@ await expect(page.locator('h1')).toHaveText(/환영|Welcome/);
 **input 값 확인**
 
 ```typescript
-await expect(page.locator('#username')).toHaveValue('test');
+await expect(page.locator('#login-username')).toHaveValue('test');
 ```
 
 #### 언제 써야 하나?
 
 ```typescript
 // ✅ 사용: input 값 확인
-await page.fill('#username', 'test');
-await expect(page.locator('#username')).toHaveValue('test');
+await page.fill('#login-username', 'test');
+await expect(page.locator('#login-username')).toHaveValue('test');
 
 // ✅ 사용: 자동 완성 확인
 await page.click('.autofill-suggestion');
@@ -708,12 +747,13 @@ await expect(page.locator('button')).toBeDisabled();
 
 ```typescript
 // ✅ 사용: 조건부 버튼 활성화
-await expect(page.locator('#submit')).toBeDisabled();
+// (본 사이트 로그인 버튼은 실제로 입력 전에는 비활성화 상태)
+await expect(page.locator('#login-submit')).toBeDisabled();
 
-await page.fill('#username', 'test');
-await page.fill('#password', 'test1234');
+await page.fill('#login-username', 'test');
+await page.fill('#login-password', '1234');
 
-await expect(page.locator('#submit')).toBeEnabled();
+await expect(page.locator('#login-submit')).toBeEnabled();
 ```
 
 ---
@@ -980,6 +1020,390 @@ await page.waitForTimeout(3000);
 // ✅ 대신 조건 기반 대기
 await page.locator('.element').waitFor();
 ```
+
+---
+
+## 8. 본 사이트 신규 기능 연습 시나리오
+
+> 이 장의 셀렉터는 전부 본 사이트 소스(`src/pages/*.jsx`)에서 확인된 **실제 이름**입니다.
+> 코드는 여러분의 별도 테스트 레포에 작성하세요.
+
+### 8.0 신규 페이지 셀렉터 레퍼런스
+
+#### 회원가입 `/signup` (Signup.jsx)
+| 용도 | 셀렉터 |
+|---|---|
+| 아이디 입력 / 중복확인 버튼 | `#signup-username`, `#username-check-btn` |
+| 중복확인 결과 | `[data-testid="username-check-result"]` |
+| 비밀번호 / 확인 / 이메일 | `#signup-password`, `#signup-password-confirm`, `#signup-email` |
+| 필드별 에러 (`role=alert`) | `[data-testid="signup-username-error"]`, `[data-testid="signup-password-error"]`, `[data-testid="password-confirm-error"]`, `[data-testid="signup-email-error"]` |
+| 가입 버튼 | `#signup-submit` (data-testid: `signup-submit-button`) |
+| API 에러 / 성공 메시지 | `[data-testid="signup-error"]`, `[data-testid="signup-success"]` |
+
+#### 체크아웃 `/checkout` (Checkout.jsx)
+| 용도 | 셀렉터 |
+|---|---|
+| 주문 상품 행 | `[data-testid="checkout-item-{productId}"]` |
+| 배송지 입력 | `#checkout-name`, `#checkout-phone`, `#checkout-address`, `#checkout-memo` |
+| 배송지 에러 | `[data-testid="checkout-name-error"]`, `[data-testid="checkout-phone-error"]`, `[data-testid="checkout-address-error"]` |
+| 쿠폰 | `#coupon-code`, `[data-testid="coupon-apply-btn"]`, `[data-testid="coupon-message"]`, `[data-testid="coupon-remove-btn"]` |
+| 결제수단 라디오 | `#payment-card`, `#payment-bank`, `#payment-kakao` |
+| 약관 동의 (체크 전 결제버튼 비활성) | `#agree-terms` |
+| 결제 버튼 | `#place-order-btn` |
+| 금액 요약 / 에러 / 빈 상태 | `[data-testid="checkout-subtotal"]`, `[data-testid="checkout-discount"]`, `[data-testid="checkout-final"]`, `[data-testid="checkout-error"]`, `[data-testid="checkout-empty"]` |
+
+#### 주문내역 `/orders` (OrderHistory.jsx)
+| 용도 | 셀렉터 |
+|---|---|
+| 주문 행 (클릭 = 상세 확장 토글) | `[data-testid="order-item-{orderId}"]` |
+| 확장된 상세 영역 | `[data-testid="order-detail-{orderId}"]` |
+| 취소 버튼 (확장 후에만 노출, `confirm()` 발생) | `[data-testid="order-cancel-{orderId}"]` |
+| 상태 뱃지 (`결제완료`/`취소됨`, `data-status` 속성) | `[data-testid="order-status-{orderId}"]` |
+| 취소 결과 / 빈 목록 / 로그인 필요 | `[data-testid="order-cancel-message"]`, `[data-testid="orders-empty"]`, `[data-testid="orders-login-required"]` |
+
+#### 위시리스트 `/wishlist` (Wishlist.jsx) + 목록/홈 하트
+| 용도 | 셀렉터 |
+|---|---|
+| 목록/홈 카드의 하트 토글 (`aria-pressed`) | `[data-testid="wishlist-toggle-{id}"]` |
+| 위시리스트 행 | `[data-testid="wishlist-item-{productId}"]` |
+| 장바구니 담기 / 삭제 | `[data-testid="wishlist-add-to-cart-{productId}"]`, `[data-testid="wishlist-remove-{productId}"]` |
+| 빈 목록 / 로그인 필요 | `[data-testid="wishlist-empty"]`, `[data-testid="wishlist-login-required"]` |
+
+#### 상품 상세 `/product/:id` (ProductDetail.jsx)
+| 용도 | 셀렉터 |
+|---|---|
+| 갤러리 (이미지 3장) | `[data-testid="product-main-image"]`, `[data-testid="gallery-thumb-0"]`~`gallery-thumb-2` (`aria-pressed`) |
+| 탭 | `#tab-description`, `#tab-specs`, `#tab-shipping`, `#tab-reviews` → 패널 `[data-testid="tab-panel-description"]` 등 (활성 탭 패널만 DOM에 존재) |
+| 스펙 행 | `[data-testid="spec-row-{i}"]` (상품당 7~8행) |
+| 재고 뱃지 (`품절`/`재고 부족`/`재고 충분`) | `[data-testid="stock-badge"]` — 품절 시 `#add-to-cart-button`, `#buy-now-button` 모두 `disabled` |
+| 평점 요약 | `[data-testid="rating-average"]`, `[data-testid="rating-bar-5"]`~`rating-bar-1` |
+| 리뷰 작성 (로그인 필요) | `[data-testid="star-input-1"]`~`star-input-5`, `#review-comment`, `#review-submit`, `[data-testid="review-form-message"]` (in-DOM 메시지, alert 아님) |
+| 리뷰 정렬 / 더보기 / 항목 | `#review-sort` (`latest`/`rating`), `[data-testid="review-load-more"]`, `[data-testid="review-item-{id}"]` |
+
+#### 목록 `/products` · 홈 `/`
+| 용도 | 셀렉터 |
+|---|---|
+| 정렬 (홈·목록 공통) | `#sort-select` (`default`/`price-asc`/`price-desc`/`name`/`discount`) |
+| 가격 필터 (**/products 전용**) | `#min-price`, `#max-price`, `[data-testid="apply-price-filter"]`, `[data-testid="reset-price-filter"]`, `[data-testid="price-filter-error"]` |
+| 검색 결과 개수 (/products) | `[data-testid="search-result-count"]` |
+| 품절 뱃지 (씨드 기준 상품 3/8/18) | `[data-testid="soldout-badge-{id}"]` |
+
+#### 장바구니 `/cart` · 주문완료 `/order-complete`
+- 장바구니는 **서버 장바구니**(로그인 필수)이며 `cart-item-{productId}` 등 기존 `cart-*` testid는 **productId 기준**입니다. `#checkout-btn` 클릭 시 `/checkout`으로 이동합니다(주문 생성은 체크아웃 페이지에서).
+- 주문완료: `[data-testid="order-complete-id"]`(주문번호 `ORD-yyyymmdd-XXXX`), `[data-testid="order-complete-amount"]`, `[data-testid="go-orders-btn"]`
+
+---
+
+### 8.1 회원가입 플로우 (중복확인 → 검증 에러 → 가입 → 로그인)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('회원가입 전체 플로우', async ({ page }) => {
+  // 아이디 규칙: 영문 소문자 + 숫자 4~12자
+  const username = `qa${Date.now().toString().slice(-8)}`;
+
+  await page.goto('/signup');
+
+  // 1) 이미 존재하는 아이디로 중복확인
+  await page.fill('#signup-username', 'test');
+  await page.click('#username-check-btn');
+  await expect(page.getByTestId('username-check-result'))
+    .toContainText('이미 사용 중인 아이디입니다');
+
+  // 2) 검증 에러: 잘못된 값으로 제출 → 필드별 role=alert 에러
+  await page.fill('#signup-username', 'BAD!');       // 형식 위반
+  await page.fill('#signup-password', 'short');       // 8자 미만
+  await page.click('#signup-submit');
+  await expect(page.getByTestId('signup-username-error')).toBeVisible();
+  await expect(page.getByTestId('signup-password-error'))
+    .toContainText('8자 이상');
+
+  // 3) 정상 가입 (비밀번호: 8자 이상, 영문+숫자)
+  await page.fill('#signup-username', username);
+  await page.click('#username-check-btn');
+  await expect(page.getByTestId('username-check-result'))
+    .toContainText('사용 가능한 아이디입니다');
+  await page.fill('#signup-password', 'password1');
+  await page.fill('#signup-password-confirm', 'password1');
+  await page.click('#signup-submit');
+
+  // 성공 메시지(in-DOM) → 약 1초 뒤 자동으로 /login 이동
+  await expect(page.getByTestId('signup-success')).toBeVisible();
+  await page.waitForURL('/login');
+
+  // 4) 새 계정으로 로그인
+  await page.fill('#login-username', username);
+  await page.fill('#login-password', 'password1');
+  await page.click('#login-submit');
+  await expect(page.locator('#home-logout')).toBeVisible();
+});
+```
+
+> 참고: 가입 계정은 서버 DB에 저장되므로 반복 실행 시 아이디를 매번 새로 생성하거나,
+> `POST /api/reset`으로 시드 상태로 되돌리세요. 공유 배포 환경에서는 reset이 **모든 사용자**의 데이터를 초기화하니 주의.
+
+---
+
+### 8.2 체크아웃 플로우 (검증 에러 → 쿠폰 → 약관 게이팅 → 주문완료)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('체크아웃 전체 플로우', async ({ page }) => {
+  // 로그인
+  await page.goto('/login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
+  await page.click('#login-submit');
+  await expect(page.locator('#home-logout')).toBeVisible();
+
+  // 장바구니 담기 (성공 시 alert 발생 → 다이얼로그 처리)
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.click('[data-testid="add-to-cart-btn-1"]');
+
+  // 장바구니 → 체크아웃 (전 상품 자동 선택됨)
+  await page.click('[data-testid="cart-button"]');
+  await page.click('#checkout-btn');
+  await page.waitForURL('/checkout');
+
+  // 1) 약관 게이팅: 체크 전에는 결제 버튼 비활성
+  await expect(page.locator('#place-order-btn')).toBeDisabled();
+  await page.check('#agree-terms');
+  await expect(page.locator('#place-order-btn')).toBeEnabled();
+
+  // 2) 배송지 비운 채 결제 → 필드별 검증 에러
+  await page.click('#place-order-btn');
+  await expect(page.getByTestId('checkout-name-error')).toBeVisible();
+  await expect(page.getByTestId('checkout-phone-error')).toBeVisible();
+  await expect(page.getByTestId('checkout-address-error')).toBeVisible();
+
+  // 3) 쿠폰 실패: EXPIRED10 (만료 쿠폰, 의도적) → 400 COUPON_EXPIRED
+  await page.fill('#coupon-code', 'EXPIRED10');
+  await page.click('[data-testid="coupon-apply-btn"]');
+  await expect(page.getByTestId('coupon-message'))
+    .toContainText('만료된 쿠폰입니다');
+
+  // 4) 쿠폰 성공: WELCOME10 (10%, 최대 2만원)
+  await page.fill('#coupon-code', 'WELCOME10');
+  await page.click('[data-testid="coupon-apply-btn"]');
+  await expect(page.getByTestId('coupon-message')).toContainText('쿠폰이 적용되었습니다');
+  await expect(page.getByTestId('checkout-discount')).not.toHaveText('-0원');
+
+  // 5) 배송지 입력 후 주문
+  await page.fill('#checkout-name', '홍길동');
+  await page.fill('#checkout-phone', '010-1234-5678');
+  await page.fill('#checkout-address', '서울시 강남구 테헤란로 1');
+  await page.click('#place-order-btn');
+
+  // 6) 주문완료: 주문번호 형식 검증 (ORD-yyyymmdd-XXXX)
+  await page.waitForURL('/order-complete');
+  await expect(page.getByTestId('order-complete-id'))
+    .toHaveText(/^ORD-\d{8}-[A-Z0-9]{4}$/);
+  await expect(page.getByTestId('order-complete-amount')).toBeVisible();
+});
+```
+
+> 가격/할인은 **서버(DB)가 결정**합니다. 클라이언트가 보낸 가격은 무시되므로,
+> `checkout-final` 금액과 주문 API 응답의 `finalPrice`가 일치하는지 검증하는 것도 좋은 연습입니다.
+> 참고: 상품 3/4 포함 주문은 422 `ORDER_BLOCKED_PRODUCT`, 재고 0(상품 18)은 409 `INSUFFICIENT_STOCK` — `checkout-error`에 표시됩니다(의도적).
+
+---
+
+### 8.3 주문내역 (행 확장 → 취소 confirm → 상태 전이)
+
+> 전제: 취소할 `결제완료` 주문이 최소 1건 필요합니다 (8.2 시나리오를 먼저 실행하거나 테스트 안에서 주문 생성).
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('주문 취소 플로우', async ({ page }) => {
+  // 로그인 후 /orders 이동 (딥링크 직후는 REQ-1 때문에 비로그인이므로 UI 로그인 먼저)
+  await page.goto('/login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
+  await page.click('#login-submit');
+  await page.click('#home-orders-btn');
+  await page.waitForURL('/orders');
+
+  // 첫 번째 주문 행 클릭 → 상세 확장
+  const firstOrder = page.locator('[data-testid^="order-item-"]').first();
+  const orderId = (await firstOrder.getAttribute('data-testid'))!
+    .replace('order-item-', '');
+  await firstOrder.click();
+  await expect(page.getByTestId(`order-detail-${orderId}`)).toBeVisible();
+
+  // 취소 버튼은 확장 후에만 노출, 클릭 시 confirm() 발생
+  page.once('dialog', (dialog) => dialog.accept()); // '주문을 취소하시겠습니까?'
+  await page.getByTestId(`order-cancel-${orderId}`).click();
+
+  // 상태 전이 검증: 결제완료 → 취소됨 (재고도 복원됨)
+  await expect(page.getByTestId('order-cancel-message')).toBeVisible();
+  await expect(page.getByTestId(`order-status-${orderId}`)).toHaveText('취소됨');
+});
+```
+
+> `dialog.dismiss()`로 confirm을 취소하면 상태가 그대로 `결제완료`로 남는 것도 함께 검증해보세요.
+> 이미 취소된 주문을 다시 취소하면 API가 409 `ALREADY_CANCELED`를 반환합니다.
+
+---
+
+### 8.4 위시리스트 (하트 토글 → 페이지 확인 → 삭제)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('위시리스트 플로우', async ({ page }) => {
+  // 로그인 (비로그인 상태로 하트 클릭 시 로그인 유도 confirm 발생)
+  await page.goto('/login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
+  await page.click('#login-submit');
+
+  // 1) 홈 카드의 하트 토글 → aria-pressed 검증
+  const heart = page.getByTestId('wishlist-toggle-1');
+  await expect(heart).toHaveAttribute('aria-pressed', 'false');
+  await heart.click();
+  await expect(heart).toHaveAttribute('aria-pressed', 'true');
+
+  // 2) 위시리스트 페이지에서 확인
+  await page.click('#home-wishlist-btn');
+  await page.waitForURL('/wishlist');
+  await expect(page.getByTestId('wishlist-item-1')).toBeVisible();
+
+  // 3) 삭제 → 행 제거 (마지막 항목이었다면 wishlist-empty 표시)
+  await page.getByTestId('wishlist-remove-1').click();
+  await expect(page.getByTestId('wishlist-item-1')).not.toBeVisible();
+});
+```
+
+---
+
+### 8.5 상품 상세 (갤러리 스왑 · 탭 전환 · 리뷰 작성 · 품절 검증)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('갤러리와 탭', async ({ page }) => {
+  await page.goto('/product/1'); // 딥링크 (비로그인이어도 조회 가능)
+
+  // 갤러리 스왑: 썸네일 클릭 → 메인 이미지 src 변경
+  const mainImage = page.getByTestId('product-main-image');
+  const before = await mainImage.getAttribute('src');
+  await page.getByTestId('gallery-thumb-1').click();
+  await expect(mainImage).not.toHaveAttribute('src', before!);
+
+  // 탭 전환: 활성 탭 패널만 DOM에 존재
+  await page.click('#tab-specs');
+  await expect(page.getByTestId('tab-panel-specs')).toBeVisible();
+  await expect(page.getByTestId('spec-row-0')).toBeVisible();
+});
+
+test('리뷰 작성 → in-DOM 메시지 → 평점 분포 갱신', async ({ page }) => {
+  // 리뷰 작성은 로그인 필요 → UI 로그인 후 상세 진입
+  await page.goto('/login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
+  await page.click('#login-submit');
+  await page.click('[data-testid="view-detail-btn-1"]');
+
+  await page.click('#tab-reviews');
+  await page.getByTestId('star-input-4').click();          // 별점 4점
+  await page.fill('#review-comment', '자동화 연습용 리뷰입니다'); // 10자 이상 필수
+  await page.click('#review-submit');
+
+  // 결과는 alert가 아닌 in-DOM 메시지로 표시됨
+  await expect(page.getByTestId('review-form-message'))
+    .toContainText('리뷰가 등록되었습니다');
+
+  // 평점 요약(rating-average / rating-bar-*)이 자동 갱신됨
+  await expect(page.getByTestId('rating-average')).toBeVisible();
+  await expect(page.getByTestId('rating-bar-4')).toBeVisible();
+});
+
+test('품절 상품(18)은 구매 버튼 비활성', async ({ page }) => {
+  await page.goto('/product/18'); // 씨드 기준 재고 0 (의도적)
+
+  await expect(page.getByTestId('stock-badge')).toHaveText('품절');
+  await expect(page.locator('#add-to-cart-button')).toBeDisabled();
+  await expect(page.locator('#buy-now-button')).toBeDisabled();
+});
+```
+
+> 리뷰는 계정당 상품 1개만 작성 가능 — 같은 계정으로 다시 제출하면 409 `REVIEW_ALREADY_EXISTS`가
+> `review-form-message`에 표시됩니다. 10자 미만 코멘트는 400 `COMMENT_TOO_SHORT`. 둘 다 좋은 negative 연습입니다.
+
+---
+
+### 8.6 목록 (정렬 · 가격 필터 · 품절 뱃지)
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('정렬과 가격 필터', async ({ page }) => {
+  await page.goto('/products');
+
+  // 정렬: 낮은 가격순
+  await page.selectOption('#sort-select', 'price-asc');
+
+  // 가격 필터 에러: 최소 > 최대
+  await page.fill('#min-price', '50000');
+  await page.fill('#max-price', '10000');
+  await page.click('[data-testid="apply-price-filter"]');
+  await expect(page.getByTestId('price-filter-error'))
+    .toContainText('최소 가격이 최대 가격보다 클 수 없습니다');
+
+  // 정상 필터 적용 → 결과 개수 표시
+  await page.fill('#min-price', '10000');
+  await page.fill('#max-price', '50000');
+  await page.click('[data-testid="apply-price-filter"]');
+  await expect(page.getByTestId('search-result-count')).toBeVisible();
+
+  // 품절 뱃지 (씨드 기준 상품 3/8/18 재고 0)
+  await page.click('[data-testid="reset-price-filter"]');
+  await expect(page.getByTestId('soldout-badge-3')).toBeVisible();
+});
+```
+
+---
+
+### 8.7 서버 장바구니 영속성 (storageState 대신 상태 검증)
+
+장바구니가 계정(DB)에 묶여 있으므로, **브라우저 컨텍스트를 새로 만들어도 로그인만 하면 같은 장바구니**가 보입니다.
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('다른 브라우저 컨텍스트에서도 장바구니 유지', async ({ browser }) => {
+  // 컨텍스트 A: 로그인 후 상품 담기
+  const ctxA = await browser.newContext();
+  const pageA = await ctxA.newPage();
+  await pageA.goto('/login');
+  await pageA.fill('#login-username', 'test');
+  await pageA.fill('#login-password', '1234');
+  await pageA.click('#login-submit');
+  pageA.once('dialog', (d) => d.accept());
+  await pageA.click('[data-testid="add-to-cart-btn-1"]');
+  await ctxA.close();
+
+  // 컨텍스트 B: 완전히 새로운 브라우저 상태에서 같은 계정으로 로그인
+  const ctxB = await browser.newContext();
+  const pageB = await ctxB.newPage();
+  await pageB.goto('/login');
+  await pageB.fill('#login-username', 'test');
+  await pageB.fill('#login-password', '1234');
+  await pageB.click('#login-submit');
+
+  // 서버 장바구니가 그대로 유지되어 있음
+  await pageB.click('[data-testid="cart-button"]');
+  await expect(pageB.getByTestId('cart-item-1')).toBeVisible();
+  await ctxB.close();
+});
+```
+
+> REQ-1 때문에 `storageState`로 **로그인 상태**는 재사용할 수 없지만, 장바구니 데이터 자체는
+> 서버에 남아 있다는 점이 핵심입니다. 테스트 간 간섭을 피하려면 테스트 시작/종료 시
+> 장바구니를 비우거나(`cart_update` 수량 0) `POST /api/reset`을 사용하세요.
 
 ---
 

@@ -122,11 +122,13 @@ await page.click('text=주문하기');
 await expect(page).toHaveURL('/order-complete');
 // ✅ URL 바뀜 = 성공!
 
-// 실제 API 응답:
+// 실제 API 응답 (409):
 {
-  "success": false,
-  "code": "OUT_OF_STOCK",
-  "message": "재고가 부족합니다"
+  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 5개\n사용 가능 재고: 0개",
+  "code": "INSUFFICIENT_STOCK",
+  "productId": 18,
+  "requestedQuantity": 5,
+  "availableStock": 0
 }
 
 // 문제:
@@ -137,26 +139,34 @@ await expect(page).toHaveURL('/order-complete');
 
 **API 검증으로 잡는 법:**
 ```typescript
+// 주문은 POST /api/user-actions (body: { action: 'order', ... } — items 생략 시 서버 장바구니 주문)
 const [orderResponse] = await Promise.all([
-  page.waitForResponse((res) => res.url().includes('/api/order')),
-  page.click('text=주문하기')
+  page.waitForResponse((res) =>
+    res.url().includes('/api/user-actions') &&
+    res.request().method() === 'POST'
+  ),
+  page.click('#place-order-btn')  // 체크아웃(/checkout) 페이지의 결제하기 버튼
 ]);
 
-// 재고 있을 때
-if (orderResponse.status() === 200) {
+// 재고 있을 때 (주문 성공은 201 Created)
+if (orderResponse.status() === 201) {
   const data = await orderResponse.json();
-  expect(data.orderId).toBeDefined();
-  expect(data.success).toBe(true);
+  expect(data.message).toBe('주문 완료');
+  // 주문 정보는 order 객체로 반환됨: { id, totalPrice, discount, finalPrice, status }
+  expect(data.order.finalPrice).toBeGreaterThan(0);
+  expect(data.order.status).toBe('PAID');
 }
 
 // 재고 없을 때
 if (orderResponse.status() === 409) {  // Conflict
   const error = await orderResponse.json();
-  expect(error.code).toBe('OUT_OF_STOCK');
+  expect(error.code).toBe('INSUFFICIENT_STOCK');
   // UI에 에러 메시지 떠야 함
-  await expect(page.locator('text=재고가 부족')).toBeVisible();
+  await expect(page.locator('text=재고 부족')).toBeVisible();
 }
 ```
+
+> 💡 본 사이트에서 상품 id 18은 **의도적으로 항상 재고 0**입니다 (재고 부족 네거티브 테스트용 고정 픽스처).
 
 ---
 
@@ -205,6 +215,7 @@ expect(data.token).toBeTruthy();
 // → "토큰도 받았구나"
 
 // 🥇 레벨 3: 완벽 검증 (전체 구조)
+// 일반 예시 (본 사이트 로그인 응답은 { token, user: { username, role } })
 expect(data).toMatchObject({
   token: expect.any(String),
   user: {
@@ -417,6 +428,7 @@ const [loginResponse] = await Promise.all([
 expect(loginResponse.status()).toBe(200);
 
 // 예시 2: 여러 API 동시에 받기
+// 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
 const [productsRes, categoriesRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -443,6 +455,7 @@ const [productsRes, categoriesRes, userRes] = await Promise.all([
 
 ```typescript
 // 사례: 페이지 로드 시 3개 API 동시 호출
+// 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
 const [productsRes, categoriesRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -475,6 +488,7 @@ await expect(page).toHaveURL('/dashboard');
 
 ```typescript
 // 사례: 검색 결과가 로딩되면서 여러 요소 나타남
+// 일반 예시 (본 사이트 셀렉터와 다름 — 검색 버튼은 data-testid="search-button")
 const [searchRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/search')),
   page.locator('.search-result').first().waitFor(),  // 첫 결과 대기
@@ -511,6 +525,7 @@ expect(listRes.status()).toBe(200);  // 목록 조회 성공
 
 ```typescript
 // ⚠️ 순서 주의!
+// 일반 예시 (본 사이트에는 /api/user 엔드포인트가 없음)
 const [res1, res2] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/user')),
@@ -774,14 +789,16 @@ test('잘못된 비밀번호 로그인', async ({ page }) => {
   // 에러 상태 코드
   expect(response.status()).toBe(401);
   
-  // 에러 메시지 확인
+  // 에러 메시지 확인 (본 사이트 응답: { "message": "아이디 또는 비밀번호 오류" })
   const data = await response.json();
-  expect(data.code).toBe('AUTH_INVALID');
-  expect(data.message).toContain('비밀번호');
+  expect(data.message).toContain('아이디 또는 비밀번호');
 });
 ```
 
 #### 패턴 2: 여러 API 순차 검증
+
+> ⚠️ UI 셀렉터는 일반 예시 (본 사이트 셀렉터와 다름). 실제 관리자 페이지는 `data-testid`로 `admin-edit-btn-{id}`, `admin-save-btn-{id}`, `admin-delete-btn-{id}`를 사용합니다. API 계약(/api/admin POST 201, PUT 200, DELETE 200)은 본 사이트와 동일합니다.
+
 ```typescript
 test('상품 추가 → 수정 → 삭제', async ({ page }) => {
   // 1. 추가
@@ -831,9 +848,9 @@ test('상품 추가 → 수정 → 삭제', async ({ page }) => {
 test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
   // 1. 로그인
   await page.goto('/');
-  await page.click('#login-button');
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   
   const [loginResponse] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -862,19 +879,24 @@ test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
   const inventory = await inventoryResponse.json();
   
   // 4. 주문
-  await page.click('[aria-label*="장바구니"]');
+  await page.click('#home-cart-btn');   // 장바구니 페이지로 이동
+  await page.click('#checkout-btn');    // 체크아웃(/checkout) 페이지로 이동
+  await page.fill('#checkout-name', '홍길동');           // 배송지 필수 입력
+  await page.fill('#checkout-phone', '010-1234-5678');
+  await page.fill('#checkout-address', '서울시 강남구');
+  await page.check('#agree-terms');     // 약관 동의 (체크 전에는 결제 버튼 비활성)
   
   const [orderResponse] = await Promise.all([
     page.waitForResponse((res) => 
       res.url().includes('/api/user-actions') && 
       res.request().method() === 'POST'
     ),
-    page.click('text=주문하기')
+    page.click('#place-order-btn')  // 결제하기 버튼
   ]);
   
-  // 재고에 따른 분기 처리
+  // 재고에 따른 분기 처리 (주문 성공은 201 Created)
   if (inventory.stock > 0) {
-    expect(orderResponse.status()).toBe(200);
+    expect(orderResponse.status()).toBe(201);
     await expect(page.locator('text=주문 완료')).toBeVisible();
   } else {
     expect(orderResponse.status()).toBe(409);
@@ -917,13 +939,12 @@ test('API 응답 구조 파악', async ({ page }) => {
 **출력 예시:**
 ```
 Status: 200
-URL: https://example.com/api/login
+URL: http://localhost:3000/api/login
 Response Data: {
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
-    "id": 1,
-    "name": "test",
-    "email": "test@example.com"
+    "username": "test",
+    "role": "USER"
   }
 }
 Headers: {
@@ -986,6 +1007,7 @@ test('API 응답 비교', async ({ page }) => {
   await page.goto('/');
   
   // 여러 API 동시 호출
+  // 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
   const [productsRes, categoriesRes, userRes] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/products')),
     page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -1030,9 +1052,13 @@ test('API 응답 비교', async ({ page }) => {
 
 ```typescript
 test('에러 상황 디버깅', async ({ page }) => {
+  // 주문은 POST /api/user-actions (body: { action: 'order', ... })
   const [response] = await Promise.all([
-    page.waitForResponse((res) => res.url().includes('/api/order')),
-    page.click('text=주문하기')
+    page.waitForResponse((res) =>
+      res.url().includes('/api/user-actions') &&
+      res.request().method() === 'POST'
+    ),
+    page.click('#place-order-btn')
   ]);
   
   console.log('=== API 응답 디버깅 ===');
@@ -1067,19 +1093,24 @@ test('에러 상황 디버깅', async ({ page }) => {
 Status: 409
 OK: false
 ⚠️ 에러 발생!
-Error Code: OUT_OF_STOCK
-Error Message: 재고가 부족합니다
+Error Code: INSUFFICIENT_STOCK
+Error Message: 재고 부족: 발마사지기 무선 온열 기능
+요청 수량: 5개
+사용 가능 재고: 0개
 Full Error: {
-  "code": "OUT_OF_STOCK",
-  "message": "재고가 부족합니다",
-  "productId": 1,
+  "code": "INSUFFICIENT_STOCK",
+  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 5개\n사용 가능 재고: 0개",
+  "productId": 18,
+  "productName": "발마사지기 무선 온열 기능",
   "requestedQuantity": 5,
-  "availableStock": 2
+  "availableStock": 0
 }
 Request Method: POST
-Request URL: https://example.com/api/order
-Request Body: {"productId":1,"quantity":5}
+Request URL: http://localhost:3000/api/user-actions
+Request Body: {"action":"order","items":[{"id":18,"quantity":5}]}
 ```
+
+> 💡 items에는 `{ id, quantity }`만 보내면 됩니다. 가격/상품명은 서버가 DB에서 조회해 결정하며, 클라이언트가 보낸 가격은 무시됩니다.
 
 ---
 
@@ -1274,6 +1305,20 @@ test('완벽한 API 디버깅', async ({ page }) => {
 
 ## 6. 실전 연습 프로젝트
 
+### 💡 반복 실행 전 데이터 초기화 (POST /api/reset)
+
+연습 테스트를 반복 실행하면 관리자 CRUD, 회원가입 계정, 장바구니, 주문, 리뷰, 위시리스트, 재고 변경이 DB에 그대로 남아 결과가 달라질 수 있습니다.
+모든 상태는 Postgres(DB)에 저장되므로 **서버 재시작으로는 초기화되지 않습니다**. 초기화는 `POST /api/reset`으로 수행합니다 (전체 데이터를 시드 상태로 복원).
+
+```typescript
+test.beforeEach(async ({ request }) => {
+  const res = await request.post('/api/reset');
+  expect(res.status()).toBe(200);
+  // 응답: { "message": "모든 데이터가 초기화되었습니다",
+  //         "reset": ["products", "users", "reviews", "wishlists", "carts", "orders", "coupons"] }
+});
+```
+
 ### 프로젝트 1: 로그인 완전 정복 (1일)
 
 ```typescript
@@ -1288,6 +1333,73 @@ test('존재하지 않는 계정', async ({ page }) => { /* ... */ });
 test('상품 추가', async ({ page }) => { /* ... */ });
 test('상품 수정', async ({ page }) => { /* ... */ });
 test('상품 삭제', async ({ page }) => { /* ... */ });
+```
+
+### 프로젝트 3: 신규 엔드포인트 정복 — 회원가입/쿠폰/주문내역 (2일)
+
+새로 추가된 API 4종을 API 직접 호출(`page.request`)로 연습합니다.
+
+```typescript
+// 1) 회원가입 (POST /api/signup) — 가입한 계정으로 곧바로 로그인까지
+test('회원가입 → 로그인', async ({ request }) => {
+  const signup = await request.post('/api/signup', {
+    data: { username: 'newuser1', password: 'password1' }
+  });
+  expect(signup.status()).toBe(201);
+  // 네거티브: 형식 오류 400 INVALID_USERNAME / INVALID_PASSWORD / INVALID_EMAIL,
+  //           중복 아이디 409 USERNAME_TAKEN
+  
+  const login = await request.post('/api/login', {
+    data: { username: 'newuser1', password: 'password1' }
+  });
+  expect(login.status()).toBe(200); // 가입 계정도 즉시 로그인 가능
+});
+
+// 2) 쿠폰 검증 (POST /api/coupons) — 시드 쿠폰 4종
+//    WELCOME10(10%, 최대 2만원) / SAVE5000(5천원, 최소주문 3만원)
+//    VIP20(20%, 최소주문 10만원, 최대 5만원) / EXPIRED10(만료 — 의도적 픽스처)
+test('쿠폰 할인 계산', async ({ request }) => {
+  const res = await request.post('/api/coupons', {
+    data: { code: 'WELCOME10', orderAmount: 100000 }
+  });
+  expect(res.status()).toBe(200);
+  const data = await res.json();
+  expect(data.discount).toBe(10000);
+  expect(data.finalAmount).toBe(90000);
+  // 네거티브: 없는 쿠폰 404 COUPON_NOT_FOUND, EXPIRED10 400 COUPON_EXPIRED,
+  //           최소주문 미달 400 MIN_ORDER_NOT_MET, 금액 오류 400 INVALID_AMOUNT
+});
+
+// 3) 주문내역/상세/취소 (GET /api/orders, GET·PATCH /api/orders/:id)
+test('주문 → 목록 → 상세 → 취소', async ({ request }) => {
+  // 주문 생성 (201) 후 order.id 확보
+  const orderRes = await request.post('/api/user-actions', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }], couponCode: 'WELCOME10' }
+  });
+  expect(orderRes.status()).toBe(201);
+  const { order } = await orderRes.json();
+  
+  // 목록 (본인 주문만, 관리자는 전체)
+  const list = await request.get('/api/orders', {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  expect(list.status()).toBe(200);
+  
+  // 상세 (shipping 포함) — 없는 주문/타인 주문은 404 ORDER_NOT_FOUND
+  const detail = await request.get(`/api/orders/${order.id}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  expect(detail.status()).toBe(200);
+  
+  // 취소 → 재고 원복, 재취소 시 409 ALREADY_CANCELED
+  const cancel = await request.patch(`/api/orders/${order.id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { action: 'cancel' }
+  });
+  expect(cancel.status()).toBe(200);
+  expect((await cancel.json()).order.status).toBe('CANCELED');
+});
 ```
 
 ---

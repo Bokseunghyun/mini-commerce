@@ -17,7 +17,7 @@
 
 ```typescript
 // UI만 검증 (불충분)
-await page.click('#login-btn');
+await page.click('#login-submit');
 await expect(page.locator('.success')).toBeVisible();
 // → 화면은 성공이지만 실제 서버 응답은?
 
@@ -93,6 +93,8 @@ const body = await response.json();
 expect(body.code).toBe('PRODUCT_NOT_FOUND');
 ```
 
+> 💡 본 사이트의 의도적 픽스처: 상품 3/4 → 500, 상품 16 → 404 (버그가 아닌 연습용 고정 시나리오)
+
 **언제 사용?**
 - UI 없이 API만 검증할 때
 - 여러 상태 코드를 빠르게 테스트할 때
@@ -108,10 +110,11 @@ import { test, expect } from '@playwright/test';
 
 test('로그인 성공', async ({ page }) => {
   await page.goto('/');
+  await page.click('#home-login');  // 홈 → 로그인 페이지 이동
   
   // 입력
-  await page.fill('#username', 'test');
-  await page.fill('#password', '1234');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   
   // API 응답 캡처
   const [response] = await Promise.all([
@@ -126,7 +129,7 @@ test('로그인 성공', async ({ page }) => {
   expect(data.user).toBeDefined();
   
   // UI 검증
-  await expect(page.locator('#logout-btn')).toBeVisible();
+  await expect(page.locator('#home-logout')).toBeVisible();
 });
 ```
 
@@ -137,21 +140,22 @@ import { test, expect } from '@playwright/test';
 
 test('잘못된 계정 로그인 실패', async ({ page }) => {
   await page.goto('/');
-  await page.fill('#username', 'wrong');
-  await page.fill('#password', 'wrong');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'wrong');
+  await page.fill('#login-password', 'wrong');
   
   const [response] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/login')),
     page.click('#login-submit')
   ]);
   
-  // 에러 응답 검증
+  // 에러 응답 검증 (응답: { "message": "아이디 또는 비밀번호 오류" })
   expect(response.status()).toBe(401);
   const data = await response.json();
-  expect(data.code).toBe('INVALID_CREDENTIALS');
+  expect(data.message).toContain('아이디 또는 비밀번호');
   
   // 에러 메시지 UI 확인
-  await expect(page.locator('.error-message'))
+  await expect(page.locator('#login-error'))
     .toContainText('아이디 또는 비밀번호');
 });
 ```
@@ -162,27 +166,28 @@ test('잘못된 계정 로그인 실패', async ({ page }) => {
 import { test, expect } from '@playwright/test';
 
 test('상품 추가', async ({ page }) => {
-  // 로그인하여 토큰 획득
+  // 로그인하여 토큰 획득 (상품 추가는 ADMIN 권한 필요)
   await page.goto('/');
-  await page.click('#login');
-  await page.fill('#username', 'admin');
-  await page.fill('#password', '1234');
-  await page.click('#submit');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'admin');
+  await page.fill('#login-password', '1234');
+  await page.click('#login-submit');
   
   const token = await page.evaluate(() => 
     localStorage.getItem('token')
   );
   
-  // API 직접 호출
-  const response = await page.request.post('/api/products', {
+  // API 직접 호출 (상품 추가는 POST /api/admin)
+  const response = await page.request.post('/api/admin', {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     },
     data: {
       name: '신제품',
-      price: 50000,
-      category: '전자기기'
+      category: '전자기기',       // 전자기기/액세서리/생활 중 하나
+      originalPrice: 60000,
+      discountedPrice: 50000
     }
   });
   
@@ -199,14 +204,16 @@ test('상품 추가', async ({ page }) => {
 import { test, expect } from '@playwright/test';
 
 test('특정 API만 캡처', async ({ page }) => {
-  await page.goto('/products');
+  await page.goto('/');
   
   // POST 메서드만 캡처
+  // (장바구니 추가·수정·삭제/주문/위시리스트는 모두 POST /api/user-actions 로 호출됨)
   const response = await page.waitForResponse(
-    res => res.url().includes('/api/cart') && 
+    res => res.url().includes('/api/user-actions') && 
            res.request().method() === 'POST'
   );
   
+  // 장바구니 액션(cart_add 등)은 200, 주문(order)·위시리스트 추가(wishlist_add)는 201
   expect(response.status()).toBe(200);
 });
 ```
@@ -325,6 +332,49 @@ const token = await page.evaluate(() => localStorage.getItem('token'));
 const response = await page.request.get('/api/protected', {
   headers: { Authorization: `Bearer ${token}` }
 });
+```
+
+### 테스트 데이터 초기화 (반복 실행 대비)
+```typescript
+// 모든 상태가 Postgres(DB)에 저장되므로 서버 재시작으로는 초기화되지 않음
+// POST /api/reset 으로 초기화 — 상품/사용자(가입 계정 삭제)/리뷰/위시리스트/장바구니/주문/쿠폰을 시드 상태로 복원
+const res = await page.request.post('/api/reset');
+expect(res.status()).toBe(200);
+// 응답: { "message": "모든 데이터가 초기화되었습니다",
+//         "reset": ["products", "users", "reviews", "wishlists", "carts", "orders", "coupons"] }
+```
+
+### 신규 엔드포인트 빠른 참조 (signup / coupons / orders)
+```typescript
+// 회원가입 — 가입 즉시 로그인 가능 (role: USER)
+// 네거티브: 400 INVALID_USERNAME(영소문자+숫자 4~12자) / INVALID_PASSWORD(8자 이상, 영문+숫자)
+//           / INVALID_EMAIL, 409 USERNAME_TAKEN
+await page.request.post('/api/signup', {
+  data: { username: 'newuser1', password: 'password1' }
+}); // → 201
+await page.request.get('/api/signup?username=newuser1'); // → 200 { username, available }
+
+// 쿠폰 검증 — 시드 4종: WELCOME10(10%, 최대 2만), SAVE5000(5천원, 최소 3만),
+//                     VIP20(20%, 최소 10만, 최대 5만), EXPIRED10(만료 — 의도적 픽스처)
+// 네거티브: 404 COUPON_NOT_FOUND, 400 COUPON_EXPIRED / MIN_ORDER_NOT_MET / INVALID_AMOUNT
+await page.request.post('/api/coupons', {
+  data: { code: 'WELCOME10', orderAmount: 100000 }
+}); // → 200 { valid, code, type, amount, discount, finalAmount }
+
+// 주문 생성 — POST /api/user-actions { action: 'order', items?, couponCode?, shipping? } → 201
+// (items 생략 시 서버 장바구니 전체 주문, 가격은 서버(DB)가 결정)
+
+// 주문 목록/상세/취소 (모두 인증 필요)
+await page.request.get('/api/orders', {
+  headers: { Authorization: `Bearer ${token}` }
+}); // → 200 { count, orders } (본인 주문만, 관리자는 전체)
+await page.request.get(`/api/orders/${orderId}`, {
+  headers: { Authorization: `Bearer ${token}` }
+}); // → 200 { order } | 404 ORDER_NOT_FOUND (타인 주문도 404)
+await page.request.patch(`/api/orders/${orderId}`, {
+  headers: { Authorization: `Bearer ${token}` },
+  data: { action: 'cancel' }
+}); // → 200 (재고 원복) | 409 ALREADY_CANCELED
 ```
 
 ---
