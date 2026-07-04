@@ -55,11 +55,8 @@ export default function App() {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-  // REQ 1: 앱 초기 진입 시 반드시 비로그인 상태
-  useEffect(() => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('role');
-  }, []);
+  // 로그인 상태는 새로고침 후에도 유지된다 (토큰은 localStorage에 보관).
+  // 로그아웃/주문완료 시에만 명시적으로 토큰을 제거한다.
 
   // URL 기반 라우팅: URL 변경 시 page 상태 업데이트
   useEffect(() => {
