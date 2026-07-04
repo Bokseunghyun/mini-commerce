@@ -1,0 +1,33 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# logs
+*.log
+
+# env
+.env
+.env.local
+.env.*.local
+
+# 개인 머신 설정/도구 (실수 커밋 방지)
+.config/
+.local/
+.npmrc
+.wget-hsts
+
+# editor/OS
+.claude/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# vercel
+.vercel/
+
+# test artifacts (Playwright 등)
+test-results/
+playwright-report/
