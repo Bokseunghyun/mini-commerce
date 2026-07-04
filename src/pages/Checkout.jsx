@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import AddressSearch from "../components/AddressSearch";
 
 /**
@@ -72,8 +72,9 @@ function loadInicisSdk(url) {
   });
 }
 
-// 이니시스 결제창 열기 → 팝업 relay(postMessage) 결과로 paymentKey resolve
-function openInicisPayment(params) {
+// 이니시스 결제창 열기 → 팝업/iframe relay(postMessage) 결과로 paymentKey resolve
+// registerCancel(fn): 사용자가 결제창을 닫았을 때 수동으로 취소할 수 있는 함수를 등록
+function openInicisPayment(params, registerCancel) {
   return new Promise((resolve, reject) => {
     const formId = "inicis-payment-form";
     document.getElementById(formId)?.remove();
@@ -108,31 +109,47 @@ function openInicisPayment(params) {
     document.body.appendChild(form);
 
     let settled = false;
+    // INIStdPay가 만든 결제 오버레이(iframe/레이어) 제거 시도
+    const removeInicisOverlay = () => {
+      document
+        .querySelectorAll(
+          "iframe[id^='inipay'], iframe[name^='inipay'], div[id^='inipay'], iframe[src*='inicis'], #inicisModule, .inicis-modal"
+        )
+        .forEach((el) => el.remove());
+      // INIStdPay가 body에 걸어둔 스크롤 잠금 해제
+      document.documentElement.style.overflow = "";
+      document.body.style.overflow = "";
+    };
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
       document.getElementById(formId)?.remove();
     };
+    const finish = (fn) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      fn();
+    };
     const onMessage = (ev) => {
       const d = ev.data;
       if (!d || d.source !== "inicis") return;
-      settled = true;
-      cleanup();
-      if (d.success && d.paymentKey) resolve(d.paymentKey);
-      else reject(new Error(d.message || (d.canceled ? "결제를 취소했습니다" : "결제에 실패했습니다")));
+      if (d.success && d.paymentKey) finish(() => resolve(d.paymentKey));
+      else finish(() => reject(new Error(d.message || (d.canceled ? "결제를 취소했습니다" : "결제에 실패했습니다"))));
     };
     window.addEventListener("message", onMessage);
-    setTimeout(() => {
-      if (!settled) {
-        cleanup();
-        reject(new Error("결제 시간이 초과되었습니다"));
-      }
-    }, 300000);
+
+    // 사용자가 결제창을 닫았는데 콜백이 안 올 때를 위한 수동 취소
+    registerCancel?.(() => {
+      removeInicisOverlay();
+      finish(() => reject(new Error("결제를 취소했습니다")));
+    });
+
+    setTimeout(() => finish(() => reject(new Error("결제 시간이 초과되었습니다"))), 300000);
 
     try {
       window.INIStdPay.pay(formId);
     } catch {
-      cleanup();
-      reject(new Error("이니시스 결제창을 열 수 없습니다"));
+      finish(() => reject(new Error("이니시스 결제창을 열 수 없습니다")));
     }
   });
 }
@@ -190,6 +207,9 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   // 결제 진행 상태 / 결제 에러(외부 PG 실패 표면화)
   const [isPaying, setIsPaying] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  // 이니시스 결제창 진행 중 여부 + 수동 취소 함수
+  const [inicisActive, setInicisActive] = useState(false);
+  const inicisCancelRef = useRef(null);
 
   // 테스트 카드 안내 박스 접힘/펼침
   const [showTestCardGuide, setShowTestCardGuide] = useState(false);
@@ -442,12 +462,18 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
         return;
       }
       await loadInicisSdk(prep.sdkUrl);
-      const paymentKey = await openInicisPayment(prep.params); // 성공 시 paymentKey, 실패/취소 시 throw
+      setInicisActive(true);
+      const paymentKey = await openInicisPayment(prep.params, (cancel) => {
+        inicisCancelRef.current = cancel;
+      }); // 성공 시 paymentKey, 실패/취소 시 throw
+      setInicisActive(false);
       setIsPaying(false);
       await submitOrder(paymentKey);
     } catch (e) {
       setPaymentError(e?.message || "이니시스 결제가 취소/실패되었습니다");
     } finally {
+      setInicisActive(false);
+      inicisCancelRef.current = null;
       setIsPaying(false);
     }
   };
@@ -1565,7 +1591,31 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
                   aria-hidden="true"
                 />
                 <span>결제를 진행하고 있습니다...</span>
+                {inicisActive && (
+                  <button
+                    type="button"
+                    id="inicis-cancel-btn"
+                    data-testid="inicis-cancel-btn"
+                    onClick={() => inicisCancelRef.current?.()}
+                    style={{
+                      marginLeft: "auto",
+                      padding: "6px 12px",
+                      fontSize: "0.8125rem",
+                      border: "1px solid #d1d5db",
+                      borderRadius: "6px",
+                      background: "#fff",
+                      cursor: "pointer",
+                    }}
+                  >
+                    결제 취소
+                  </button>
+                )}
               </div>
+            )}
+            {inicisActive && (
+              <p style={{ fontSize: "0.8125rem", color: "#6b7280", margin: "6px 0 0" }}>
+                결제창을 닫으셨다면 <strong>결제 취소</strong>를 눌러주세요. 입력하신 정보는 그대로 유지됩니다.
+              </p>
             )}
 
             {/* (b)(5) 결제 실패 / 네트워크 오류 표면화 (주문은 생성되지 않음) */}

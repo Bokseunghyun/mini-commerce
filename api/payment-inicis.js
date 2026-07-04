@@ -35,7 +35,11 @@ function htmlRelay(payload) {
 <script>
   (function(){
     var result = ${json};
-    try { if (window.opener) window.opener.postMessage(Object.assign({source:'inicis'}, result), '*'); } catch(e){}
+    var msg = Object.assign({source:'inicis'}, result);
+    // 이니시스 결제창은 팝업 또는 iframe 오버레이일 수 있으므로 opener/parent/top 모두에 전달
+    [window.opener, window.parent, window.top].forEach(function(w){
+      try { if (w && w !== window) w.postMessage(msg, '*'); } catch(e){}
+    });
     setTimeout(function(){ try { window.close(); } catch(e){} }, 800);
   })();
 </script>
@@ -59,7 +63,7 @@ export default async function inicisHandler(req, res) {
       `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>결제 취소</title></head>
 <body style="font-family:sans-serif;text-align:center;padding:40px;color:#374151">
 <p>결제를 취소했습니다. 창이 닫힙니다...</p>
-<script>try{if(window.opener)window.opener.postMessage({source:'inicis',success:false,canceled:true},'*');}catch(e){}setTimeout(function(){try{window.close();}catch(e){}},600);</script>
+<script>(function(){var m={source:'inicis',success:false,canceled:true};[window.opener,window.parent,window.top].forEach(function(w){try{if(w&&w!==window)w.postMessage(m,'*');}catch(e){}});setTimeout(function(){try{window.close();}catch(e){}},600);})();</script>
 </body></html>`
     );
   }
