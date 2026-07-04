@@ -102,9 +102,6 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
     setTouched(prev => ({ ...prev, password: true }));
   };
 
-  // 우선순위: localError > usernameError > passwordError > errorMessage
-  const showError = localError || usernameError || passwordError || errorMessage;
-
   // 버튼 비활성화 조건
   const isButtonDisabled =
     isLoading ||

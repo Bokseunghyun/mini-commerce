@@ -133,7 +133,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         alert(data.message || `수정 실패 (${res.status})`);
         return;
       }
-    } catch (e) {
+    } catch {
       alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
 
@@ -300,7 +300,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         discountRate: "",
       });
       alert("상품이 추가되었습니다.");
-    } catch (e) {
+    } catch {
       alert("API 호출 중 오류 발생");
     }
   };
@@ -339,7 +339,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
         alert(data.message || `삭제 실패 (${res.status})`);
         return;
       }
-    } catch (e) {
+    } catch {
       alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
 
@@ -895,7 +895,7 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                     </tr>
                   ) : (
                     products.map((product) => (
-                      <tr key={product.id}>
+                      <tr key={product.id} data-testid={`admin-row-${product.id}`}>
                         <td>
                           <img
                             src={product.imageUrl || "/placeholder.svg"}
@@ -998,28 +998,39 @@ export default function AdminPage({ products = [], onBack, onUpdateProducts, onA
                           <div className="action-buttons">
                             {editingId === product.id ? (
                               <>
-                                <button onClick={handleSave} className="btn btn-save">
+                                <button
+                                  data-testid={`admin-save-btn-${product.id}`}
+                                  onClick={handleSave}
+                                  className="btn btn-save"
+                                >
                                   저장
                                 </button>
-                                <button onClick={handleCancel} className="btn btn-cancel">
+                                <button
+                                  data-testid={`admin-cancel-btn-${product.id}`}
+                                  onClick={handleCancel}
+                                  className="btn btn-cancel"
+                                >
                                   취소
                                 </button>
                               </>
                             ) : (
                               <>
                                 <button
+                                  data-testid={`admin-edit-btn-${product.id}`}
                                   onClick={() => handleEdit(product)}
                                   className="btn btn-edit"
                                 >
                                   수정
                                 </button>
                                 <button
+                                  data-testid={`admin-toggle-btn-${product.id}`}
                                   onClick={() => handleToggleActive(product.id)}
                                   className="btn btn-toggle"
                                 >
                                   {product.active !== false ? "비활성화" : "활성화"}
                                 </button>
                                 <button
+                                  data-testid={`admin-delete-btn-${product.id}`}
                                   onClick={() => handleDeleteProduct(product.id)}
                                   className="btn btn-delete"
                                 >

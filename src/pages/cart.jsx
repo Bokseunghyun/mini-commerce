@@ -116,18 +116,20 @@ function formatPrice(price) {
   return n.toLocaleString("ko-KR");
 }
 
-// 장바구니 아이템 컴포넌트
+// 장바구니 아이템 컴포넌트 (서버 장바구니 shape: { productId, name, price, imageUrl, quantity, stock })
 function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onSelect }) {
   const qty = Number(item.quantity) || 1;
   const price = Number(item.price) || 0;
   const subtotal = price * qty;
+  const stock = Number(item.stock);
+  const isSoldOut = Number.isFinite(stock) && stock <= 0;
 
   return (
-    <article className="cart-item">
+    <article className="cart-item" data-testid={`cart-item-${item.productId}`}>
       <input
         type="checkbox"
         checked={isSelected}
-        onChange={() => onSelect(item.id)}
+        onChange={() => onSelect(item.productId)}
         className="cart-item-checkbox"
         aria-label={`${item.name} 선택`}
       />
@@ -143,26 +145,37 @@ function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onSelect
       <div className="cart-item-info">
         <h3 className="cart-item-name">{item.name}</h3>
         <p className="cart-item-price">{formatPrice(price)}원</p>
+        {isSoldOut && (
+          <p
+            className="cart-item-soldout"
+            style={{ color: "#e53e3e", fontSize: "0.75rem", fontWeight: 600, margin: 0 }}
+            data-testid={`cart-soldout-${item.productId}`}
+          >
+            품절
+          </p>
+        )}
       </div>
 
       <div className="cart-item-quantity">
         <button
           type="button"
           className="cart-quantity-decrease"
-          onClick={() => onDecrease(item.id)}
+          onClick={() => onDecrease(item.productId)}
           aria-label={`${item.name} 수량 감소`}
           disabled={qty <= 1}
+          data-testid={`cart-decrease-${item.productId}`}
         >
           <MinusIcon className="quantity-icon" />
         </button>
-        <span className="quantity-value" aria-live="polite">
+        <span className="quantity-value" aria-live="polite" data-testid={`cart-qty-${item.productId}`}>
           {qty}
         </span>
         <button
           type="button"
           className="cart-quantity-increase"
-          onClick={() => onIncrease(item.id)}
+          onClick={() => onIncrease(item.productId)}
           aria-label={`${item.name} 수량 증가`}
+          data-testid={`cart-increase-${item.productId}`}
         >
           <PlusIcon className="quantity-icon" />
         </button>
@@ -170,14 +183,15 @@ function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onSelect
 
       <div className="cart-item-subtotal">
         <span className="subtotal-label">소계</span>
-        <span className="subtotal-value">{formatPrice(subtotal)}원</span>
+        <span className="subtotal-value" data-testid={`cart-subtotal-${item.productId}`}>{formatPrice(subtotal)}원</span>
       </div>
 
       <button
         type="button"
         className="remove-item-btn"
-        onClick={() => onRemove(item.id)}
+        onClick={() => onRemove(item.productId)}
         aria-label={`${item.name} 장바구니에서 삭제`}
+        data-testid={`cart-remove-${item.productId}`}
       >
         <TrashIcon className="trash-icon" />
       </button>
@@ -197,12 +211,12 @@ export default function CartPage({
   const [selectedItems, setSelectedItems] = React.useState([]);
 
   React.useEffect(() => {
-    setSelectedItems(cartItems.map(item => item.id));
+    setSelectedItems(cartItems.map(item => item.productId));
   }, [cartItems]);
 
   const handleSelectAll = (e) => {
     if (e.target.checked) {
-      setSelectedItems(cartItems.map(item => item.id));
+      setSelectedItems(cartItems.map(item => item.productId));
     } else {
       setSelectedItems([]);
     }
@@ -218,44 +232,15 @@ export default function CartPage({
     });
   };
 
-  const selectedCartItems = cartItems.filter(item => selectedItems.includes(item.id));
+  const selectedCartItems = cartItems.filter(item => selectedItems.includes(item.productId));
   const totalItems = selectedCartItems.reduce((sum, item) => sum + (Number(item.quantity) || 1), 0);
   const totalPrice = selectedCartItems.reduce(
     (sum, item) => sum + (Number(item.price) || 0) * (Number(item.quantity) || 1),
     0
   );
 
-  const handleCheckout = async () => {
-    const hasInvalidProduct = selectedCartItems.some(item => item.id === 3 || item.id === 4);
-    
-    if (hasInvalidProduct) {
-      const API_BASE = window.location.origin;
-      try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`${API_BASE}/api/user-actions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-          body: JSON.stringify({ 
-            action: 'order', 
-            items: selectedCartItems 
-          }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        
-        if (!res.ok) {
-          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '주문 처리 실패'}`);
-          return;
-        }
-      } catch (e) {
-        alert('네트워크 오류: ' + e.message);
-        return;
-      }
-    }
-    
+  // 주문하기: 주문/결제 페이지로 이동 (실제 주문 생성은 결제 페이지에서 수행)
+  const handleCheckout = () => {
     onCheckout();
   };
 
@@ -804,12 +789,12 @@ export default function CartPage({
               <div className="cart-items-list">
                 {cartItems.map((item) => (
                   <CartItem
-                    key={item.id}
+                    key={item.productId}
                     item={item}
                     onIncrease={onIncrease}
                     onDecrease={onDecrease}
                     onRemove={onRemove}
-                    isSelected={selectedItems.includes(item.id)}
+                    isSelected={selectedItems.includes(item.productId)}
                     onSelect={handleSelectItem}
                   />
                 ))}
@@ -817,7 +802,7 @@ export default function CartPage({
             ) : (
               <div className="empty-cart">
                 <ShoppingBagIcon className="empty-cart-icon" />
-                <p className="empty-cart-text">장바구니가 비어있습니다</p>
+                <p className="empty-cart-text" data-testid="cart-empty">장바구니가 비어있습니다</p>
                 <button type="button" className="continue-shopping-link" onClick={onBack}>
                   쇼핑 계속하기
                 </button>
@@ -847,7 +832,7 @@ export default function CartPage({
 
             <div className="summary-total-row">
               <span className="summary-total-label">총 결제 금액</span>
-              <span className="cart-total-price">{formatPrice(totalPrice)}원</span>
+              <span className="cart-total-price" data-testid="cart-total">{formatPrice(totalPrice)}원</span>
             </div>
 
             <button
@@ -857,6 +842,7 @@ export default function CartPage({
               onClick={handleCheckout}
               disabled={selectedItems.length === 0}
               aria-label="주문하기"
+              data-testid="checkout-button"
             >
               주문하기
             </button>

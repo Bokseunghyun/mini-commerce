@@ -1,12 +1,7 @@
 "use client";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
-// ============================================
-// 가격 포맷 함수
-// ============================================
-const formatPrice = (price) => {
-  return price.toLocaleString("ko-KR");
-};
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // ============================================
 // 장바구니 아이콘 컴포넌트
@@ -73,8 +68,8 @@ function LoadingSpinner() {
 function EmptyResults({ searchTerm }) {
   return (
     <div className="empty-results" data-testid="empty-results">
-      <p>"{searchTerm}" 검색 결과가 없습니다.</p>
-      <p className="empty-subtitle">다른 검색어로 시도해보세요.</p>
+      <p>{searchTerm ? `"${searchTerm}" 검색 결과가 없습니다.` : '조건에 맞는 상품이 없습니다.'}</p>
+      <p className="empty-subtitle">{searchTerm ? '다른 검색어로 시도해보세요.' : '다른 검색 조건으로 시도해보세요.'}</p>
     </div>
   );
 }
@@ -82,7 +77,9 @@ function EmptyResults({ searchTerm }) {
 // ============================================
 // 상품 카드 컴포넌트
 // ============================================
-function ProductCard({ product, onView, onAdd }) {
+function ProductCard({ product, onView, onAdd, isWished, onToggleWishlist }) {
+  const soldOut = product.stock === 0;
+
   return (
     <article
       className="product-card"
@@ -108,7 +105,32 @@ function ProductCard({ product, onView, onAdd }) {
             {product.discountRate}%
           </span>
         )}
+        {soldOut && (
+          <span
+            className="soldout-badge"
+            data-testid={`soldout-badge-${product.id}`}
+            aria-label={`${product.name} 품절`}
+          >
+            품절
+          </span>
+        )}
       </a>
+
+      <button
+        type="button"
+        id={`wishlist-toggle-${product.id}`}
+        name={`wishlist-${product.id}`}
+        className={`wishlist-toggle ${isWished ? 'wished' : ''}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleWishlist(product);
+        }}
+        aria-pressed={isWished}
+        aria-label={isWished ? `${product.name} 위시리스트에서 제거` : `${product.name} 위시리스트에 추가`}
+        data-testid={`wishlist-toggle-${product.id}`}
+      >
+        {isWished ? '♥' : '♡'}
+      </button>
 
       <div className="product-info">
         <a
@@ -149,7 +171,9 @@ function ProductCard({ product, onView, onAdd }) {
               e.stopPropagation();
               onAdd(product);
             }}
-            aria-label={`${product.name} 장바구니에 담기`}
+            disabled={soldOut}
+            aria-disabled={soldOut}
+            aria-label={soldOut ? `${product.name} 품절` : `${product.name} 장바구니에 담기`}
             data-testid={`add-to-cart-btn-${product.id}`}
           >
             <ShoppingCartIcon className="cart-icon" />
@@ -164,11 +188,18 @@ function ProductCard({ product, onView, onAdd }) {
 // ============================================
 // 상품 그리드 컴포넌트
 // ============================================
-function ProductGrid({ products, onView, onAdd }) {
+function ProductGrid({ products, onView, onAdd, wishlistIds, onToggleWishlist }) {
   return (
     <section id="product-list-page" className="product-grid" data-testid="product-grid">
       {products.map((p) => (
-        <ProductCard key={p.id} product={p} onView={onView} onAdd={onAdd} />
+        <ProductCard
+          key={p.id}
+          product={p}
+          onView={onView}
+          onAdd={onAdd}
+          isWished={wishlistIds.has(Number(p.id))}
+          onToggleWishlist={onToggleWishlist}
+        />
       ))}
     </section>
   );
@@ -180,9 +211,7 @@ function ProductGrid({ products, onView, onAdd }) {
 export default function ProductListPage({
   products,
   onView,
-  cart,
   cartCount,
-  setCart,
   setPage,
   onAddToCart,
   isLoading = false // 로딩 상태 prop 추가
@@ -193,10 +222,119 @@ export default function ProductListPage({
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+  // 가격 필터 상태
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [appliedPriceRange, setAppliedPriceRange] = useState({ min: null, max: null });
+  const [priceFilterError, setPriceFilterError] = useState('');
+
+  // 위시리스트 상태
+  const [wishlistIds, setWishlistIds] = useState(() => new Set());
 
   const addToCart = (product) => {
     if (onAddToCart) onAddToCart(product, 1);
+  };
+
+  // 페이지 진입 시 로그인 상태면 위시리스트 1회 조회하여 하트 상태 초기화
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/user-actions?type=wishlist`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setWishlistIds(new Set((data.items || []).map((it) => Number(it.productId))));
+        }
+      } catch (error) {
+        console.error('Wishlist load error:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 위시리스트 토글 (하트 클릭)
+  const toggleWishlist = async (product) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        setPage('login');
+      }
+      return;
+    }
+
+    const pid = Number(product.id);
+    const isWished = wishlistIds.has(pid);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: isWished ? 'wishlist_remove' : 'wishlist_add',
+          productId: pid,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      const alreadyAdded = !isWished && res.status === 409; // ALREADY_IN_WISHLIST
+      const alreadyRemoved = isWished && res.status === 404; // NOT_IN_WISHLIST
+
+      if (res.ok || alreadyAdded || alreadyRemoved) {
+        setWishlistIds((prev) => {
+          const next = new Set(prev);
+          if (isWished) next.delete(pid);
+          else next.add(pid);
+          return next;
+        });
+      } else {
+        alert(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
+      }
+    } catch (error) {
+      console.error('Wishlist toggle error:', error);
+      alert('위시리스트 처리 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 가격 필터 적용
+  const handleApplyPriceFilter = () => {
+    const minRaw = minPrice.trim();
+    const maxRaw = maxPrice.trim();
+    const min = minRaw === '' ? null : Number(minRaw);
+    const max = maxRaw === '' ? null : Number(maxRaw);
+
+    if (
+      (min !== null && (Number.isNaN(min) || min < 0)) ||
+      (max !== null && (Number.isNaN(max) || max < 0))
+    ) {
+      setPriceFilterError('가격은 0 이상의 숫자로 입력해주세요.');
+      return;
+    }
+    if (min !== null && max !== null && min > max) {
+      setPriceFilterError('최소 가격이 최대 가격보다 클 수 없습니다.');
+      return;
+    }
+
+    setPriceFilterError('');
+    setAppliedPriceRange({ min, max });
+  };
+
+  // 가격 필터 초기화
+  const handleResetPriceFilter = () => {
+    setMinPrice('');
+    setMaxPrice('');
+    setAppliedPriceRange({ min: null, max: null });
+    setPriceFilterError('');
   };
 
   // API 검색 함수
@@ -251,8 +389,16 @@ export default function ProductListPage({
   // 표시할 상품 결정: 검색 중이거나 검색어가 있으면 검색 결과, 아니면 전체 상품
   const displayProducts = searchTerm.trim() ? searchResults : products;
 
-  // 클라이언트 정렬 (검색 안 했을 때만)
-  const sortedProducts = !searchTerm.trim() ? [...displayProducts].sort((a, b) => {
+  // 가격 필터 적용 (적용 버튼 클릭 후 반영)
+  const priceFilteredProducts = displayProducts.filter((p) => {
+    const price = Number(p.price ?? p.discountedPrice ?? 0);
+    if (appliedPriceRange.min !== null && price < appliedPriceRange.min) return false;
+    if (appliedPriceRange.max !== null && price > appliedPriceRange.max) return false;
+    return true;
+  });
+
+  // 클라이언트 정렬 (현재 표시 중인 목록에 항상 적용)
+  const sortedProducts = [...priceFilteredProducts].sort((a, b) => {
     switch (sortBy) {
       case 'price-asc':
         return a.price - b.price;
@@ -265,7 +411,7 @@ export default function ProductListPage({
       default:
         return 0;
     }
-  }) : displayProducts;
+  });
 
   return (
     <>
@@ -434,6 +580,88 @@ export default function ProductListPage({
           .results-info { padding: 16px 24px 0; }
         }
 
+        /* 가격 필터 */
+        .price-filter-container {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 16px 16px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex-wrap: wrap;
+          width: 350px;
+          box-sizing: border-box;
+        }
+
+        @media (min-width: 640px) {
+          .price-filter-container { padding: 16px 24px 0; width: 100%; }
+        }
+
+        .price-filter-label {
+          font-size: 0.875rem;
+          color: #737373;
+          white-space: nowrap;
+        }
+
+        .price-input {
+          width: 110px;
+          padding: 8px 12px;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          transition: border-color 0.2s ease;
+        }
+
+        .price-input:focus {
+          outline: none;
+          border-color: #1a1a1a;
+        }
+
+        .price-separator { color: #a3a3a3; }
+
+        .price-filter-btn {
+          padding: 8px 16px;
+          background-color: #1a1a1a;
+          color: #ffffff;
+          border: none;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background-color 0.2s ease;
+        }
+
+        .price-filter-btn:hover { background-color: #333333; }
+
+        .price-filter-reset-btn {
+          padding: 8px 16px;
+          background-color: #ffffff;
+          color: #737373;
+          border: 1px solid #e5e5e5;
+          border-radius: 8px;
+          font-size: 0.875rem;
+          font-weight: 600;
+          cursor: pointer;
+          transition: border-color 0.2s ease, color 0.2s ease;
+        }
+
+        .price-filter-reset-btn:hover {
+          border-color: #1a1a1a;
+          color: #1a1a1a;
+        }
+
+        .price-filter-error {
+          max-width: 1280px;
+          margin: 0 auto;
+          padding: 8px 16px 0;
+          font-size: 0.875rem;
+          color: #dc2626;
+        }
+
+        @media (min-width: 640px) {
+          .price-filter-error { padding: 8px 24px 0; }
+        }
+
         .main-content {
           max-width: 1280px;
           margin: 0 auto;
@@ -493,6 +721,49 @@ export default function ProductListPage({
           font-weight: 700;
           padding: 4px 8px;
           border-radius: 6px;
+        }
+
+        .soldout-badge {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%);
+          background-color: rgba(17, 17, 17, 0.75);
+          color: #ffffff;
+          font-size: 0.875rem;
+          font-weight: 700;
+          padding: 6px 14px;
+          border-radius: 6px;
+          z-index: 2;
+          pointer-events: none;
+        }
+
+        .wishlist-toggle {
+          position: absolute;
+          top: 12px;
+          right: 12px;
+          z-index: 3;
+          width: 36px;
+          height: 36px;
+          padding: 0;
+          border-radius: 50%;
+          border: 1px solid #e5e5e5;
+          background-color: rgba(255, 255, 255, 0.92);
+          color: #737373;
+          font-size: 18px;
+          line-height: 1;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          transition: color 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+        }
+
+        .wishlist-toggle:hover { transform: scale(1.1); }
+
+        .wishlist-toggle.wished {
+          color: #dc2626;
+          border-color: #fecaca;
         }
 
         .product-info {
@@ -555,6 +826,14 @@ export default function ProductListPage({
           transition: background-color 0.2s ease;
         }
         .add-to-cart-btn:hover { background-color: #333333; }
+
+        .add-to-cart-btn:disabled {
+          background-color: #d4d4d4;
+          color: #737373;
+          cursor: not-allowed;
+        }
+
+        .add-to-cart-btn:disabled:hover { background-color: #d4d4d4; }
 
         .cart-icon { width: 16px; height: 16px; }
 
@@ -665,6 +944,81 @@ export default function ProductListPage({
           </div>
         </div>
 
+        {/* 가격 필터 영역 */}
+        <div className="price-filter-container" id="price-filter" data-testid="price-filter">
+          <label className="price-filter-label" htmlFor="min-price">가격</label>
+          <input
+            type="number"
+            id="min-price"
+            name="minPrice"
+            className="price-input min-price-input"
+            placeholder="최소 가격"
+            min="0"
+            value={minPrice}
+            onChange={(e) => setMinPrice(e.target.value)}
+            aria-label="최소 가격"
+            data-testid="min-price-input"
+          />
+          <span className="price-separator" aria-hidden="true">~</span>
+          <input
+            type="number"
+            id="max-price"
+            name="maxPrice"
+            className="price-input max-price-input"
+            placeholder="최대 가격"
+            min="0"
+            value={maxPrice}
+            onChange={(e) => setMaxPrice(e.target.value)}
+            aria-label="최대 가격"
+            data-testid="max-price-input"
+          />
+          <button
+            type="button"
+            id="apply-price-filter"
+            name="applyPriceFilter"
+            className="price-filter-btn apply-price-filter-btn"
+            onClick={handleApplyPriceFilter}
+            aria-label="가격 필터 적용"
+            data-testid="apply-price-filter"
+          >
+            적용
+          </button>
+          <button
+            type="button"
+            id="reset-price-filter"
+            name="resetPriceFilter"
+            className="price-filter-reset-btn reset-price-filter-btn"
+            onClick={handleResetPriceFilter}
+            aria-label="가격 필터 초기화"
+            data-testid="reset-price-filter"
+          >
+            초기화
+          </button>
+        </div>
+
+        {/* 가격 필터 유효성 오류 */}
+        {priceFilterError && (
+          <div
+            className="price-filter-error"
+            id="price-filter-error"
+            role="alert"
+            data-testid="price-filter-error"
+          >
+            {priceFilterError}
+          </div>
+        )}
+
+        {/* 검색 결과 개수 */}
+        <div
+          className="results-info search-result-count"
+          id="search-result-count"
+          role="status"
+          aria-live="polite"
+          data-testid="search-result-count"
+        >
+          총 {sortedProducts.length}개 상품
+        </div>
+
         {/* 검색 결과 정보 */}
         {searchTerm && (
           <div className="results-info" data-testid="results-info">
@@ -678,7 +1032,13 @@ export default function ProductListPage({
           ) : sortedProducts.length === 0 ? (
             <EmptyResults searchTerm={searchTerm} />
           ) : (
-            <ProductGrid products={sortedProducts} onView={onView} onAdd={addToCart} />
+            <ProductGrid
+              products={sortedProducts}
+              onView={onView}
+              onAdd={addToCart}
+              wishlistIds={wishlistIds}
+              onToggleWishlist={toggleWishlist}
+            />
           )}
         </div>
       </main>

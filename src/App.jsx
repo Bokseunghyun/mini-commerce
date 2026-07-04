@@ -4,21 +4,50 @@ import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
 import CartPage from './pages/cart';
 import LoginPage from './pages/login.jsx';
+import SignupPage from './pages/Signup.jsx';
+import CheckoutPage from './pages/Checkout.jsx';
 import OrderCompletePage from "./pages/OrderComplete.jsx";
+import OrderHistoryPage from './pages/OrderHistory.jsx';
+import WishlistPage from './pages/Wishlist.jsx';
 import AdminPage from "./pages/AdminPage.jsx";
 
+// URL 경로 → page 상태 매핑 (초기 진입 시 사용)
+function getPageFromPath(path) {
+  if (path === '/login') return 'login';
+  if (path === '/signup') return 'signup';
+  if (path === '/products') return 'products';
+  if (path.startsWith('/product/')) {
+    const productId = parseInt(path.split('/product/')[1]);
+    return productId ? 'productDetail' : 'home';
+  }
+  if (path === '/cart') return 'cart';
+  if (path === '/checkout') return 'checkout';
+  if (path === '/order-complete') return 'orderComplete';
+  if (path === '/orders') return 'orders';
+  if (path === '/wishlist') return 'wishlist';
+  if (path === '/admin') return 'admin';
+  return 'home';
+}
+
 export default function App() {
-  const [page, setPage] = useState('home');
+  // URL 기반 라우팅: 초기 진입 URL에 맞는 페이지로 시작 (딥링크 지원)
+  const [page, setPage] = useState(() => getPageFromPath(window.location.pathname));
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [userId, setUserId] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
   const [products, setProducts] = useState([]);
+  // 서버 장바구니 (GET /api/user-actions?type=cart 의 items:
+  // [{ productId, name, price, imageUrl, quantity, stock }])
   const [cart, setCart] = useState([]);
+  // 바로구매 상품 ({ id, name, price, imageUrl, quantity } | null)
+  const [buyNowItem, setBuyNowItem] = useState(null);
+  // 마지막 완료 주문 (주문 완료 페이지 표시용)
+  const [lastOrder, setLastOrder] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [loginError, setLoginError] = useState("");
-  const [userRole, setUserRole] = useState('');
+  // 딥링크(/product/:id) 진입 시 상품 조회 중 여부
+  const [isProductLoading, setIsProductLoading] = useState(
+    () => getPageFromPath(window.location.pathname) === 'productDetail'
+  );
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -31,39 +60,30 @@ export default function App() {
   // URL 기반 라우팅: URL 변경 시 page 상태 업데이트
   useEffect(() => {
     const path = window.location.pathname;
-    const searchParams = new URLSearchParams(window.location.search);
-    
-    if (path === '/login') {
-      setPage('login');
-    } else if (path === '/products') {
-      setPage('products');
-    } else if (path.startsWith('/product/')) {
+
+    if (path.startsWith('/product/')) {
       const productId = parseInt(path.split('/product/')[1]);
       if (productId) {
+        // 딥링크 진입: API에서 상품을 조회한 뒤 상세 페이지 표시
         setPage('productDetail');
-        // selectedProduct는 별도 로직에서 설정됨
+        setIsProductLoading(true);
+        viewProduct(productId).finally(() => setIsProductLoading(false));
+      } else {
+        setPage('home');
       }
-    } else if (path === '/cart') {
-      setPage('cart');
-    } else if (path === '/order-complete') {
-      setPage('orderComplete');
-    } else if (path === '/admin') {
-      setPage('admin');
     } else {
-      setPage('home');
+      setPage(getPageFromPath(path));
     }
+    // 최초 마운트 시 1회만 실행 (viewProduct는 의존성에서 의도적으로 제외)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // popstate 이벤트 감지 (브라우저 뒤로가기/앞으로가기)
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname;
-      
-      if (path === '/login') {
-        setPage('login');
-      } else if (path === '/products') {
-        setPage('products');
-      } else if (path.startsWith('/product/')) {
+
+      if (path.startsWith('/product/')) {
         const productId = parseInt(path.split('/product/')[1]);
         if (productId && products.length > 0) {
           const product = products.find(p => p.id === productId);
@@ -72,14 +92,8 @@ export default function App() {
             setPage('productDetail');
           }
         }
-      } else if (path === '/cart') {
-        setPage('cart');
-      } else if (path === '/order-complete') {
-        setPage('orderComplete');
-      } else if (path === '/admin') {
-        setPage('admin');
       } else {
-        setPage('home');
+        setPage(getPageFromPath(path));
       }
     };
 
@@ -93,10 +107,18 @@ export default function App() {
     let newPath = '/';
 
     if (page === 'login') newPath = '/login';
+    else if (page === 'signup') newPath = '/signup';
     else if (page === 'products') newPath = '/products';
-    else if (page === 'productDetail' && selectedProduct) newPath = `/product/${selectedProduct.id}`;
+    else if (page === 'productDetail') {
+      // 상품 조회가 끝나기 전에는 URL을 덮어쓰지 않음 (딥링크 /product/:id 유지)
+      if (!selectedProduct) return;
+      newPath = `/product/${selectedProduct.id}`;
+    }
     else if (page === 'cart') newPath = '/cart';
+    else if (page === 'checkout') newPath = '/checkout';
     else if (page === 'orderComplete') newPath = '/order-complete';
+    else if (page === 'orders') newPath = '/orders';
+    else if (page === 'wishlist') newPath = '/wishlist';
     else if (page === 'admin') newPath = '/admin';
     else newPath = '/';
 
@@ -107,6 +129,17 @@ export default function App() {
 
   const isLoggedIn = () => {
     return !!localStorage.getItem('token');
+  };
+
+  // 로그인 필요 페이지 이동 (미로그인 시 로그인 페이지 이동 confirm)
+  const goWithLoginCheck = (targetPage) => {
+    if (!isLoggedIn()) {
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        setPage('login');
+      }
+      return;
+    }
+    setPage(targetPage);
   };
 
   const normalizeProduct = (raw) => {
@@ -123,6 +156,31 @@ export default function App() {
     };
   };
 
+  // 서버 장바구니 조회 → cart 상태 동기화
+  const fetchCart = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setCart([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions?type=cart`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (res.status === 401) setCart([]);
+        return;
+      }
+
+      setCart(Array.isArray(data.items) ? data.items : []);
+    } catch {
+      // 네트워크 오류 시 기존 상태 유지
+    }
+  };
+
   const handleLogin = async ({ username, password }) => {
     setLoginError("");
     setIsLoading(true);
@@ -136,9 +194,10 @@ export default function App() {
 
       localStorage.setItem("token", result.data.token || "");
       localStorage.setItem("role", result.data.user?.role || "");
-      setUserRole(result.data.user?.role || "");
+      // 로그인 성공 시 서버 장바구니 동기화
+      fetchCart();
       setPage("home");
-    } catch (e) {
+    } catch {
       setLoginError("로그인 중 오류 발생");
     } finally {
       setIsLoading(false);
@@ -164,23 +223,11 @@ export default function App() {
     return { ok: true, status: 200, data };
   }
 
+  // 상품 목록 조회 (DB가 단일 소스)
   useEffect(() => {
     if (page === 'products' || page === 'home') {
       setIsLoadingProducts(true);
       const token = localStorage.getItem('token');
-
-      // localStorage에 저장된 전체 상품 목록이 있으면 우선 사용
-      const savedProducts = localStorage.getItem('allProductsModifications');
-      if (savedProducts) {
-        try {
-          const parsedProducts = JSON.parse(savedProducts);
-          setProducts(parsedProducts.map(normalizeProduct));
-          setIsLoadingProducts(false);
-          return;
-        } catch (e) {
-          // localStorage 파싱 실패 시 API 호출로 fallback
-        }
-      }
 
       fetch(`${API_BASE}/api/products`, {
         headers: {
@@ -195,7 +242,7 @@ export default function App() {
         .then((data) => {
           const list = Array.isArray(data.products) ? data.products : [];
           const apiProducts = list.map(normalizeProduct);
-          
+
           setProducts(apiProducts);
         })
         .catch(() => {
@@ -207,27 +254,18 @@ export default function App() {
     }
   }, [page, API_BASE]);
 
+  // 장바구니 페이지 진입 시 서버 장바구니 동기화
+  useEffect(() => {
+    if (page === 'cart' && localStorage.getItem('token')) {
+      fetchCart();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
   const viewProduct = async (id) => {
     try {
       const pid = Number(id);
 
-      // 먼저 localStorage에서 찾기 (Admin이 추가/수정한 상품)
-      const savedProducts = localStorage.getItem('allProductsModifications');
-      if (savedProducts) {
-        try {
-          const parsedProducts = JSON.parse(savedProducts);
-          const localProduct = parsedProducts.find(p => Number(p.id) === pid);
-          if (localProduct) {
-            setSelectedProduct(normalizeProduct(localProduct));
-            setPage('productDetail');
-            return;
-          }
-        } catch (e) {
-          // localStorage 파싱 실패 시 API 호출로 fallback
-        }
-      }
-
-      // localStorage에 없으면 API 호출
       const res = await fetch(`${API_BASE}/api/products/${pid}`);
       const data = await res.json().catch(() => ({}));
 
@@ -253,6 +291,7 @@ export default function App() {
     await viewProduct(id);
   };
 
+  // 장바구니 담기: 서버 장바구니에 수량 누적 (cart_add)
   const addToCart = async (product, qty = 1, showAlert = true) => {
     if (!isLoggedIn()) {
       if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
@@ -261,134 +300,142 @@ export default function App() {
       return;
     }
 
-    const p = normalizeProduct(product);
+    const productId = Number(product?.id ?? product?.productId);
     const quantity = Math.max(1, Number(qty) || 1);
 
-    if (!p) return;
+    if (!productId) return;
 
-    if (!p.price || p.price <= 0) {
-      alert("상품 가격 오류(0원). 상품 데이터 확인 필요");
-      return;
-    }
-
-    // 장바구니에 추가 (낙관적 업데이트)
-    setCart((prev) => {
-      const idx = prev.findIndex((x) => Number(x.id) === Number(p.id));
-      if (idx >= 0) {
-        const next = prev.slice();
-        next[idx] = { ...next[idx], quantity: (Number(next[idx].quantity) || 1) + quantity };
-        return next;
-      }
-      return [...prev, { ...p, quantity }];
-    });
-
-    if (showAlert) {
-      alert('장바구니에 상품이 추가되었습니다.');
-    }
-  };
-
-  const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
-
-  const removeFromCartById = (id) => {
-    const idx = cart.findIndex((x) => x.id === id);
-    if (idx >= 0) removeFromCart(idx);
-  };
-
-  const removeFromCart = async (index) => {
     try {
-      const token = localStorage.getItem("token");
-
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/user-actions`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token || ""}`,
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
         },
-        body: JSON.stringify({ action: "cart_remove", index, cart }),
+        body: JSON.stringify({ action: 'cart_add', productId, quantity }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.message || `장바구니 추가 실패 (status=${res.status})`);
+        return;
+      }
+
+      if (Array.isArray(data.cart)) {
+        setCart(data.cart);
+      } else {
+        await fetchCart();
+      }
+
+      if (showAlert) {
+        alert('장바구니에 상품이 추가되었습니다.');
+      }
+    } catch {
+      alert('장바구니 추가 중 오류 발생');
+    }
+  };
+
+  // 장바구니 수량 변경: 절대 수량으로 갱신 (cart_update, 최소 1)
+  const updateCartQuantity = async (productId, quantity) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          action: 'cart_update',
+          productId: Number(productId),
+          quantity: Math.max(1, Number(quantity) || 1),
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.message || `수량 변경 실패 (status=${res.status})`);
+        return;
+      }
+
+      if (Array.isArray(data.cart)) {
+        setCart(data.cart);
+      } else {
+        await fetchCart();
+      }
+    } catch {
+      alert('수량 변경 중 오류 발생');
+    }
+  };
+
+  // 장바구니 삭제 (cart_remove)
+  const removeFromCart = async (productId) => {
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({ action: 'cart_remove', productId: Number(productId) }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
         alert(data.message || `삭제 실패 (status=${res.status})`);
+        // 서버에 이미 없는 항목(404)이면 재조회로 동기화
+        if (res.status === 404) await fetchCart();
         return;
       }
 
-      setCart(data.cart || []);
-    } catch (e) {
-      alert("삭제 중 오류 발생");
-    }
-  };
-
-  const total = cart.reduce((sum, p) => sum + (Number(p.price) || 0) * (Number(p.quantity) || 1), 0);
-
-  const order = async (items) => {
-    try {
-      const token = localStorage.getItem("token");
-
-      const res = await fetch(`${API_BASE}/api/user-actions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token || ""}`,
-        },
-        body: JSON.stringify({ action: "order", items }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        alert(data.message || "주문 실패");
-        return;
+      if (Array.isArray(data.cart)) {
+        setCart(data.cart);
+      } else {
+        await fetchCart();
       }
-
-      setCart([]);
-      setSelectedProduct(null);
-      setPage("orderComplete");
-    } catch (e) {
-      alert("주문 중 오류 발생");
-      console.error(e);
+    } catch {
+      alert('삭제 중 오류 발생');
     }
   };
 
-  const buyNow = async (product, quantity = 1) => {
+  const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
+
+  // 바로구매: 결제 페이지로 이동 (실제 주문 생성은 결제 페이지에서 수행)
+  const buyNow = (product, quantity = 1) => {
     if (!isLoggedIn()) {
-      try {
-        const res = await fetch(`${API_BASE}/api/user-actions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: "",
-          },
-          body: JSON.stringify({ action: "order", items: [] }),
-        });
-
-        const data = await res.json().catch(() => ({}));
-        alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '인증 실패'}`);
-      } catch (e) {
-        alert('네트워크 오류: ' + e.message);
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        setPage('login');
       }
       return;
     }
 
     if (!product) return;
     const p = normalizeProduct(product);
-    const qty = Math.max(1, Number(quantity) || 1);
 
-    const items = [{ ...p, quantity: qty }];
-    await order(items);
+    setBuyNowItem({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      imageUrl: p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || '',
+      quantity: Math.max(1, Number(quantity) || 1),
+    });
+    setPage('checkout');
   };
 
   const restartApp = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("role");
 
+    // 클라이언트 상태만 초기화 (서버 장바구니는 계정에 유지됨)
     setCart([]);
     setSelectedProduct(null);
-    setUserId("");
-    setPassword("");
-    setError("");
-    setUserRole("");
+    setBuyNowItem(null);
+    setLastOrder(null);
     setPage("home");
   };
 
@@ -399,13 +446,7 @@ export default function App() {
   };
 
   const handleGoToProducts = () => {
-    if (!isLoggedIn()) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-        setPage('login');
-      }
-      return;
-    }
-    setPage('products');
+    goWithLoginCheck('products');
   };
 
   if (page === 'home') {
@@ -415,18 +456,13 @@ export default function App() {
         cartCount={cartCount}
         onView={handleView}
         onAdd={addToCart}
-        onGoCart={() => {
-          if (!isLoggedIn()) {
-            if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-              setPage('login');
-            }
-            return;
-          }
-          setPage('cart');
-        }}
+        onGoCart={() => goWithLoginCheck('cart')}
         onGoHome={() => setPage('home')}
         onLogout={handleLogout}
         onLogin={() => setPage('login')}
+        onGoSignup={() => setPage('signup')}
+        onGoWishlist={() => goWithLoginCheck('wishlist')}
+        onGoOrders={() => goWithLoginCheck('orders')}
         onGoProducts={handleGoToProducts}
         onGoAdmin={() => setPage('admin')}
         isLoading={isLoadingProducts}
@@ -447,14 +483,22 @@ export default function App() {
     );
   }
 
+  if (page === 'signup') {
+    return (
+      <SignupPage
+        apiBase={API_BASE}
+        onSignupSuccess={() => setPage('login')}
+        onBack={() => setPage('home')}
+      />
+    );
+  }
+
   if (page === 'products') {
     return (
       <ProductListPage
         products={products}
         onView={handleView}
-        cart={cart}
         cartCount={cartCount}
-        setCart={setCart}
         setPage={setPage}
         onAddToCart={(product, qty = 1) => addToCart(product, qty)}
         isLoading={isLoadingProducts}
@@ -463,21 +507,49 @@ export default function App() {
     );
   }
 
+  if (page === "productDetail" && !selectedProduct) {
+    // 딥링크 진입 등으로 상품 조회가 진행 중이면 로딩 인디케이터 표시
+    if (isProductLoading) {
+      return (
+        <div
+          data-testid="loading-spinner"
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            minHeight: "100vh",
+            gap: "16px",
+          }}
+        >
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <div
+            style={{
+              width: "48px",
+              height: "48px",
+              border: "4px solid #e5e7eb",
+              borderTopColor: "#1a1a1a",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+            }}
+          />
+          <p style={{ color: "#6b7280", fontSize: "14px", margin: 0 }}>상품을 불러오는 중...</p>
+        </div>
+      );
+    }
+
+    // 상품 조회 실패(404/500 등) 시 홈으로 리다이렉트
+    setPage("home");
+    return null;
+  }
+
   if (page === "productDetail" && selectedProduct) {
     return (
       <ProductDetailPage
         product={selectedProduct}
-        cartCount={cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0)}
+        cartCount={cartCount}
         onBack={() => setPage("home")}
-        onGoCart={() => {
-          if (!isLoggedIn()) {
-            if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-              setPage('login');
-            }
-            return;
-          }
-          setPage('cart');
-        }}
+        onGoCart={() => goWithLoginCheck('cart')}
         onAddToCart={(qty) => {
           addToCart(selectedProduct, qty);
         }}
@@ -491,28 +563,77 @@ export default function App() {
     return (
       <CartPage
         cartItems={cart}
-        onIncrease={(id) => {
-          const item = cart.find((x) => x.id === id);
-          if (item) addToCart(item, 1, false);
+        onIncrease={(productId) => {
+          const item = cart.find((x) => Number(x.productId) === Number(productId));
+          if (item) updateCartQuantity(productId, (Number(item.quantity) || 1) + 1);
         }}
-        onDecrease={(id) => {
-          setCart((prev) =>
-            prev.map((x) =>
-              x.id === id
-                ? { ...x, quantity: Math.max(1, (Number(x.quantity) || 1) - 1) }
-                : x
-            )
-          );
+        onDecrease={(productId) => {
+          const item = cart.find((x) => Number(x.productId) === Number(productId));
+          if (item) updateCartQuantity(productId, Math.max(1, (Number(item.quantity) || 1) - 1));
         }}
-        onRemove={(id) => removeFromCartById(id)}
-        onCheckout={() => order(cart)}
+        onRemove={(productId) => removeFromCart(productId)}
+        onCheckout={() => {
+          setBuyNowItem(null);
+          setPage('checkout');
+        }}
         onBack={() => setPage('home')}
       />
     );
   }
 
+  if (page === 'checkout') {
+    return (
+      <CheckoutPage
+        apiBase={API_BASE}
+        buyNowItem={buyNowItem}
+        onOrderComplete={(order) => {
+          setLastOrder(order || null);
+          setBuyNowItem(null);
+          // 장바구니 주문이면 서버가 장바구니를 비웠으므로 재조회로 동기화
+          fetchCart();
+          setPage('orderComplete');
+        }}
+        onBack={() => {
+          if (buyNowItem) {
+            setBuyNowItem(null);
+            setPage(selectedProduct ? 'productDetail' : 'home');
+          } else {
+            setPage('cart');
+          }
+        }}
+      />
+    );
+  }
+
   if (page === "orderComplete") {
-    return <OrderCompletePage onRestart={restartApp} />;
+    return (
+      <OrderCompletePage
+        order={lastOrder}
+        onGoOrders={() => setPage('orders')}
+        onRestart={restartApp}
+      />
+    );
+  }
+
+  if (page === 'orders') {
+    return (
+      <OrderHistoryPage
+        apiBase={API_BASE}
+        onBack={() => setPage('home')}
+        onGoHome={() => setPage('home')}
+      />
+    );
+  }
+
+  if (page === 'wishlist') {
+    return (
+      <WishlistPage
+        apiBase={API_BASE}
+        onBack={() => setPage('home')}
+        onView={handleView}
+        onAddToCart={(product, qty = 1) => addToCart(product, qty, false)}
+      />
+    );
   }
 
   if (page === "admin") {
@@ -526,4 +647,8 @@ export default function App() {
       />
     );
   }
+
+  // 알 수 없는 page 상태 방어: 홈으로 리다이렉트 (undefined 렌더 방지)
+  setPage('home');
+  return null;
 }

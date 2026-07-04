@@ -341,8 +341,8 @@ await expect(page).toHaveURL('/dashboard');  // 중복!
 test('로그인 후 대시보드 이동', async ({ page }) => {
   await page.goto('/login');
   
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
   // URL 변경 대기
@@ -428,7 +428,7 @@ page.locator('[data-testid="product-card"]')
 await page.locator('.btn-primary').click();
 
 // ✅ 사용: ID가 있을 때
-await page.locator('#username').fill('test');
+await page.locator('#login-username').fill('test');
 
 // ✅ 사용: data-testid 사용
 await page.locator('[data-testid="submit-button"]').click();
@@ -687,15 +687,15 @@ await expect(page.locator('h1')).toHaveText(/환영|Welcome/);
 **input 값 확인**
 
 \`\`\`typescript
-await expect(page.locator('#username')).toHaveValue('test');
+await expect(page.locator('#login-username')).toHaveValue('test');
 \`\`\`
 
 #### 언제 써야 하나?
 
 \`\`\`typescript
 // ✅ 사용: input 값 확인
-await page.fill('#username', 'test');
-await expect(page.locator('#username')).toHaveValue('test');
+await page.fill('#login-username', 'test');
+await expect(page.locator('#login-username')).toHaveValue('test');
 
 // ✅ 사용: 자동 완성 확인
 await page.click('.autofill-suggestion');
@@ -718,12 +718,12 @@ await expect(page.locator('button')).toBeDisabled();
 
 \`\`\`typescript
 // ✅ 사용: 조건부 버튼 활성화
-await expect(page.locator('#submit')).toBeDisabled();
+await expect(page.locator('#login-submit')).toBeDisabled();
 
-await page.fill('#username', 'test');
-await page.fill('#password', 'test1234');
+await page.fill('#login-username', 'test');
+await page.fill('#login-password', '1234');
 
-await expect(page.locator('#submit')).toBeEnabled();
+await expect(page.locator('#login-submit')).toBeEnabled();
 \`\`\`
 
 ---
@@ -1867,9 +1867,9 @@ test('상품 추가 → 수정 → 삭제', async ({ page }) => {
 test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
   // 1. 로그인
   await page.goto('/');
-  await page.click('#login-button');
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   
   const [loginResponse] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
@@ -2554,8 +2554,20 @@ export default function QAGuide({ onClose }) {
                 </p>
                 <ul style={styles.list}>
                   <li>기술 스택: React (Vite), JavaScript, Vercel Serverless Functions</li>
-                  <li>DB 없음 (메모리 기반 데이터)</li>
+                  <li>데이터 저장: Postgres(Neon) 영속 — 리뷰/주문/장바구니 등 변경 사항이 DB에 유지되며, <code>POST /api/reset</code>으로 시드 상태로 초기화 가능</li>
                   <li>의도적인 오류 케이스 포함</li>
+                </ul>
+              </section>
+
+              {/* 신규 기능 소개 */}
+              <section style={styles.section}>
+                <h3 style={styles.sectionTitle}>🆕 신규 기능</h3>
+                <ul style={styles.list}>
+                  <li><strong>회원가입</strong> (/signup): 아이디 중복확인, 필드별 유효성 검증</li>
+                  <li><strong>체크아웃 + 쿠폰</strong> (/checkout): 배송 정보 입력, 쿠폰 적용, 약관 동의 후 결제</li>
+                  <li><strong>주문내역</strong> (/orders): 주문 상세 확장, 주문 취소(재고 복원)</li>
+                  <li><strong>위시리스트</strong> (/wishlist): 카드 하트 토글, 장바구니 담기</li>
+                  <li><strong>리뷰 작성</strong> (상품 상세 리뷰 탭): 별점 입력, 정렬, 더보기</li>
                 </ul>
               </section>
 
@@ -2569,11 +2581,15 @@ export default function QAGuide({ onClose }) {
                   <ul style={styles.list}>
                     <li><code>id</code> 속성 (예: id="home-search", id="login-submit")</li>
                     <li><code>className</code> (예: className="search-input", "login-button")</li>
+                    <li><code>data-testid</code> (자동화 전용 식별자)</li>
                     <li><code>aria-label</code> (접근성 + 자동화)</li>
                     <li><code>role</code> (의미론적 역할)</li>
                   </ul>
                   <p style={styles.note}>
-                    ⚠️ data-testid는 사용하지 않습니다 (실제 사용자 경험과 가까운 셀렉터 연습)
+                    ✅ 주요 UI 요소에는 <code>data-testid</code>가 부여되어 있어 <code>page.getByTestId()</code>로 안정적으로 접근할 수 있습니다.
+                    예: <code>login-submit-button</code>(로그인 버튼), <code>{"view-detail-btn-{id}"}</code>(상품 상세 버튼),
+                    {" "}<code>{"add-to-cart-btn-{id}"}</code>(장바구니 담기 버튼), <code>{"cart-item-{id}"}</code>(장바구니 행),
+                    {" "}<code>loading-spinner</code>(로딩 인디케이터)
                   </p>
                 </div>
 
@@ -3041,9 +3057,9 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   await expect(page.locator('.product-card').first()).toBeVisible();
   
   // 2. 로그인
-  await page.click('#login-button');
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   
   const [loginResponse] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/login')),
@@ -3148,9 +3164,9 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                   <pre style={styles.code}>{`test('리뷰 CRUD 흐름', async ({ page }) => {
   // 로그인
   await page.goto('/');
-  await page.click('#login-button');
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
   // 상품 상세 진입
@@ -3229,7 +3245,7 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                     <li>
                       <strong>일반 계정으로 관리자 페이지 접근</strong>
                       <ul style={styles.list}>
-                        <li>UI: 일반 계정(test/test1234)으로 로그인</li>
+                        <li>UI: 일반 계정(test/1234)으로 로그인</li>
                         <li>UI: "관리자" 버튼 클릭</li>
                         <li>API: GET /api/admin → 403 에러 (AUTH_FORBIDDEN)</li>
                         <li>UI: alert 표시 ("관리자 권한이 필요합니다")</li>
@@ -3239,7 +3255,7 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                     <li>
                       <strong>관리자 계정으로 접근</strong>
                       <ul style={styles.list}>
-                        <li>UI: 관리자 계정(admin/admin1234)으로 로그인</li>
+                        <li>UI: 관리자 계정(admin/1234)으로 로그인</li>
                         <li>UI: "관리자" 버튼 클릭</li>
                         <li>API: GET /api/admin → 200 응답</li>
                         <li>UI: 관리자 페이지 표시 (상품 목록)</li>
@@ -3272,9 +3288,9 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   expect(noAuthData.code).toBe('AUTH_NO_TOKEN');
   
   // 2. 일반 계정
-  await page.click('#login-button');
-  await page.fill('#username', 'test');
-  await page.fill('#password', 'test1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'test');
+  await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
   page.on('dialog', dialog => {
@@ -3293,9 +3309,9 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   
   // 3. 관리자 계정
   await page.click('button:has-text("로그아웃")');
-  await page.click('#login-button');
-  await page.fill('#username', 'admin');
-  await page.fill('#password', 'admin1234');
+  await page.click('#home-login');
+  await page.fill('#login-username', 'admin');
+  await page.fill('#login-password', '1234');
   await page.click('#login-submit');
   
   const [adminResponse] = await Promise.all([
@@ -3357,6 +3373,27 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                     <tr><td style={styles.td}>/api/inventory</td><td style={styles.td}>GET</td><td style={styles.td}>❌</td><td style={styles.td}>재고 조회</td></tr>
                     <tr><td style={styles.td}>/api/inventory</td><td style={styles.td}>HEAD</td><td style={styles.td}>❌</td><td style={styles.td}>재고 존재 확인 (헤더만)</td></tr>
                     <tr><td style={styles.td}>/api/status-codes</td><td style={styles.td}>GET</td><td style={styles.td}>❌</td><td style={styles.td}>상태 코드 연습</td></tr>
+                  </tbody>
+                </table>
+
+                <h4 style={{ ...styles.subsectionTitle, marginTop: '24px' }}>신규 추가 API</h4>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>API</th>
+                      <th style={styles.th}>Method</th>
+                      <th style={styles.th}>인증</th>
+                      <th style={styles.th}>설명</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td style={styles.td}>/api/signup</td><td style={styles.td}>POST</td><td style={styles.td}>❌</td><td style={styles.td}>회원가입 (201 / 400 / 409 USERNAME_TAKEN)</td></tr>
+                    <tr><td style={styles.td}>/api/signup?username=x</td><td style={styles.td}>GET</td><td style={styles.td}>❌</td><td style={styles.td}>아이디 중복 확인</td></tr>
+                    <tr><td style={styles.td}>/api/coupons</td><td style={styles.td}>POST</td><td style={styles.td}>❌</td><td style={styles.td}>쿠폰 유효성 검증 + 할인액 계산</td></tr>
+                    <tr><td style={styles.td}>/api/orders</td><td style={styles.td}>GET</td><td style={styles.td}>✅</td><td style={styles.td}>본인 주문 목록 (관리자는 전체)</td></tr>
+                    <tr><td style={styles.td}>/api/orders/:id</td><td style={styles.td}>GET</td><td style={styles.td}>✅</td><td style={styles.td}>주문 상세 (타인 주문은 404)</td></tr>
+                    <tr><td style={styles.td}>/api/orders/:id</td><td style={styles.td}>PATCH</td><td style={styles.td}>✅</td><td style={styles.td}>주문 취소 (재취소 시 409 ALREADY_CANCELED)</td></tr>
+                    <tr><td style={styles.td}>/api/reset</td><td style={styles.td}>POST</td><td style={styles.td}>❌</td><td style={styles.td}>모든 데이터를 시드 상태로 초기화</td></tr>
                   </tbody>
                 </table>
               </section>

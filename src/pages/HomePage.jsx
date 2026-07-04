@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import QAGuide from "./QAGuide.jsx";
 
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+
 // ============================================
 // 로딩 스피너 컴포넌트
 // ============================================
@@ -40,17 +42,91 @@ export default function HomePage({
   onLogout,
   onLogin,
   onGoAdmin,
+  onGoWishlist = () => {},
+  onGoOrders = () => {},
+  onGoSignup = () => {},
   isLoading = false,
   isLoggedIn = false,
-  userRole = "",
 }) {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [activeCategory, setActiveCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("default");
   const [showQAGuide, setShowQAGuide] = useState(false);
+  const [wishlistIds, setWishlistIds] = useState(() => new Set());
 
   const categories = ["전체", "전자기기", "액세서리", "생활"];
+
+  // 로그인 상태면 위시리스트 1회 조회하여 하트 상태 초기화
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (!isLoggedIn || !token) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/user-actions?type=wishlist`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!cancelled && res.ok) {
+          setWishlistIds(new Set((data.items || []).map((it) => Number(it.productId))));
+        }
+      } catch (err) {
+        console.error('Wishlist load error:', err);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoggedIn]);
+
+  // 위시리스트 토글 (하트 클릭)
+  const handleWishlistToggle = async (product) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+        onLogin?.();
+      }
+      return;
+    }
+
+    const pid = Number(product.id);
+    const isWished = wishlistIds.has(pid);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: isWished ? 'wishlist_remove' : 'wishlist_add',
+          productId: pid,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      const alreadyAdded = !isWished && res.status === 409; // ALREADY_IN_WISHLIST
+      const alreadyRemoved = isWished && res.status === 404; // NOT_IN_WISHLIST
+
+      if (res.ok || alreadyAdded || alreadyRemoved) {
+        setWishlistIds((prev) => {
+          const next = new Set(prev);
+          if (isWished) next.delete(pid);
+          else next.add(pid);
+          return next;
+        });
+      } else {
+        alert(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
+      }
+    } catch (err) {
+      console.error('Wishlist toggle error:', err);
+      alert('위시리스트 처리 중 오류가 발생했습니다.');
+    }
+  };
 
   // 스크롤 위치 저장 (페이지 떠날 때)
   useEffect(() => {
@@ -108,8 +184,6 @@ export default function HomePage({
   const handleSearchChange = (e) => {
     setSearchKeyword(e.target.value);
   };
-
-  const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
   // 검색 버튼 클릭 또는 엔터키 시 appliedKeyword 업데이트
   const handleSearchSubmit = async (e) => {
@@ -337,6 +411,36 @@ export default function HomePage({
                 )}
               </button>
 
+              {/* 위시리스트 / 주문내역 버튼 - 로그인 시에만 표시 */}
+              {isLoggedIn && (
+                <>
+                  <button
+                    type="button"
+                    id="home-wishlist-btn"
+                    name="wishlistButton"
+                    className="btn btn-ghost wishlist-nav-button"
+                    aria-label="위시리스트로 이동"
+                    onClick={onGoWishlist}
+                    style={styles.logoutBtn}
+                    data-testid="wishlist-button"
+                  >
+                    위시리스트
+                  </button>
+                  <button
+                    type="button"
+                    id="home-orders-btn"
+                    name="ordersButton"
+                    className="btn btn-ghost orders-nav-button"
+                    aria-label="주문내역으로 이동"
+                    onClick={onGoOrders}
+                    style={styles.logoutBtn}
+                    data-testid="orders-button"
+                  >
+                    주문내역
+                  </button>
+                </>
+              )}
+
               {/* 관리자 버튼 - 항상 표시, 클릭 시 권한 체크에서 오류 발생 */}
               <button
                 type="button"
@@ -366,18 +470,32 @@ export default function HomePage({
                   로그아웃
                 </button>
               ) : (
-                <button
-                  type="button"
-                  id="home-login"
-                  name="loginButton"
-                  className="btn btn-ghost login-button"
-                  aria-label="로그인"
-                  onClick={onLogin}
-                  style={styles.loginBtn}
-                  data-testid="login-button"
-                >
-                  로그인
-                </button>
+                <>
+                  <button
+                    type="button"
+                    id="home-login"
+                    name="loginButton"
+                    className="btn btn-ghost login-button"
+                    aria-label="로그인"
+                    onClick={onLogin}
+                    style={styles.loginBtn}
+                    data-testid="login-button"
+                  >
+                    로그인
+                  </button>
+                  <button
+                    type="button"
+                    id="home-signup-btn"
+                    name="signupButton"
+                    className="btn btn-ghost signup-button"
+                    aria-label="회원가입"
+                    onClick={onGoSignup}
+                    style={styles.loginBtn}
+                    data-testid="signup-button"
+                  >
+                    회원가입
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -468,7 +586,11 @@ export default function HomePage({
             <EmptyResults searchTerm={appliedKeyword} />
           ) : (
             <div style={styles.productGrid} className="product-grid products-container" data-testid="product-grid" role="list">
-              {sortedProducts.map((product, index) => (
+              {sortedProducts.map((product, index) => {
+                const isWished = isLoggedIn && wishlistIds.has(Number(product.id));
+                const soldOut = product.stock === 0;
+
+                return (
                 <article
                   key={product.id}
                   id={`product-${product.id}`}
@@ -508,6 +630,36 @@ export default function HomePage({
                         {product.discountRate}%
                       </span>
                     )}
+                    {soldOut && (
+                      <span
+                        className="soldout-badge badge"
+                        style={styles.soldoutBadge}
+                        data-testid={`soldout-badge-${product.id}`}
+                        aria-label={`${product.name} 품절`}
+                      >
+                        품절
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      id={`wishlist-toggle-${product.id}`}
+                      name={`wishlist-${product.id}`}
+                      className={`wishlist-toggle heart-button ${isWished ? "wished" : ""}`}
+                      style={{
+                        ...styles.wishlistToggle,
+                        ...(isWished ? styles.wishlistToggleActive : {}),
+                      }}
+                      onClick={() => handleWishlistToggle(product)}
+                      aria-pressed={isWished}
+                      aria-label={
+                        isWished
+                          ? `${product.name} 위시리스트에서 제거`
+                          : `${product.name} 위시리스트에 추가`
+                      }
+                      data-testid={`wishlist-toggle-${product.id}`}
+                    >
+                      {isWished ? "♥" : "♡"}
+                    </button>
                   </div>
                   <div className="product-info product-details" style={styles.productInfo}>
                     <h3
@@ -558,9 +710,14 @@ export default function HomePage({
                         id={`product-${product.id}-add`}
                         name={`add-${product.id}`}
                         className="btn btn-primary add-btn product-add-button"
-                        aria-label="장바구니 담기"
+                        aria-label={soldOut ? `${product.name} 품절` : "장바구니 담기"}
                         onClick={() => onAdd?.(product)}
-                        style={styles.addBtn}
+                        disabled={soldOut}
+                        aria-disabled={soldOut}
+                        style={{
+                          ...styles.addBtn,
+                          ...(soldOut ? styles.addBtnDisabled : {}),
+                        }}
                         data-testid={`add-to-cart-btn-${product.id}`}
                       >
                         <span className="cart-btn-text">장바구니<br className="cart-btn-br" />담기</span>
@@ -568,7 +725,8 @@ export default function HomePage({
                     </div>
                   </div>
                 </article>
-              ))}
+                );
+              })}
             </div>
           )}
         </main>
@@ -865,6 +1023,44 @@ const styles = {
     padding: "4px 8px",
     borderRadius: "6px",
   },
+  soldoutBadge: {
+    position: "absolute",
+    top: "50%",
+    left: "50%",
+    transform: "translate(-50%, -50%)",
+    backgroundColor: "rgba(17, 24, 39, 0.75)",
+    color: "#ffffff",
+    fontSize: "14px",
+    fontWeight: "700",
+    padding: "6px 14px",
+    borderRadius: "6px",
+    zIndex: 2,
+    pointerEvents: "none",
+  },
+  wishlistToggle: {
+    position: "absolute",
+    top: "12px",
+    right: "12px",
+    zIndex: 3,
+    width: "36px",
+    height: "36px",
+    padding: 0,
+    borderRadius: "50%",
+    border: "1px solid #e5e7eb",
+    backgroundColor: "rgba(255, 255, 255, 0.92)",
+    color: "#6b7280",
+    fontSize: "18px",
+    lineHeight: 1,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "color 0.2s, transform 0.2s, border-color 0.2s",
+  },
+  wishlistToggleActive: {
+    color: "#dc2626",
+    borderColor: "#fecaca",
+  },
   productInfo: {
     padding: "16px",
     display: "flex",
@@ -927,6 +1123,11 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     transition: "background-color 0.2s",
+  },
+  addBtnDisabled: {
+    backgroundColor: "#d1d5db",
+    color: "#6b7280",
+    cursor: "not-allowed",
   },
   footer: {
     backgroundColor: "#1f2937",
