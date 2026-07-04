@@ -72,7 +72,7 @@ export default async function loginRoutes(req, res) {
 
     return res.status(200).json({
       token,
-      user: { username: user.username, role: user.role },
+      user: { username: user.username, role: user.role, avatarUrl: user.avatarUrl ?? null },
     });
   } catch (error) {
     console.error("Login API error:", error);

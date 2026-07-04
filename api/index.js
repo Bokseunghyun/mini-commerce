@@ -18,6 +18,9 @@ import reviewsHandler from './reviews.js';
 import inventoryHandler from './inventory.js';
 import userActionsHandler from './user-actions.js';
 import couponsHandler from './coupons.js';
+import paymentHandler from './payment.js';
+import uploadHandler from './upload.js';
+import trackingHandler from './tracking.js';
 import ordersHandler from './orders.js';
 import orderDetailHandler from './orders/[id].js';
 import adminHandler from './admin.js';
@@ -75,6 +78,12 @@ export default async function handler(req, res) {
       return userActionsHandler(req, res);
     case 'coupons':
       return couponsHandler(req, res);
+    case 'payment':
+      return paymentHandler(req, res);
+    case 'upload':
+      return uploadHandler(req, res);
+    case 'tracking':
+      return trackingHandler(req, res);
     case 'orders':
       return ordersHandler(req, res);
     case 'admin':

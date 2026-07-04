@@ -24,8 +24,13 @@ import {
   removeWish,
   createOrder,
   getCoupon,
+  getPayment,
+  markPaymentUsed,
+  findUser,
+  setAvatar,
 } from './_lib/store.js';
 import { computeCoupon } from './_lib/coupon-utils.js';
+import { validateImageDataUrl } from './_lib/upload-utils.js';
 
 // 의도적 테스트 시나리오: 3, 4번 상품은 주문 차단 (422 네거티브 픽스처)
 const BLOCKED_ORDER_IDS = new Set([3, 4]);
@@ -37,6 +42,7 @@ const AVAILABLE_ACTIONS = [
   'wishlist_add',
   'wishlist_remove',
   'order',
+  'set_avatar',
 ];
 
 // ======================
@@ -303,6 +309,49 @@ async function handleOrder(req, res, user) {
   }
   const finalPrice = totalPrice - discount;
 
+  // 결제 연동 (선택) — paymentKey 가 오면 검증 후 주문에 연결한다.
+  //   결제 승인(status=DONE) & 금액 일치 & 미사용(order_id 없음) 이어야 한다.
+  //   paymentKey 를 생략하면 기존 동작 유지 — 결제 없이도 주문 성공(하위 호환).
+  //   프론트가 결제를 필수로 강제하려면 항상 paymentKey 를 보내면 된다.
+  let paymentInfo = null;
+  const rawPaymentKey = body.paymentKey;
+  if (rawPaymentKey !== undefined && rawPaymentKey !== null && String(rawPaymentKey).trim() !== '') {
+    const paymentKey = String(rawPaymentKey).trim();
+    const payment = await getPayment(paymentKey);
+
+    if (!payment) {
+      return res.status(402).json({
+        message: '결제 정보를 찾을 수 없습니다',
+        code: 'PAYMENT_REQUIRED',
+      });
+    }
+    if (payment.status !== 'DONE') {
+      return res.status(402).json({
+        message: '승인되지 않은 결제입니다',
+        code: 'PAYMENT_INVALID',
+      });
+    }
+    if (payment.amount !== finalPrice) {
+      return res.status(402).json({
+        message: `결제 금액이 주문 금액과 일치하지 않습니다 (결제: ${payment.amount}, 주문: ${finalPrice})`,
+        code: 'PAYMENT_INVALID',
+      });
+    }
+    if (payment.orderId) {
+      // 이미 다른 주문에 사용된 결제 (중복 사용 방지)
+      return res.status(402).json({
+        message: '이미 사용된 결제입니다',
+        code: 'PAYMENT_INVALID',
+      });
+    }
+
+    paymentInfo = {
+      paymentKey: payment.id,
+      paymentMethod: payment.method,
+      cardLast4: payment.cardLast4,
+    };
+  }
+
   // 배송지 정보 (선택) — 허용 필드만 저장
   let shipping = {};
   if (body.shipping !== undefined && body.shipping !== null) {
@@ -331,7 +380,15 @@ async function handleOrder(req, res, user) {
       totalPrice,
       finalPrice,
       shipping,
+      paymentKey: paymentInfo?.paymentKey ?? null,
+      paymentMethod: paymentInfo?.paymentMethod ?? null,
+      cardLast4: paymentInfo?.cardLast4 ?? null,
     });
+
+    // 결제를 주문에 연결 (중복 사용 방지용 order_id 세팅)
+    if (paymentInfo) {
+      await markPaymentUsed(paymentInfo.paymentKey, order.id);
+    }
 
     return res.status(201).json({
       message: '주문 완료',
@@ -341,6 +398,9 @@ async function handleOrder(req, res, user) {
         discount: order.discount,
         finalPrice: order.finalPrice,
         status: order.status,
+        paymentKey: order.paymentKey,
+        paymentMethod: order.paymentMethod,
+        cardLast4: order.cardLast4,
       },
       items,
     });
@@ -369,6 +429,38 @@ async function handleOrder(req, res, user) {
 }
 
 // ======================
+// 프로필 (아바타)
+// ======================
+
+// set_avatar: 프로필 이미지(data URL) 설정 — upload/set_avatar 동일 검증 로직 공유
+async function handleSetAvatar(req, res, user) {
+  const { image } = req.body || {};
+
+  // 이미지 data URL 형식/용량 검증 (upload-utils 공유)
+  const result = validateImageDataUrl(image);
+  if (!result.ok) {
+    return res.status(result.status).json({
+      message: result.message,
+      code: result.code,
+    });
+  }
+
+  const updated = await setAvatar(user.username, image);
+  // 토큰은 유효하나 사용자 레코드가 없는 경우 (예: 리셋 이후) — 404
+  if (!updated) {
+    return res.status(404).json({
+      message: '사용자를 찾을 수 없습니다',
+      code: 'USER_NOT_FOUND',
+    });
+  }
+
+  return res.status(200).json({
+    message: '프로필 이미지가 변경되었습니다',
+    avatarUrl: updated.avatarUrl,
+  });
+}
+
+// ======================
 // 조회 (GET)
 // ======================
 
@@ -393,6 +485,25 @@ async function handleGet(req, res, user) {
       count: items.length,
       items,
       totalPrice: cartTotal(items),
+    });
+  }
+
+  // 프로필 조회 — 프론트가 아바타 URL 을 읽는 경로
+  if (type === 'profile') {
+    const found = await findUser(user.username);
+    if (!found) {
+      return res.status(404).json({
+        message: '사용자를 찾을 수 없습니다',
+        code: 'USER_NOT_FOUND',
+      });
+    }
+    return res.status(200).json({
+      profile: {
+        username: found.username,
+        role: found.role,
+        email: found.email ?? null,
+        avatarUrl: found.avatarUrl ?? null,
+      },
     });
   }
 
@@ -448,6 +559,8 @@ export default async function userActionsHandler(req, res) {
           return await handleWishlistRemove(req, res, user);
         case 'order':
           return await handleOrder(req, res, user);
+        case 'set_avatar':
+          return await handleSetAvatar(req, res, user);
         default:
           return res.status(400).json({
             message: `지원하지 않는 action: ${action}`,

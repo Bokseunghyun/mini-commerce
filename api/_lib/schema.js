@@ -98,4 +98,45 @@ CREATE TABLE IF NOT EXISTS coupons (
 );
 `;
 
+/**
+ * 신규 기능용 스키마 증분(ADD) — 기존 prod 데이터 비파괴.
+ *
+ * 모두 ADD COLUMN IF NOT EXISTS / CREATE TABLE IF NOT EXISTS 라
+ * 이미 마이그레이션된 DB에서 여러 번 실행해도 안전하다.
+ * ensureSchema()가 SCHEMA_SQL(기본 DDL) 실행 후 이 문장들을 실행한다.
+ *
+ * 주문 상태 라이프사이클(코드에서 강제, 스키마 제약 아님):
+ *   PAID -> PREPARING -> SHIPPING -> DELIVERED
+ *   (CANCELED 는 PAID / PREPARING 에서만 가능)
+ *   - SHIPPING 진입 시 order id 해시 기반 결정론적 tracking_number 부여
+ *   - DELIVERED / CANCELED 는 종료 상태 (advanceOrderStatus 시 INVALID_TRANSITION)
+ */
+export const SCHEMA_MIGRATIONS_SQL = `
+-- 사용자 아바타 이미지 URL
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
+-- 리뷰 첨부 이미지 (문자열 URL 배열)
+ALTER TABLE reviews ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';
+
+-- 주문: 배송 추적 / 결제 정보
+-- status 는 기존 orders DDL 에 TEXT DEFAULT 'PAID' 로 이미 존재하므로 건드리지 않는다.
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_number TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_key TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS card_last4 TEXT;
+
+-- 결제
+CREATE TABLE IF NOT EXISTS payments (
+  id TEXT PRIMARY KEY,
+  order_id TEXT,
+  username TEXT,
+  method TEXT NOT NULL,
+  card_last4 TEXT,
+  amount INT NOT NULL,
+  status TEXT NOT NULL,
+  fault TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+`;
+
 export default SCHEMA_SQL;

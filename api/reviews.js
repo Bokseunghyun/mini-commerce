@@ -29,6 +29,7 @@ import {
   updateReview,
   deleteReview,
 } from './_lib/store.js';
+import { validateReviewImages } from './_lib/upload-utils.js';
 
 // 외부 정렬 파라미터 -> DAL 정렬 키 (화이트리스트 매핑)
 const SORT_MAP = {
@@ -124,7 +125,7 @@ async function handleGet(req, res) {
 
 // POST - 리뷰 작성
 async function handlePost(req, res, user) {
-  const { productId, rating, comment } = req.body || {};
+  const { productId, rating, comment, images } = req.body || {};
 
   // 필수 필드 검증
   if (!productId) {
@@ -189,6 +190,15 @@ async function handlePost(req, res, user) {
     });
   }
 
+  // 이미지 검증 (선택, 최대 3개, data URL 이미지 또는 http(s) URL)
+  const imgResult = validateReviewImages(images);
+  if (!imgResult.ok) {
+    return res.status(imgResult.status).json({
+      message: imgResult.message,
+      code: imgResult.code,
+    });
+  }
+
   // 리뷰 생성 — 중복 작성은 DB UNIQUE(product_id, username) 위반(23505)으로 감지
   let newReview;
   try {
@@ -197,6 +207,7 @@ async function handlePost(req, res, user) {
       username: user.username,
       rating: r,
       comment: comment.trim(),
+      images: imgResult.images,
     });
   } catch (error) {
     if (error && error.code === '23505') {
@@ -216,7 +227,7 @@ async function handlePost(req, res, user) {
 
 // PATCH - 리뷰 수정
 async function handlePatch(req, res, user) {
-  const { id, rating, comment } = req.body || {};
+  const { id, rating, comment, images } = req.body || {};
 
   // ID 검증
   if (!id) {
@@ -297,6 +308,18 @@ async function handlePatch(req, res, user) {
     }
 
     patch.comment = comment.trim();
+  }
+
+  // 이미지 검증 (제공된 경우, 최대 3개)
+  if (images !== undefined) {
+    const imgResult = validateReviewImages(images);
+    if (!imgResult.ok) {
+      return res.status(imgResult.status).json({
+        message: imgResult.message,
+        code: imgResult.code,
+      });
+    }
+    patch.images = imgResult.images;
   }
 
   const updated = await updateReview(reviewId, patch);

@@ -9,7 +9,7 @@
  */
 
 import { query, getClient } from './db.js';
-import { SCHEMA_SQL } from './schema.js';
+import { SCHEMA_SQL, SCHEMA_MIGRATIONS_SQL } from './schema.js';
 import {
   SEED_PRODUCTS,
   SEED_USERS,
@@ -56,6 +56,7 @@ function mapUser(row) {
     email: row.email,
     role: row.role,
     status: row.status,
+    avatarUrl: row.avatar_url ?? null,
     createdAt: toIso(row.created_at),
   };
 }
@@ -68,6 +69,7 @@ function mapReview(row) {
     username: row.username,
     rating: row.rating,
     comment: row.comment,
+    images: row.images ?? [],
     createdAt: toIso(row.created_at),
     // 스키마에 updated_at 컬럼이 없어 기존 API 형태 유지를 위해 createdAt을 그대로 노출
     updatedAt: toIso(row.created_at),
@@ -111,6 +113,10 @@ function mapOrder(row) {
     finalPrice: row.final_price,
     couponCode: row.coupon_code,
     shipping: row.shipping ?? {},
+    trackingNumber: row.tracking_number ?? null,
+    paymentKey: row.payment_key ?? null,
+    paymentMethod: row.payment_method ?? null,
+    cardLast4: row.card_last4 ?? null,
     createdAt: toIso(row.created_at),
     ...(row.items !== undefined ? { items: row.items } : {}),
   };
@@ -140,13 +146,31 @@ function mapCoupon(row) {
   };
 }
 
+function mapPayment(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    orderId: row.order_id ?? null,
+    username: row.username ?? null,
+    method: row.method,
+    cardLast4: row.card_last4 ?? null,
+    amount: row.amount,
+    status: row.status,
+    fault: row.fault ?? null,
+    createdAt: toIso(row.created_at),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // 스키마
 // ---------------------------------------------------------------------------
 
-// CREATE TABLE IF NOT EXISTS DDL 실행 (여러 번 호출해도 안전)
+// 기본 DDL(CREATE TABLE IF NOT EXISTS) 실행 후 증분 마이그레이션
+// (ADD COLUMN IF NOT EXISTS / 신규 테이블)까지 실행한다.
+// 모든 문장이 멱등이라 기존 DB에서 여러 번 호출해도 안전하다 (비파괴).
 export async function ensureSchema() {
   await query(SCHEMA_SQL);
+  await query(SCHEMA_MIGRATIONS_SQL);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,6 +315,15 @@ export async function createUser({ username, passwordHash, email }) {
   return mapUser(rows[0]);
 }
 
+// 아바타 이미지 URL 설정 (없는 사용자면 null 반환)
+export async function setAvatar(username, avatarUrl) {
+  const { rows } = await query(
+    `UPDATE users SET avatar_url = $1 WHERE username = $2 RETURNING *`,
+    [avatarUrl ?? null, username]
+  );
+  return mapUser(rows[0] ?? null);
+}
+
 // ---------------------------------------------------------------------------
 // 리뷰
 // ---------------------------------------------------------------------------
@@ -353,18 +386,18 @@ export async function getReview(id) {
   return mapReview(rows[0] ?? null);
 }
 
-export async function createReview({ productId, username, rating, comment }) {
+export async function createReview({ productId, username, rating, comment, images = [] }) {
   // (product_id, username) UNIQUE 제약 — 중복 작성 시 23505 throw, 호출부에서 409로 매핑
   const { rows } = await query(
-    `INSERT INTO reviews (product_id, username, rating, comment)
-     VALUES ($1, $2, $3, $4)
+    `INSERT INTO reviews (product_id, username, rating, comment, images)
+     VALUES ($1, $2, $3, $4, $5)
      RETURNING *`,
-    [productId, username, rating, comment]
+    [productId, username, rating, comment, JSON.stringify(images ?? [])]
   );
   return mapReview(rows[0]);
 }
 
-export async function updateReview(id, { rating, comment } = {}) {
+export async function updateReview(id, { rating, comment, images } = {}) {
   const sets = [];
   const params = [];
 
@@ -375,6 +408,10 @@ export async function updateReview(id, { rating, comment } = {}) {
   if (comment !== undefined) {
     params.push(comment);
     sets.push(`comment = $${params.length}`);
+  }
+  if (images !== undefined) {
+    params.push(JSON.stringify(images ?? []));
+    sets.push(`images = $${params.length}`);
   }
 
   if (sets.length === 0) {
@@ -507,7 +544,18 @@ function generateOrderId() {
  *  3) orders + order_items INSERT
  *  4) 해당 사용자 장바구니 비우기
  */
-export async function createOrder({ username, items, couponCode, discount, totalPrice, finalPrice, shipping }) {
+export async function createOrder({
+  username,
+  items,
+  couponCode,
+  discount,
+  totalPrice,
+  finalPrice,
+  shipping,
+  paymentKey,
+  paymentMethod,
+  cardLast4,
+}) {
   const client = await getClient();
   try {
     await client.query('BEGIN');
@@ -552,8 +600,10 @@ export async function createOrder({ username, items, couponCode, discount, total
 
     const orderId = generateOrderId();
     const orderResult = await client.query(
-      `INSERT INTO orders (id, username, status, total_price, discount, final_price, coupon_code, shipping)
-       VALUES ($1, $2, 'PAID', $3, $4, $5, $6, $7)
+      `INSERT INTO orders
+         (id, username, status, total_price, discount, final_price, coupon_code, shipping,
+          payment_key, payment_method, card_last4)
+       VALUES ($1, $2, 'PAID', $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING *`,
       [
         orderId,
@@ -563,6 +613,9 @@ export async function createOrder({ username, items, couponCode, discount, total
         finalPrice,
         couponCode ?? null,
         JSON.stringify(shipping ?? {}),
+        paymentKey ?? null,
+        paymentMethod ?? null,
+        cardLast4 ?? null,
       ]
     );
 
@@ -639,6 +692,17 @@ export async function getOrder(orderId) {
   };
 }
 
+// 송장번호로 주문 조회 (없으면 null) — 배송 추적(택배 API 모의)에서 사용
+export async function getOrderByTrackingNumber(trackingNumber) {
+  const tn = String(trackingNumber ?? '').trim();
+  if (tn === '') return null;
+  const { rows } = await query(
+    'SELECT * FROM orders WHERE tracking_number = $1',
+    [tn]
+  );
+  return mapOrder(rows[0] ?? null);
+}
+
 /**
  * 주문 취소 — 단일 트랜잭션:
  *  - 본인 주문만 취소 가능 (관리자는 전체) — 아니면 null 반환
@@ -703,6 +767,229 @@ export async function cancelOrder(orderId, username, { isAdmin = false } = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// 주문 상태 라이프사이클 (코드에서 강제)
+//   PAID -> PREPARING -> SHIPPING -> DELIVERED
+//   CANCELED 는 cancelOrder()에서 PAID/PREPARING 대상으로 처리
+// ---------------------------------------------------------------------------
+
+// 배송 흐름의 순방향 전이 (advanceOrderStatus 전용)
+const ORDER_STATUS_NEXT = {
+  PAID: 'PREPARING',
+  PREPARING: 'SHIPPING',
+  SHIPPING: 'DELIVERED',
+};
+
+// setOrderStatus(관리자 명시 지정)에서 허용하는 상태 집합
+const ORDER_STATUS_SET = ['PAID', 'PREPARING', 'SHIPPING', 'DELIVERED', 'CANCELED'];
+
+// 배송 타임라인 단계 정의 (라벨/위치는 결정론적으로 고정)
+// createdAt 기준 오프셋(시간 단위)으로 각 이벤트 시각을 파생한다.
+const TRACKING_STAGES = [
+  { status: 'PAID', label: '결제완료', location: '온라인', offsetHours: 0 },
+  { status: 'PREPARING', label: '상품준비중', location: '판매자 창고', offsetHours: 6 },
+  { status: 'SHIPPING_COLLECT', label: '집화', location: '옥천 HUB', offsetHours: 24 },
+  { status: 'SHIPPING', label: '배송중', location: '고객 지역 배송지점', offsetHours: 36 },
+  { status: 'DELIVERED', label: '배송완료', location: '고객 주소', offsetHours: 54 },
+];
+
+// 현재 status 까지 노출할 타임라인 단계 수 (집화는 SHIPPING 단계에 포함)
+const TRACKING_STAGE_COUNT = {
+  PAID: 1,
+  PREPARING: 2,
+  SHIPPING: 4, // 결제완료 + 상품준비중 + 집화 + 배송중
+  DELIVERED: 5,
+};
+
+// order id 를 10자리 숫자로 결정론적 해싱 (랜덤 아님) -> 'MC' + 10자리 송장번호
+function trackingNumberFor(orderId) {
+  const str = String(orderId ?? '');
+  // FNV-1a 32bit 해시 (결정론적) — 같은 order id면 항상 같은 값
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    hash ^= str.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  // 두 번째 해시로 10자리를 안정적으로 채운다
+  let hash2 = 0x811c9dc5 ^ hash;
+  for (let i = 0; i < str.length; i++) {
+    hash2 ^= str.charCodeAt(str.length - 1 - i);
+    hash2 = Math.imul(hash2, 0x01000193) >>> 0;
+  }
+  const digits = `${hash}${hash2}`.replace(/\D/g, '').padStart(10, '0').slice(0, 10);
+  return `MC${digits}`;
+}
+
+/**
+ * 주문 상태를 다음 단계로 전진 — 단일 트랜잭션:
+ *   PAID -> PREPARING -> SHIPPING -> DELIVERED
+ *  - SHIPPING 진입 시 결정론적 tracking_number 부여 (order id 해시 기반, 랜덤 아님)
+ *  - 이미 DELIVERED/CANCELED 면 err.code='INVALID_TRANSITION' throw
+ *  - 본인 주문만 (isAdmin 이면 전체). 없거나 본인 주문 아니면 null 반환
+ */
+export async function advanceOrderStatus(orderId, username, { isAdmin = false } = {}) {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
+      [orderId]
+    );
+    const order = rows[0];
+
+    // 없거나 본인 주문이 아니면 null (관리자는 예외)
+    if (!order || (!isAdmin && order.username !== username)) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    const next = ORDER_STATUS_NEXT[order.status];
+    if (!next) {
+      // DELIVERED / CANCELED 등 종료 상태에서 전진 시도
+      const err = new Error('더 이상 진행할 수 없는 주문 상태입니다');
+      err.code = 'INVALID_TRANSITION';
+      err.currentStatus = order.status;
+      throw err;
+    }
+
+    // SHIPPING 진입 시 송장번호 부여 (이미 있으면 유지 — 결정론적이라 동일값)
+    let trackingNumber = order.tracking_number;
+    if (next === 'SHIPPING' && !trackingNumber) {
+      trackingNumber = trackingNumberFor(order.id);
+    }
+
+    const updated = await client.query(
+      `UPDATE orders SET status = $1, tracking_number = $2 WHERE id = $3 RETURNING *`,
+      [next, trackingNumber ?? null, orderId]
+    );
+
+    await client.query('COMMIT');
+    return mapOrder(updated.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 관리자 명시적 상태 지정 — 단일 트랜잭션:
+ *  - status 는 허용 집합(ORDER_STATUS_SET) 이어야 한다 (아니면 err.code='INVALID_STATUS')
+ *  - 없거나 본인 주문 아니면(비관리자) null
+ *  - SHIPPING/DELIVERED 로 지정 시 송장번호가 없으면 결정론적으로 부여
+ *  - 재고 원복 로직은 없음(취소는 cancelOrder 사용) — 상태값만 갱신
+ */
+export async function setOrderStatus(orderId, status, { isAdmin = false, username } = {}) {
+  if (!ORDER_STATUS_SET.includes(status)) {
+    const err = new Error('허용되지 않은 주문 상태입니다');
+    err.code = 'INVALID_STATUS';
+    throw err;
+  }
+
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
+      [orderId]
+    );
+    const order = rows[0];
+
+    if (!order || (!isAdmin && order.username !== username)) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+
+    // SHIPPING/DELIVERED 로 갈 때 송장번호 없으면 결정론적 부여 (기존 값 유지)
+    let trackingNumber = order.tracking_number;
+    if ((status === 'SHIPPING' || status === 'DELIVERED') && !trackingNumber) {
+      trackingNumber = trackingNumberFor(order.id);
+    }
+
+    const updated = await client.query(
+      `UPDATE orders SET status = $1, tracking_number = $2 WHERE id = $3 RETURNING *`,
+      [status, trackingNumber ?? null, orderId]
+    );
+
+    await client.query('COMMIT');
+    return mapOrder(updated.rows[0]);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 주문의 배송 추적 이벤트 타임라인을 결정론적으로 파생한다.
+ *  - order.status 와 order.createdAt 만으로 계산 (별도 저장 없음, 랜덤 없음)
+ *  - 현재 상태까지의 이벤트만 포함 (결제완료 -> 상품준비중 -> 집화 -> 배송중 -> 배송완료)
+ *  - 각 이벤트 시각은 createdAt 에서 고정 오프셋(시간)을 더한 값
+ *  - CANCELED 는 결제완료 시점 이후 취소된 것으로 보고 결제완료 1건만 반환
+ * 반환: [{ status, label, at, location }]
+ */
+export function getTrackingEvents(order) {
+  if (!order) return [];
+  const createdAt = order.createdAt ?? order.created_at;
+  const base = createdAt ? new Date(createdAt) : new Date(0);
+  const status = order.status;
+
+  // 취소 주문은 결제완료 단계까지만 노출 (배송 타임라인 없음)
+  const stageCount =
+    status === 'CANCELED' ? 1 : (TRACKING_STAGE_COUNT[status] ?? 0);
+
+  return TRACKING_STAGES.slice(0, stageCount).map((stage) => ({
+    // 집화 단계는 내부 구분값(SHIPPING_COLLECT)을 외부에는 SHIPPING 으로 노출
+    status: stage.status === 'SHIPPING_COLLECT' ? 'SHIPPING' : stage.status,
+    label: stage.label,
+    at: new Date(base.getTime() + stage.offsetHours * 3600 * 1000).toISOString(),
+    location: stage.location,
+  }));
+}
+
+// ---------------------------------------------------------------------------
+// 결제
+// ---------------------------------------------------------------------------
+
+// 결제 레코드 생성 (id 는 호출부에서 결제키로 전달). 중복 id 는 PK 위반(23505) throw.
+export async function createPayment({ id, orderId, username, method, cardLast4, amount, status, fault }) {
+  const { rows } = await query(
+    `INSERT INTO payments (id, order_id, username, method, card_last4, amount, status, fault)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+     RETURNING *`,
+    [
+      id,
+      orderId ?? null,
+      username ?? null,
+      method,
+      cardLast4 ?? null,
+      amount,
+      status,
+      fault ?? null,
+    ]
+  );
+  return mapPayment(rows[0]);
+}
+
+// 결제키로 결제 조회 (없으면 null)
+export async function getPayment(paymentKey) {
+  const { rows } = await query('SELECT * FROM payments WHERE id = $1', [paymentKey]);
+  return mapPayment(rows[0] ?? null);
+}
+
+// 결제를 주문에 연결 (order_id 갱신). 없는 결제면 null 반환.
+export async function markPaymentUsed(paymentKey, orderId) {
+  const { rows } = await query(
+    `UPDATE payments SET order_id = $1 WHERE id = $2 RETURNING *`,
+    [orderId ?? null, paymentKey]
+  );
+  return mapPayment(rows[0] ?? null);
+}
+
+// ---------------------------------------------------------------------------
 // 쿠폰
 // ---------------------------------------------------------------------------
 
@@ -736,7 +1023,7 @@ export async function resetAll() {
     await client.query('BEGIN');
 
     await client.query(
-      `TRUNCATE products, users, reviews, wishlists, carts, orders, order_items, coupons
+      `TRUNCATE products, users, reviews, wishlists, carts, orders, order_items, coupons, payments
        RESTART IDENTITY CASCADE`
     );
 
@@ -770,21 +1057,21 @@ export async function resetAll() {
       `SELECT setval(pg_get_serial_sequence('products', 'id'), (SELECT MAX(id) FROM products))`
     );
 
-    // 사용자 (비밀번호는 시드 시점에 scrypt 해시)
+    // 사용자 (비밀번호는 시드 시점에 scrypt 해시, avatar_url 은 시드 기본 null)
     for (const u of SEED_USERS) {
       await client.query(
-        `INSERT INTO users (username, password_hash, email, role, status)
-         VALUES ($1, $2, $3, $4, $5)`,
-        [u.username, hashPassword(u.password), u.email, u.role, u.status]
+        `INSERT INTO users (username, password_hash, email, role, status, avatar_url)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [u.username, hashPassword(u.password), u.email, u.role, u.status, u.avatarUrl ?? null]
       );
     }
 
-    // 리뷰 (id 고정 + 시드 시각 유지)
+    // 리뷰 (id 고정 + 시드 시각 유지, images 는 시드 기본 [])
     for (const r of SEED_REVIEWS) {
       await client.query(
-        `INSERT INTO reviews (id, product_id, username, rating, comment, created_at)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [r.id, r.productId, r.username, r.rating, r.comment, r.createdAt]
+        `INSERT INTO reviews (id, product_id, username, rating, comment, images, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [r.id, r.productId, r.username, r.rating, r.comment, JSON.stringify(r.images ?? []), r.createdAt]
       );
     }
     await client.query(
@@ -809,7 +1096,7 @@ export async function resetAll() {
     }
 
     await client.query('COMMIT');
-    return ['products', 'users', 'reviews', 'wishlists', 'carts', 'orders', 'coupons'];
+    return ['products', 'users', 'reviews', 'wishlists', 'carts', 'orders', 'coupons', 'payments'];
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

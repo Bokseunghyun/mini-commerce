@@ -14,6 +14,9 @@ import reviewsHandler from './api/reviews.js';
 import inventoryHandler from './api/inventory.js';
 import userActionsHandler from './api/user-actions.js';
 import couponsHandler from './api/coupons.js';
+import paymentHandler from './api/payment.js';
+import uploadHandler from './api/upload.js';
+import trackingHandler from './api/tracking.js';
 import ordersHandler from './api/orders.js';
 import orderDetailHandler from './api/orders/[id].js';
 import adminHandler from './api/admin.js';
@@ -23,12 +26,19 @@ import resetHandler from './api/reset.js';
 const PORT = process.env.PORT || 3000;
 const app = express();
 
-app.use(express.json());
+// data URL 이미지(base64)가 본문에 실려 오므로 기본 100kb 상한을 올린다.
+// 실제 이미지 용량 검증(2MB)은 각 핸들러(upload/set_avatar/reviews)에서 수행하고,
+// 그보다 큰 요청은 아래 에러 미들웨어가 JSON 413으로 응답한다.
+// (Vercel 서버리스는 본문 4.5MB 제한이라 프로덕션에서도 2MB 이미지는 핸들러에 도달한다)
+app.use(express.json({ limit: '10mb' }));
 
-// 잘못된 JSON 본문도 JSON 형태로 응답 (API 테스트 계약 일관성)
+// 잘못된 JSON 본문 / 과대 본문도 JSON 형태로 응답 (API 테스트 계약 일관성)
 app.use((err, req, res, next) => {
   if (err && err.type === 'entity.parse.failed') {
     return res.status(400).json({ message: '잘못된 JSON 본문', code: 'INVALID_JSON' });
+  }
+  if (err && (err.type === 'entity.too.large' || err.status === 413)) {
+    return res.status(413).json({ message: '파일이 너무 큽니다 (최대 2MB)', code: 'FILE_TOO_LARGE' });
   }
   next(err);
 });
@@ -63,6 +73,9 @@ app.all('/api/reviews', wrap(reviewsHandler));
 app.all('/api/inventory', wrap(inventoryHandler));
 app.all('/api/user-actions', wrap(userActionsHandler));
 app.all('/api/coupons', wrap(couponsHandler));
+app.all('/api/payment', wrap(paymentHandler));
+app.all('/api/upload', wrap(uploadHandler));
+app.all('/api/tracking', wrap(trackingHandler));
 app.all('/api/orders', wrap(ordersHandler));
 // 주문 상세/취소 — Vercel 동적 라우트([id].js)는 req.query.id 를 기대한다
 // (Express 5의 req.query는 getter 전용이라 defineProperty로 덮어쓴다)

@@ -491,14 +491,16 @@ export const SEED_PRODUCTS = [
 ];
 
 // 사용자 시드 — 비밀번호는 시드 시점에 scrypt로 해시한다 (auth-hash.js 사용)
+// avatarUrl 은 시드 시 null (아바타 업로드 기능 검증용 기본값)
 export const SEED_USERS = [
-  { username: 'test', password: '1234', email: 'test@example.com', role: 'USER', status: 'ACTIVE' },
-  { username: 'admin', password: '1234', email: 'admin@example.com', role: 'ADMIN', status: 'ACTIVE' },
+  { username: 'test', password: '1234', email: 'test@example.com', role: 'USER', status: 'ACTIVE', avatarUrl: null },
+  { username: 'admin', password: '1234', email: 'admin@example.com', role: 'ADMIN', status: 'ACTIVE', avatarUrl: null },
   // 의도적 테스트 시나리오: test2는 차단 계정 (로그인 시 403)
-  { username: 'test2', password: '1234', email: 'test2@example.com', role: 'USER', status: 'BLOCKED' },
+  { username: 'test2', password: '1234', email: 'test2@example.com', role: 'USER', status: 'BLOCKED', avatarUrl: null },
 ];
 
 // 리뷰 시드 — 기존 api/reviews.js의 INITIAL_REVIEWS를 그대로 이식
+// images 는 시드 시 빈 배열 (리뷰 이미지 첨부 기능 검증용 기본값)
 export const SEED_REVIEWS = [
   {
     id: 1,
@@ -506,6 +508,7 @@ export const SEED_REVIEWS = [
     username: 'test',
     rating: 5,
     comment: '음질이 정말 좋아요! 노이즈 캔슬링도 훌륭합니다.',
+    images: [],
     createdAt: '2024-01-15T10:30:00Z',
   },
   {
@@ -514,6 +517,7 @@ export const SEED_REVIEWS = [
     username: 'user123',
     rating: 4,
     comment: '가격 대비 만족스럽습니다.',
+    images: [],
     createdAt: '2024-01-20T14:20:00Z',
   },
   {
@@ -522,6 +526,7 @@ export const SEED_REVIEWS = [
     username: 'test',
     rating: 5,
     comment: '운동할 때 정말 유용해요!',
+    images: [],
     createdAt: '2024-01-25T09:15:00Z',
   },
 ];
