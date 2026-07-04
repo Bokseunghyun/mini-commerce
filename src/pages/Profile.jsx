@@ -38,6 +38,14 @@ const COUPON_STATUS = {
   INACTIVE: { label: "비활성", color: "#92400e", bg: "#fffbeb", border: "#fde68a" },
 };
 
+// 휴대폰: 숫자만, 최대 11자리, 010-1234-5678 형식 자동 하이픈 (초과 입력 불가)
+function formatPhone(raw) {
+  const d = String(raw).replace(/\D/g, "").slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 function couponDesc(c) {
   const amt = c.type === "percent" ? `${c.amount}%` : `${Number(c.amount).toLocaleString("ko-KR")}원`;
   const cond = [];
@@ -525,8 +533,10 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                     data-testid="profile-receiver-phone"
                     className="profile-receiver-phone"
                     value={receiverPhone}
-                    onChange={(e) => setReceiverPhone(e.target.value)}
-                    placeholder="010-0000-0000"
+                    onChange={(e) => setReceiverPhone(formatPhone(e.target.value))}
+                    maxLength={13}
+                    inputMode="numeric"
+                    placeholder="010-1234-5678"
                     style={styles.editInput}
                     aria-label="연락처"
                   />

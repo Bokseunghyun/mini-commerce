@@ -367,11 +367,12 @@ async function handleOrder(req, res, user) {
         code: 'INVALID_SHIPPING',
       });
     }
-    const { name, phone, address, memo } = body.shipping;
+    const { name, phone, address, detail, memo } = body.shipping;
     shipping = {
       ...(name !== undefined ? { name } : {}),
       ...(phone !== undefined ? { phone } : {}),
       ...(address !== undefined ? { address } : {}),
+      ...(detail !== undefined ? { detail } : {}),
       ...(memo !== undefined ? { memo } : {}),
     };
   }

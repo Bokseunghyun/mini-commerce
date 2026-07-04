@@ -45,6 +45,14 @@ function formatCardCvc(raw) {
   return String(raw).replace(/\D/g, "").slice(0, 4);
 }
 
+// 휴대폰: 숫자만, 최대 11자리, 010-1234-5678 형식으로 자동 하이픈 (초과 입력 불가)
+function formatPhone(raw) {
+  const d = String(raw).replace(/\D/g, "").slice(0, 11);
+  if (d.length < 4) return d;
+  if (d.length < 8) return `${d.slice(0, 3)}-${d.slice(3)}`;
+  return `${d.slice(0, 3)}-${d.slice(3, 7)}-${d.slice(7)}`;
+}
+
 // 이니시스 표준결제 SDK 동적 로드
 function loadInicisSdk(url) {
   return new Promise((resolve, reject) => {
@@ -159,6 +167,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   const [shipName, setShipName] = useState("");
   const [shipPhone, setShipPhone] = useState("");
   const [shipAddress, setShipAddress] = useState("");
+  const [shipDetail, setShipDetail] = useState("");
   const [shipMemo, setShipMemo] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
 
@@ -228,18 +237,23 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   }, []);
 
   // 내 보유 쿠폰(사용가능) 로드 — 드롭다운 선택용
-  useEffect(() => {
+  const fetchMyCoupons = async () => {
     const token = localStorage.getItem("token");
     if (!token) return;
-    fetch(`${API_BASE}/api/user-actions?type=coupons`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((res) => res.json().catch(() => ({})))
-      .then((data) => {
-        const list = Array.isArray(data.coupons) ? data.coupons : [];
-        setMyCoupons(list.filter((c) => c.status === "AVAILABLE"));
-      })
-      .catch(() => {});
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions?type=coupons`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      const list = Array.isArray(data.coupons) ? data.coupons : [];
+      setMyCoupons(list.filter((c) => c.status === "AVAILABLE"));
+    } catch {
+      /* 무시 */
+    }
+  };
+
+  useEffect(() => {
+    fetchMyCoupons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -263,19 +277,41 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     setIsApplyingCoupon(true);
     try {
       const token = localStorage.getItem("token");
+      const authHeaders = {
+        "Content-Type": "application/json",
+        Authorization: token ? `Bearer ${token}` : "",
+      };
+
+      // (1) 내 쿠폰함에 등록 (존재하지 않으면 404 → 중단). 이미 등록됨(409)은 정상 진행.
+      const regRes = await fetch(`${API_BASE}/api/user-actions`, {
+        method: "POST",
+        headers: authHeaders,
+        body: JSON.stringify({ action: "register_coupon", code }),
+      });
+      if (regRes.status === 404) {
+        setAppliedCoupon(null);
+        const regData = await regRes.json().catch(() => ({}));
+        setCouponMessage({ type: "error", text: regData.message || "존재하지 않는 쿠폰입니다" });
+        return;
+      }
+
+      // (2) 이 주문에 적용 (할인액 계산/검증)
       const res = await fetch(`${API_BASE}/api/coupons`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: token ? `Bearer ${token}` : "",
-        },
+        headers: authHeaders,
         body: JSON.stringify({ code, orderAmount: subtotal }),
       });
       const data = await res.json().catch(() => ({}));
 
+      // 등록은 됐으니 드롭다운/내 쿠폰 목록 갱신 (적용 실패해도 내 쿠폰함엔 들어감)
+      fetchMyCoupons();
+
       if (!res.ok) {
         setAppliedCoupon(null);
-        setCouponMessage({ type: "error", text: data.message || "쿠폰 적용에 실패했습니다" });
+        setCouponMessage({
+          type: "error",
+          text: `${data.message || "쿠폰 적용에 실패했습니다"} (내 쿠폰함에는 등록되었습니다)`,
+        });
         return;
       }
 
@@ -283,7 +319,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       setAppliedCoupon(applied);
       setCouponMessage({
         type: "success",
-        text: `쿠폰이 적용되었습니다: -${formatPrice(applied.discount)}원`,
+        text: `쿠폰이 적용되었습니다: -${formatPrice(applied.discount)}원 (내 쿠폰함에 등록됨)`,
       });
     } catch {
       setAppliedCoupon(null);
@@ -314,6 +350,17 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       errors.address = "배송지 주소를 입력하세요";
     }
     setFieldErrors(errors);
+
+    // 미입력/오류 시 첫 번째 문제 필드로 포커싱 + 스크롤
+    const order = ["name", "phone", "address"];
+    const firstBad = order.find((k) => errors[k]);
+    if (firstBad) {
+      const el = document.getElementById(`checkout-${firstBad}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus({ preventScroll: true });
+      }
+    }
     return Object.keys(errors).length === 0;
   };
 
@@ -330,6 +377,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
           name: shipName.trim(),
           phone: shipPhone.trim(),
           address: shipAddress.trim(),
+          detail: shipDetail.trim(),
           memo: shipMemo.trim(),
         },
       };
@@ -993,7 +1041,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
 
               <div className="checkout-field">
                 <label className="checkout-label" htmlFor="checkout-name">
-                  받는 분
+                  받는 분 <span className="required-mark" style={{ color: "#dc2626" }} aria-label="필수">*</span>
                 </label>
                 <input
                   type="text"
@@ -1015,16 +1063,18 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
 
               <div className="checkout-field">
                 <label className="checkout-label" htmlFor="checkout-phone">
-                  휴대폰 번호
+                  휴대폰 번호 <span className="required-mark" style={{ color: "#dc2626" }} aria-label="필수">*</span>
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
                   id="checkout-phone"
                   data-testid="checkout-phone"
                   className={`checkout-input${fieldErrors.phone ? " has-error" : ""}`}
                   placeholder="010-1234-5678"
                   value={shipPhone}
-                  onChange={(e) => setShipPhone(e.target.value)}
+                  onChange={(e) => setShipPhone(formatPhone(e.target.value))}
+                  maxLength={13}
                   aria-invalid={!!fieldErrors.phone}
                   aria-required="true"
                 />
@@ -1037,7 +1087,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
 
               <div className="checkout-field">
                 <label className="checkout-label" htmlFor="checkout-address">
-                  배송지 주소
+                  배송지 주소 <span className="required-mark" style={{ color: "#dc2626" }} aria-label="필수">*</span>
                 </label>
                 <input
                   type="text"
@@ -1068,6 +1118,22 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
               </div>
 
               <div className="checkout-field">
+                <label className="checkout-label" htmlFor="checkout-address-detail">
+                  상세주소 <span className="optional">(선택)</span>
+                </label>
+                <input
+                  type="text"
+                  id="checkout-address-detail"
+                  data-testid="checkout-address-detail"
+                  className="checkout-input"
+                  placeholder="동/호수 등 상세주소"
+                  value={shipDetail}
+                  onChange={(e) => setShipDetail(e.target.value)}
+                  aria-label="상세주소"
+                />
+              </div>
+
+              <div className="checkout-field">
                 <label className="checkout-label" htmlFor="checkout-memo">
                   배송 메모 <span className="optional">(선택)</span>
                 </label>
@@ -1092,46 +1158,48 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
             >
               <h2 className="checkout-card-title">쿠폰</h2>
 
-              {myCoupons.length > 0 ? (
-                <div className="coupon-select-row" style={{ marginBottom: "10px" }}>
-                  <label className="checkout-label" htmlFor="coupon-select">
-                    보유 쿠폰에서 선택
-                  </label>
-                  <select
-                    id="coupon-select"
-                    data-testid="coupon-select"
-                    className="checkout-input"
-                    value=""
-                    disabled={!!appliedCoupon}
-                    onChange={(e) => {
-                      const code = e.target.value;
-                      if (!code) return;
-                      setCouponInput(code);
-                      handleApplyCoupon(code);
-                    }}
-                    aria-label="보유 쿠폰 선택"
-                  >
-                    <option value="">쿠폰을 선택하세요</option>
-                    {myCoupons.map((c) => (
-                      <option key={c.code} value={c.code}>
-                        {c.code} (
-                        {c.type === "percent"
-                          ? `${c.amount}%`
-                          : `${Number(c.amount).toLocaleString("ko-KR")}원`}
-                        )
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <p
-                  data-testid="coupon-select-empty"
-                  className="coupon-select-empty"
-                  style={{ fontSize: "0.8125rem", color: "#6b7280", margin: "0 0 10px" }}
+              {/* 보유 쿠폰 드롭다운 — 항상 표시 (코드 입력으로 적용하면 자동으로 내 쿠폰함에 등록됨) */}
+              <div className="coupon-select-row" style={{ marginBottom: "10px" }}>
+                <label className="checkout-label" htmlFor="coupon-select">
+                  보유 쿠폰에서 선택
+                </label>
+                <select
+                  id="coupon-select"
+                  data-testid="coupon-select"
+                  className="checkout-input"
+                  value=""
+                  disabled={!!appliedCoupon || myCoupons.length === 0}
+                  onChange={(e) => {
+                    const code = e.target.value;
+                    if (!code) return;
+                    setCouponInput(code);
+                    handleApplyCoupon(code);
+                  }}
+                  aria-label="보유 쿠폰 선택"
                 >
-                  보유 쿠폰이 없습니다. 코드를 직접 입력하거나 내 정보에서 쿠폰을 등록하세요.
-                </p>
-              )}
+                  <option value="">
+                    {myCoupons.length === 0 ? "보유 쿠폰이 없습니다" : "쿠폰을 선택하세요"}
+                  </option>
+                  {myCoupons.map((c) => (
+                    <option key={c.code} value={c.code}>
+                      {c.code} (
+                      {c.type === "percent"
+                        ? `${c.amount}%`
+                        : `${Number(c.amount).toLocaleString("ko-KR")}원`}
+                      )
+                    </option>
+                  ))}
+                </select>
+                {myCoupons.length === 0 && (
+                  <p
+                    data-testid="coupon-select-empty"
+                    className="coupon-select-empty"
+                    style={{ fontSize: "0.8125rem", color: "#6b7280", margin: "6px 0 0" }}
+                  >
+                    코드를 직접 입력해 적용하면 자동으로 내 쿠폰함에 등록됩니다.
+                  </p>
+                )}
+              </div>
 
               <div className="coupon-row">
                 <input
