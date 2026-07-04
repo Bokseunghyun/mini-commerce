@@ -502,7 +502,7 @@ page.on('dialog', async (dialog) => {
 `#signup-username` 입력 → `#username-check-btn` 중복확인 → `[data-testid="username-check-result"]` 검증
 → 잘못된 값 제출 시 필드별 `role=alert` 에러(`signup-username-error`, `signup-password-error`, `password-confirm-error`, `signup-email-error`)
 → 정상 가입(`#signup-password`, `#signup-password-confirm`, `#signup-email`(선택), `#signup-submit`) 시 `signup-success` 표시 후 약 1초 뒤 `/login` 자동 이동
-- 규칙: 아이디 영소문자+숫자 4~12자 / 비밀번호 8자 이상 영문+숫자
+- 규칙: 아이디 영소문자+숫자 4~12자 / 비밀번호 4자 이상 (조합 무관)
 
 ### 6.2 체크아웃 `/checkout`
 장바구니 `#checkout-btn` → `/checkout` 이동. 상품 행 `checkout-item-{productId}`

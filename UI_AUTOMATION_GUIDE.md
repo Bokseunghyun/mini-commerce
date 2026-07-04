@@ -1151,13 +1151,13 @@ test('회원가입 전체 플로우', async ({ page }) => {
 
   // 2) 검증 에러: 잘못된 값으로 제출 → 필드별 role=alert 에러
   await page.fill('#signup-username', 'BAD!');       // 형식 위반
-  await page.fill('#signup-password', 'short');       // 8자 미만
+  await page.fill('#signup-password', 'ab');           // 4자 미만
   await page.click('#signup-submit');
   await expect(page.getByTestId('signup-username-error')).toBeVisible();
   await expect(page.getByTestId('signup-password-error'))
-    .toContainText('8자 이상');
+    .toContainText('4자 이상');
 
-  // 3) 정상 가입 (비밀번호: 8자 이상, 영문+숫자)
+  // 3) 정상 가입 (비밀번호: 4자 이상)
   await page.fill('#signup-username', username);
   await page.click('#username-check-btn');
   await expect(page.getByTestId('username-check-result'))

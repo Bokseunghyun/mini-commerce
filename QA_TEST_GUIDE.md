@@ -62,7 +62,7 @@
   - 새 아이디 → "사용 가능한 아이디입니다"
 - **검증 에러 (필드별 `role=alert`)**
   - 아이디 형식 위반(영소문자+숫자 4~12자 아님) → `signup-username-error`
-  - 비밀번호 8자 미만 또는 영문/숫자 미포함 → `signup-password-error`
+  - 비밀번호 4자 미만 → `signup-password-error`
   - 비밀번호 확인 불일치 → `password-confirm-error`
   - 이메일 형식 오류(이메일은 선택 입력) → `signup-email-error`
 - **가입 성공 → 로그인**

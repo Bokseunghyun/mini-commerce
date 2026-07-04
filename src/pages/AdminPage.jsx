@@ -6,7 +6,11 @@ function getRandomImage() {
   return `https://picsum.photos/seed/${randomId}/400/400`;
 }
 
-export default function AdminPage({ products = [], onUpdateProducts, onAccessDenied, apiBase }) {
+export default function AdminPage({ products: initialProducts = [], onUpdateProducts, onAccessDenied, apiBase }) {
+  // 상품 목록은 이 페이지가 직접 소유한다. App 의 products state 는 home/products
+  // 페이지에서만 로드되므로, 이니시스 결제 리다이렉트로 앱이 리마운트된 뒤 곧장
+  // /admin 으로 오면 비어 있다 → 아래 권한 확인(GET /api/admin) 응답의 전체 목록으로 채운다.
+  const [products, setProducts] = useState(initialProducts);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({
     name: "",
@@ -80,7 +84,12 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
           return;
         }
         
-        // 성공 - 관리자 권한 확인됨
+        // 성공 - 관리자 권한 확인됨.
+        // GET /api/admin 은 비활성 포함 전체 상품 목록을 반환한다 → 그대로 사용해
+        // App 의 products state 유무와 무관하게 항상 목록이 채워지도록 한다.
+        if (Array.isArray(data.products)) {
+          setProducts(data.products);
+        }
         setIsAuthorized(true);
       } catch (e) {
         // 네트워크 오류
@@ -154,7 +163,8 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
     // localStorage에 전체 상품 목록의 변경사항 저장
     localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
-    onUpdateProducts(updatedProducts);
+    setProducts(updatedProducts);
+    onUpdateProducts?.(updatedProducts);
     setEditingId(null);
     setEditForm({
       name: "",
@@ -217,7 +227,8 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       // localStorage에 전체 상품 목록 저장
       localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
-      onUpdateProducts(updatedProducts);
+      setProducts(updatedProducts);
+      onUpdateProducts?.(updatedProducts);
       
     } catch (err) {
       alert('활성 상태 변경 중 오류 발생: ' + err.message);
@@ -308,7 +319,8 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
       // localStorage에 전체 상품 목록 저장
       localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
 
-      onUpdateProducts(updatedProducts);
+      setProducts(updatedProducts);
+      onUpdateProducts?.(updatedProducts);
       setIsAdding(false);
       setAddForm({
         name: "",
@@ -367,7 +379,8 @@ export default function AdminPage({ products = [], onUpdateProducts, onAccessDen
     // localStorage에 전체 상품 목록 저장
     localStorage.setItem('allProductsModifications', JSON.stringify(updatedProducts));
     
-    onUpdateProducts(updatedProducts);
+    setProducts(updatedProducts);
+    onUpdateProducts?.(updatedProducts);
     alert("상품이 삭제되었습니다.");
   };
 

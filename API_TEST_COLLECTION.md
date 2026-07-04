@@ -630,10 +630,10 @@ Content-Type: application/json
 
 {
   "username": "newuser2",
-  "password": "onlyletters"
+  "password": "ab"
 }
 ```
-응답: `400 { "code": "INVALID_PASSWORD" }` (8자 이상 + 영문/숫자 각 1자 이상)
+응답: `400 { "code": "INVALID_PASSWORD" }` (4자 이상, 조합 무관)
 
 ### 12.5 회원가입 - 이메일 형식 오류 (400)
 ```http

@@ -6,7 +6,7 @@
  *
  * QA 검증 포인트:
  * - 아이디 형식: 영문 소문자+숫자 4~12자
- * - 비밀번호: 8자 이상 + 영문/숫자 각 1자 이상
+ * - 비밀번호: 4자 이상 (조합 제한 없음)
  * - 이메일 형식 (선택 입력)
  * - 중복 아이디 409
  */
@@ -19,14 +19,9 @@ import { hashPassword } from './_lib/auth-hash.js';
 const USERNAME_RE = /^[a-z0-9]{4,12}$/;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// 비밀번호 정책: 8자 이상 + 영문 1자 이상 + 숫자 1자 이상
+// 비밀번호 정책: 4자 이상 (조합 제한 없음)
 function isValidPassword(password) {
-  return (
-    typeof password === 'string' &&
-    password.length >= 8 &&
-    /[a-zA-Z]/.test(password) &&
-    /[0-9]/.test(password)
-  );
+  return typeof password === 'string' && password.length >= 4;
 }
 
 // GET ?username=x - 아이디 사용 가능 여부 (형식 검증 포함)
@@ -60,7 +55,7 @@ async function handleSignup(req, res) {
 
   if (!isValidPassword(password)) {
     return res.status(400).json({
-      message: '비밀번호는 8자 이상이며 영문과 숫자를 각각 1자 이상 포함해야 합니다',
+      message: '비밀번호는 4자 이상이어야 합니다',
       code: 'INVALID_PASSWORD',
     });
   }

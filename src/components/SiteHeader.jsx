@@ -3,13 +3,12 @@
 // ============================================
 // 공통 사이트 헤더 (서브 페이지 전역 헤더)
 // - 좌측: 뒤로 버튼 + 로고(홈 이동)
-// - 우측: 전체 네비게이션 (상품/장바구니/배송조회/위시리스트/주문내역/내정보/관리자/로그인·로그아웃)
+// - 우측: 전체 네비게이션 (장바구니/배송조회/위시리스트/주문내역/내정보/관리자/로그인·로그아웃)
 // HomePage 헤더와 동일한 비주얼 스타일을 사용한다.
 // ============================================
 export default function SiteHeader({
   onBack,
   onGoHome,
-  onGoProducts,
   onGoCart,
   onGoWishlist,
   onGoOrders,
@@ -74,19 +73,6 @@ export default function SiteHeader({
           className="site-header-actions"
           aria-label="사이트 내비게이션"
         >
-          <button
-            type="button"
-            id="site-nav-products"
-            name="siteNavProducts"
-            className="btn btn-ghost site-nav-products"
-            aria-label="상품 목록으로 이동"
-            onClick={onGoProducts}
-            style={styles.navBtn}
-            data-testid="site-nav-products"
-          >
-            상품
-          </button>
-
           <button
             type="button"
             id="site-nav-cart"

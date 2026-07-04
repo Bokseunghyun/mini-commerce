@@ -463,7 +463,6 @@ export default function App() {
     <SiteHeader
       onBack={() => window.history.back()}
       onGoHome={() => setPage('home')}
-      onGoProducts={handleGoToProducts}
       onGoCart={() => goWithLoginCheck('cart')}
       onGoWishlist={() => goWithLoginCheck('wishlist')}
       onGoOrders={() => goWithLoginCheck('orders')}

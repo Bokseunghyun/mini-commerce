@@ -1359,7 +1359,7 @@ test.beforeEach(async ({ request }) => {
 |--------|-----------|------|
 | 가입 성공 | 201 | - (`{ message, user: { username, role } }`) |
 | 아이디 형식 오류 (영문 소문자+숫자 4~12자 아님) | 400 | `INVALID_USERNAME` |
-| 비밀번호 정책 위반 (8자 미만 또는 영문/숫자 미포함) | 400 | `INVALID_PASSWORD` |
+| 비밀번호 정책 위반 (4자 미만) | 400 | `INVALID_PASSWORD` |
 | 이메일 형식 오류 (email은 선택 입력) | 400 | `INVALID_EMAIL` |
 | 이미 사용 중인 아이디 | 409 | `USERNAME_TAKEN` |
 
@@ -1412,9 +1412,9 @@ test('회원가입 유효성 검증', async ({ request }) => {
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('INVALID_USERNAME');
 
-  // 비밀번호 정책 위반 (숫자 없음) → 400
+  // 비밀번호 정책 위반 (4자 미만) → 400
   res = await request.post('http://localhost:3000/api/signup', {
-    data: { username: 'newuser2', password: 'onlyletters' }
+    data: { username: 'newuser2', password: 'ab' }
   });
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('INVALID_PASSWORD');

@@ -57,9 +57,16 @@ async function handleCancel(req, res, user, orderId, isAdmin) {
     if (!canceled) {
       return respondNotFound(res);
     }
+    // 결제가 함께 취소되었으면 안내 문구에 반영 (이니시스/카드 공통)
+    const paymentNote = canceled.paymentCanceled
+      ? canceled.paymentMethod === 'INICIS'
+        ? ' 이니시스 결제도 함께 취소되었습니다.'
+        : ' 결제도 함께 취소되었습니다.'
+      : '';
     return res.status(200).json({
-      message: '주문이 취소되었습니다',
+      message: `주문이 취소되었습니다.${paymentNote}`,
       order: canceled,
+      paymentCanceled: !!canceled.paymentCanceled,
     });
   } catch (err) {
     if (err.code === 'ALREADY_CANCELED') {

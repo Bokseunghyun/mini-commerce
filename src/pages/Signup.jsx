@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
  * - 아이디 중복확인 (GET /api/signup?username=)
  * - API 규칙을 미러링한 클라이언트 validation
  *   - 아이디: 영문 소문자 + 숫자 4~12자
- *   - 비밀번호: 8자 이상, 영문 + 숫자 포함
+ *   - 비밀번호: 4자 이상 (문자 조합 제한 없음)
  *   - 이메일: 선택 입력, 형식 검사
  * - 성공 시 in-DOM 메시지 표시 후 약 1초 뒤 onSignupSuccess() 호출
  */
@@ -25,8 +25,8 @@ function validateUsername(value) {
 
 function validatePassword(value) {
   if (!value) return "비밀번호를 입력하세요";
-  if (value.length < 8 || !/[a-zA-Z]/.test(value) || !/[0-9]/.test(value)) {
-    return "비밀번호는 8자 이상, 영문과 숫자를 포함해야 합니다";
+  if (value.length < 4) {
+    return "비밀번호는 4자 이상이어야 합니다";
   }
   return "";
 }
@@ -281,7 +281,7 @@ export default function SignupPage({ apiBase, onSignupSuccess, onBack }) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onBlur={() => setTouched((prev) => ({ ...prev, password: true }))}
-              placeholder="8자 이상, 영문 + 숫자 포함"
+              placeholder="4자 이상"
               autoComplete="new-password"
               maxLength={30}
               style={{

@@ -229,8 +229,8 @@ expect(data).toMatchObject({
 // 🏆 레벨 4: 고급 검증 (Request까지)
 const request = response.request();
 const requestBody = JSON.parse(request.postData() || '{}');
-expect(requestBody.password.length).toBeGreaterThan(8);
-// → "비밀번호도 8자 이상으로 보냈구나"
+expect(requestBody.password.length).toBeGreaterThanOrEqual(4);
+// → "비밀번호도 4자 이상으로 보냈구나"
 ```
 
 ---

@@ -767,8 +767,23 @@ export async function cancelOrder(orderId, username, { isAdmin = false } = {}) {
       [orderId]
     );
 
+    // 주문에 연결된 결제가 있으면 함께 취소 처리 (이니시스/카드 공통).
+    // 실 PG 환불 API 대신 결제 레코드 상태만 CANCELED 로 전이한다
+    // (INIpayTest 샌드박스는 실카드 승인분이 야간 자동취소되고, 프로그램적 환불은
+    //  가맹점 관리자 인증이 필요해 이 데모에서는 상태 반영으로 시뮬레이션한다).
+    let paymentCanceled = false;
+    if (order.payment_key) {
+      const pay = await client.query(
+        `UPDATE payments SET status = 'CANCELED'
+          WHERE id = $1 AND status <> 'CANCELED'
+        RETURNING id`,
+        [order.payment_key]
+      );
+      paymentCanceled = pay.rowCount > 0;
+    }
+
     await client.query('COMMIT');
-    return mapOrder(updated.rows[0]);
+    return { ...mapOrder(updated.rows[0]), paymentCanceled };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

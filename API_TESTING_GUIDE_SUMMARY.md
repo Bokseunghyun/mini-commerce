@@ -347,7 +347,7 @@ expect(res.status()).toBe(200);
 ### 신규 엔드포인트 빠른 참조 (signup / coupons / orders)
 ```typescript
 // 회원가입 — 가입 즉시 로그인 가능 (role: USER)
-// 네거티브: 400 INVALID_USERNAME(영소문자+숫자 4~12자) / INVALID_PASSWORD(8자 이상, 영문+숫자)
+// 네거티브: 400 INVALID_USERNAME(영소문자+숫자 4~12자) / INVALID_PASSWORD(4자 이상, 조합 무관)
 //           / INVALID_EMAIL, 409 USERNAME_TAKEN
 await page.request.post('/api/signup', {
   data: { username: 'newuser1', password: 'password1' }

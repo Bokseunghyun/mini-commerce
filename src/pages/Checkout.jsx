@@ -168,6 +168,8 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
   const [shipDetail, setShipDetail] = useState("");
   const [shipMemo, setShipMemo] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  // 내 정보(프로필)에 저장된 기본 배송지 — '내 배송지 불러오기'로 폼에 채운다
+  const [defaultAddress, setDefaultAddress] = useState(null);
 
   // 쿠폰
   const [couponInput, setCouponInput] = useState("");
@@ -272,6 +274,48 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     fetchMyCoupons();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 내 정보에 저장된 기본 배송지 로드 (내 배송지 불러오기용)
+  const fetchDefaultAddress = async () => {
+    const token = localStorage.getItem("token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/user-actions?type=profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      const addr = data?.profile?.defaultAddress || null;
+      // 실제 주소가 있는 경우에만 보관 (빈 값이면 버튼/자동채움 비활성)
+      if (addr && String(addr.address || "").trim()) setDefaultAddress(addr);
+    } catch {
+      /* 무시 */
+    }
+  };
+
+  useEffect(() => {
+    fetchDefaultAddress();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 저장된 기본 배송지를 배송지 폼에 채운다 (주소 검색과 동일한 `[우편번호] 주소` 형식)
+  const fillFromDefaultAddress = () => {
+    const a = defaultAddress;
+    if (!a) return;
+    const combined = a.zonecode ? `[${a.zonecode}] ${a.address || ""}` : a.address || "";
+    if (a.name) setShipName(a.name);
+    if (a.phone) setShipPhone(a.phone);
+    if (combined) setShipAddress(combined);
+    if (a.detail) setShipDetail(a.detail);
+    setFieldErrors((prev) => ({ ...prev, name: undefined, phone: undefined, address: undefined }));
+  };
+
+  // 배송지 폼이 비어 있을 때만 최초 1회 자동 채움 (사용자가 입력한 값은 덮어쓰지 않음)
+  useEffect(() => {
+    if (defaultAddress && !shipName && !shipPhone && !shipAddress && !shipDetail) {
+      fillFromDefaultAddress();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultAddress]);
 
   const subtotal = items.reduce(
     (sum, it) => sum + (Number(it.price) || 0) * (Number(it.quantity) || 1),
@@ -1081,7 +1125,36 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
               aria-label="배송지 입력"
               data-testid="checkout-shipping-section"
             >
-              <h2 className="checkout-card-title">배송지 정보</h2>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                }}
+              >
+                <h2 className="checkout-card-title" style={{ border: "none", margin: 0, paddingBottom: 0 }}>
+                  배송지 정보
+                </h2>
+                {defaultAddress && (
+                  <button
+                    type="button"
+                    id="checkout-load-address-btn"
+                    data-testid="checkout-load-address-btn"
+                    className="coupon-apply-btn"
+                    onClick={fillFromDefaultAddress}
+                    aria-label="내 정보에 저장된 배송지 불러오기"
+                    style={{ padding: "8px 14px" }}
+                  >
+                    내 배송지 불러오기
+                  </button>
+                )}
+              </div>
+              <div
+                style={{ height: "1px", backgroundColor: "#e5e5e5", margin: "10px 0 16px" }}
+                aria-hidden="true"
+              />
 
               <div className="checkout-field">
                 <label className="checkout-label" htmlFor="checkout-name">
