@@ -32,6 +32,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
   const [addError, setAddError] = useState("");
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [isResetting, setIsResetting] = useState(false);
 
   // Vite 기준
   const API_BASE = apiBase || import.meta.env.VITE_API_BASE_URL || "";
@@ -384,6 +385,42 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     alert("상품이 삭제되었습니다.");
   };
 
+  // ============================================
+  // 데이터 초기화 (POST /api/reset) — 전 테이블 시드 상태 복구
+  // ============================================
+  const handleReset = async () => {
+    if (
+      !confirm(
+        "모든 데이터를 시드 상태로 초기화합니다.\n\n" +
+          "· 주문/리뷰/위시리스트/장바구니/쿠폰 삭제\n" +
+          "· 가입 계정 삭제(시드 계정 test/admin/test2만 유지)\n" +
+          "· 상품·재고를 초기값으로 복구\n\n계속하시겠습니까?"
+      )
+    ) {
+      return;
+    }
+    setIsResetting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/reset`, {
+        method: "POST",
+        headers: { Authorization: token ? `Bearer ${token}` : "" },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        alert(data.message || `초기화 실패 (${res.status})`);
+        return;
+      }
+      alert(data.message || "모든 데이터가 초기화되었습니다.");
+      // 상품·쿠폰 등 전 상태가 시드로 바뀌었으므로 페이지를 새로고침해 깨끗하게 반영
+      window.location.reload();
+    } catch (e) {
+      alert("초기화 중 오류가 발생했습니다: " + e.message);
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <>
       <style>{`
@@ -423,6 +460,27 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
         }
 
         .add-product-btn:hover { background-color: #059669; }
+
+        .admin-toolbar-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          align-items: center;
+        }
+
+        .reset-data-btn {
+          padding: 10px 20px;
+          background-color: #ef4444;
+          color: #ffffff;
+          border: none;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: background-color 0.2s;
+        }
+        .reset-data-btn:hover:not(:disabled) { background-color: #dc2626; }
+        .reset-data-btn:disabled { background-color: #fca5a5; cursor: not-allowed; }
 
         .admin-content {
           max-width: 1200px;
@@ -759,17 +817,30 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
           <div className="admin-toolbar">
             <h1 className="admin-title">관리자 페이지</h1>
 
-            {!isAdding && (
+            <div className="admin-toolbar-actions">
+              {!isAdding && (
+                <button
+                  onClick={() => {
+                    setIsAdding(true);
+                    setAddError("");
+                  }}
+                  className="add-product-btn"
+                >
+                  + 상품 추가
+                </button>
+              )}
               <button
-                onClick={() => {
-                  setIsAdding(true);
-                  setAddError("");
-                }}
-                className="add-product-btn"
+                type="button"
+                id="admin-reset-btn"
+                data-testid="admin-reset-btn"
+                className="reset-data-btn"
+                onClick={handleReset}
+                disabled={isResetting}
+                title="모든 데이터를 시드 상태로 초기화합니다"
               >
-                + 상품 추가
+                {isResetting ? "초기화 중..." : "데이터 초기화"}
               </button>
-            )}
+            </div>
           </div>
 
           <div className="info-box">

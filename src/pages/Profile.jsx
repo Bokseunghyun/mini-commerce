@@ -38,6 +38,15 @@ const COUPON_STATUS = {
   INACTIVE: { label: "비활성", color: "#92400e", bg: "#fffbeb", border: "#fde68a" },
 };
 
+// 시드 쿠폰 코드 안내 (DB를 볼 수 없는 테스터가 그대로 보고 입력할 수 있도록 케이스별 정리).
+// 값은 api/_lib/seedData.js 의 SEED_COUPONS 와 일치한다. fail=true 는 의도적 실패 픽스처.
+const COUPON_GUIDE = [
+  { code: "WELCOME10", desc: "10% 할인 · 최소주문 제한 없음 · 최대 20,000원 할인", result: "적용 성공" },
+  { code: "SAVE5000", desc: "5,000원 정액 할인 · 30,000원 이상 주문 시", result: "적용 성공 (3만원↑)" },
+  { code: "VIP20", desc: "20% 할인 · 100,000원 이상 주문 · 최대 50,000원 할인", result: "적용 성공 (10만원↑)" },
+  { code: "EXPIRED10", desc: "만료된 쿠폰 (의도적 실패 픽스처)", result: "적용 실패 · 400 COUPON_EXPIRED", fail: true },
+];
+
 // 휴대폰: 숫자만, 최대 11자리, 010-1234-5678 형식 자동 하이픈 (초과 입력 불가)
 function formatPhone(raw) {
   const d = String(raw).replace(/\D/g, "").slice(0, 11);
@@ -596,6 +605,45 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                 </p>
               )}
 
+              {/* 시드 쿠폰 코드 안내 — 코드를 누르면 위 입력창에 자동 입력된다 */}
+              <div style={styles.couponGuide} data-testid="coupon-guide" aria-label="사용 가능한 쿠폰 코드 안내">
+                <p style={styles.couponGuideTitle}>사용 가능한 쿠폰 코드</p>
+                <p style={styles.couponGuideDesc}>
+                  코드를 누르면 위 입력창에 채워집니다. 등록 후 결제 페이지에서 적용해 케이스별 동작을 확인하세요.
+                </p>
+                <ul style={styles.couponGuideList}>
+                  {COUPON_GUIDE.map((g) => (
+                    <li key={g.code} style={styles.couponGuideItem} data-testid={`coupon-guide-${g.code}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouponCode(g.code);
+                          setCouponMessage(null);
+                        }}
+                        style={{ ...styles.couponGuideCode, ...(g.fail ? styles.couponGuideCodeFail : {}) }}
+                        aria-label={`${g.code} 코드 입력창에 채우기`}
+                        title="클릭하면 쿠폰 등록 입력창에 채워집니다"
+                      >
+                        {g.code}
+                      </button>
+                      <span style={styles.couponGuideItemDesc}>{g.desc}</span>
+                      <span
+                        style={{
+                          ...styles.couponGuideResult,
+                          ...(g.fail ? styles.couponGuideResultFail : styles.couponGuideResultOk),
+                        }}
+                      >
+                        {g.result}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p style={styles.couponGuideNote}>
+                  ※ 관리자 계정은 <strong>관리자 페이지 &gt; 쿠폰 관리</strong>에서 새 쿠폰 번호를 직접 생성해
+                  추가로 테스트할 수 있습니다. (생성한 코드를 위 입력창에 등록 → 결제 시 적용)
+                </p>
+              </div>
+
               {coupons.length === 0 ? (
                 <p id="coupons-empty" data-testid="coupons-empty" style={styles.couponsEmpty}>
                   보유한 쿠폰이 없습니다.
@@ -906,6 +954,64 @@ const styles = {
     fontSize: "13px",
     color: "#6b7280",
   },
+  couponGuide: {
+    marginTop: "4px",
+    padding: "14px 16px",
+    border: "1px solid #e5e7eb",
+    borderRadius: "10px",
+    backgroundColor: "#f9fafb",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  couponGuideTitle: { fontSize: "14px", fontWeight: 700, color: "#1a1a1a", margin: 0 },
+  couponGuideDesc: { fontSize: "12px", color: "#6b7280", margin: 0 },
+  couponGuideList: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  },
+  couponGuideItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  couponGuideCode: {
+    fontFamily: "monospace",
+    fontSize: "14px",
+    fontWeight: 700,
+    letterSpacing: "0.5px",
+    color: "#1d4ed8",
+    backgroundColor: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "6px",
+    padding: "4px 10px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  couponGuideCodeFail: {
+    color: "#b91c1c",
+    backgroundColor: "#fef2f2",
+    border: "1px solid #fecaca",
+  },
+  couponGuideItemDesc: {
+    flex: 1,
+    minWidth: "160px",
+    fontSize: "13px",
+    color: "#374151",
+  },
+  couponGuideResult: {
+    fontSize: "12px",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+  },
+  couponGuideResultOk: { color: "#16a34a" },
+  couponGuideResultFail: { color: "#dc2626" },
+  couponGuideNote: { fontSize: "12px", color: "#6b7280", margin: 0, lineHeight: 1.5 },
   couponBadge: {
     fontSize: "12px",
     fontWeight: "700",
