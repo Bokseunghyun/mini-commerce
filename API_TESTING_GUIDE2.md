@@ -1402,6 +1402,93 @@ test('주문 → 목록 → 상세 → 취소', async ({ request }) => {
 });
 ```
 
+### 프로젝트 4: 결제·업로드·배송추적 — 외부 API 목킹 연습 (2일)
+
+새로 추가된 결제(모의 PG)·파일업로드·배송상태/추적 API를 연습합니다. 핵심 학습 목표는 **외부 시스템(결제 게이트웨이, 택배사) 장애를 결정론적으로 재현**하고 클라이언트의 실패 처리를 검증하는 것입니다. 결과는 랜덤이 아니라 **테스트 카드 뒤 4자리** 또는 **`?simulate=` 쿼리**로 정해집니다.
+
+```typescript
+// 1) 결제 (POST /api/payment) — 카드 뒤 4자리로 결정론적 결과
+//    0000 승인(201 DONE) / 0001 거절(402 PAYMENT_DECLINED)
+//    0002 한도초과(402 PAYMENT_LIMIT_EXCEEDED) / 9999 타임아웃(504 PAYMENT_GATEWAY_TIMEOUT)
+test('결제 승인과 폴트 주입', async ({ request }) => {
+  // 승인
+  const ok = await request.post('/api/payment', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 129000 }
+  });
+  expect(ok.status()).toBe(201);
+  const pay = await ok.json();
+  expect(pay.status).toBe('DONE');
+  expect(pay.paymentKey).toMatch(/^PAY-/); // 값 자체는 비결정 — 접두사만 확인
+
+  // 폴트 주입: ?simulate=timeout 으로 결제서버 무응답 재현 → 504
+  const timeout = await request.post('/api/payment?simulate=timeout', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 129000 }
+  });
+  expect(timeout.status()).toBe(504);
+  expect((await timeout.json()).code).toBe('PAYMENT_GATEWAY_TIMEOUT');
+  // → 클라이언트가 이 504 를 잡아 재시도/안내 UI 를 띄우는지 검증하는 것이 포인트
+
+  // 사후검증: GET ?paymentKey= (없으면 404 PAYMENT_NOT_FOUND)
+  const verify = await request.get(`/api/payment?paymentKey=${pay.paymentKey}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  expect(verify.status()).toBe(200);
+});
+
+// 2) 결제 → 주문 연동 (paymentKey) — 금액 불일치/미승인/중복사용은 402
+test('결제 후 주문 연동', async ({ request }) => {
+  const pay = await (await request.post('/api/payment', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 129000 }
+  })).json();
+
+  const order = await request.post('/api/user-actions', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }], paymentKey: pay.paymentKey }
+  });
+  expect(order.status()).toBe(201);
+  // 네거티브: 금액 불일치/미승인/중복사용 → 402 PAYMENT_INVALID, 결제 없음 → 402 PAYMENT_REQUIRED
+});
+
+// 3) 파일 업로드 (POST /api/upload) — 형식/용량 검증
+test('업로드 형식·용량 검증', async ({ request }) => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const ok = await request.post('/api/upload', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { kind: 'review', image: png }
+  });
+  expect(ok.status()).toBe(201);
+  // 네거티브: 이미지 아님 400 INVALID_FILE_TYPE, 잘못된 kind 400 INVALID_KIND,
+  //           2MB 초과 413 FILE_TOO_LARGE
+});
+
+// 4) 배송 상태 전진 + 추적 (PATCH advance, GET /api/tracking) — 외부 택배 API 목킹
+test('상태 전진과 배송 추적', async ({ request }) => {
+  const { order } = await (await request.post('/api/user-actions', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }] }
+  })).json();
+
+  // PAID → PREPARING → SHIPPING (SHIPPING 진입 시 운송장 MC+10자리 부여)
+  await request.patch(`/api/orders/${order.id}`, {
+    headers: { Authorization: `Bearer ${token}` }, data: { action: 'advance' }
+  });
+  const shipped = await request.patch(`/api/orders/${order.id}`, {
+    headers: { Authorization: `Bearer ${token}` }, data: { action: 'advance' }
+  });
+  const tn = (await shipped.json()).order.trackingNumber;
+  expect(tn).toMatch(/^MC\d{10}$/);
+
+  // 배송 추적 (송장번호 경로는 공개) — events: [{ status, label, at, location }]
+  const track = await request.get(`/api/tracking?trackingNumber=${tn}`);
+  expect(track.status()).toBe(200);
+  expect(Array.isArray((await track.json()).events)).toBe(true);
+  // 네거티브: 없는 송장/주문 404 TRACKING_NOT_FOUND, 종료 상태 advance 409 INVALID_TRANSITION
+});
+```
+
 ---
 
 ## 7. 체화 훈련

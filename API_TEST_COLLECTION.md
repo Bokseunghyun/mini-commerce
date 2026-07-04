@@ -791,6 +791,289 @@ Content-Type: application/json
 
 ---
 
+## 15. 결제 API (payment)
+
+> 모의 PG(이니시스 스타일). 인증 필요. 결과는 **카드번호 뒤 4자리** 또는 `?simulate=` 쿼리로 결정론적(랜덤 아님). `paymentKey`(`PAY-<uuid>`)는 값 자체를 단언하지 말 것 — 결과는 카드/simulate 로만 정해짐. **외부 API 목킹 연습**: 9999 카드/`?simulate=`로 결제서버 장애를 재현하고 클라이언트 실패 처리를 검증.
+
+### 15.1 결제 승인 (뒤 4자리 0000 → 201)
+```http
+POST {{baseUrl}}/api/payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000-1234-5678-0000",
+  "cardExpiry": "12/28",
+  "cardCvc": "123",
+  "amount": 129000,
+  "orderName": "테스트 주문"
+}
+```
+응답: `201 { "paymentKey": "PAY-...", "status": "DONE", "method": "CARD", "cardLast4": "0000", "amount": 129000 }`
+
+### 15.2 결제 거절 (뒤 4자리 0001 → 402)
+```http
+POST {{baseUrl}}/api/payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000000000000001",
+  "amount": 10000
+}
+```
+응답: `402 { "code": "PAYMENT_DECLINED" }`
+
+### 15.3 결제 한도초과 (뒤 4자리 0002 → 402)
+```http
+POST {{baseUrl}}/api/payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000000000000002",
+  "amount": 10000
+}
+```
+응답: `402 { "code": "PAYMENT_LIMIT_EXCEEDED" }`
+
+### 15.4 결제서버 타임아웃 (뒤 4자리 9999 → 504, 약 500ms 지연)
+```http
+POST {{baseUrl}}/api/payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000000000009999",
+  "amount": 10000
+}
+```
+응답: `504 { "code": "PAYMENT_GATEWAY_TIMEOUT" }` — 외부 PG 무응답 시뮬레이션(짧은 지연 후 응답)
+
+### 15.5 폴트 주입 - 강제 거절 (?simulate=decline)
+```http
+POST {{baseUrl}}/api/payment?simulate=decline
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000000000000000",
+  "amount": 10000
+}
+```
+응답: `402 { "code": "PAYMENT_DECLINED" }` — 카드와 무관하게 결과 강제 (`limit`→402 `PAYMENT_LIMIT_EXCEEDED`, `timeout`→504 `PAYMENT_GATEWAY_TIMEOUT`, `error`→500 `PAYMENT_ERROR`)
+
+### 15.6 결제 오류 강제 (?simulate=error → 500)
+```http
+POST {{baseUrl}}/api/payment?simulate=error
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "4000000000000000",
+  "amount": 10000
+}
+```
+응답: `500 { "code": "PAYMENT_ERROR" }`
+
+### 15.7 잘못된 카드번호 (400)
+```http
+POST {{baseUrl}}/api/payment
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "cardNumber": "1234",
+  "amount": 10000
+}
+```
+응답: `400 { "code": "INVALID_CARD" }` (공백/하이픈 제거 후 숫자 12~19자리가 아니면). 금액이 양의 정수가 아니면 `400 { "code": "INVALID_AMOUNT" }`
+
+### 15.8 결제 사후검증 (GET ?paymentKey=)
+```http
+GET {{baseUrl}}/api/payment?paymentKey=PAY-xxxxxxxx
+Authorization: Bearer {{token}}
+```
+응답: `200 { "id": "PAY-...", "orderId": null, "username": "...", "method": "CARD", "cardLast4": "0000", "amount": 129000, "status": "DONE", "fault": null, "createdAt": "..." }` (없는 키 → `404 { "code": "PAYMENT_NOT_FOUND" }`, 키 누락 → `400 { "code": "PAYMENT_KEY_REQUIRED" }`)
+
+### 15.9 결제 → 주문 연동 (paymentKey 전달)
+```http
+POST {{baseUrl}}/api/user-actions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "order",
+  "items": [
+    { "id": 1, "quantity": 1 }
+  ],
+  "paymentKey": "PAY-xxxxxxxx"
+}
+```
+응답: `201` — 결제 **상태 DONE + 금액 일치 + 미사용** 검증 후 주문에 `paymentKey/paymentMethod/cardLast4` 저장. 위반 시: 결제 없음 `402 PAYMENT_REQUIRED`, 미승인/금액불일치/중복사용 `402 PAYMENT_INVALID`. `paymentKey` 생략 시 기존처럼 결제 없이 주문 성공(하위호환).
+
+---
+
+## 16. 파일 업로드 API (upload)
+
+> 인증 필요. 실제 저장 없이 data URL 이미지의 **형식/용량만 검증하고 에코**하는 모의 엔드포인트.
+
+### 16.1 이미지 업로드 (201)
+```http
+POST {{baseUrl}}/api/upload
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "kind": "review",
+  "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+}
+```
+응답: `201 { "url": "data:image/png;base64,...", "kind": "review" }` (검증 통과한 data URL 을 그대로 에코)
+
+### 16.2 잘못된 파일 형식 (400)
+```http
+POST {{baseUrl}}/api/upload
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "kind": "avatar",
+  "image": "data:text/plain;base64,aGVsbG8="
+}
+```
+응답: `400 { "code": "INVALID_FILE_TYPE" }` (허용: `data:image/png|jpeg|webp|gif;base64,...`)
+
+### 16.3 잘못된 kind (400)
+```http
+POST {{baseUrl}}/api/upload
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "kind": "banner",
+  "image": "data:image/png;base64,iVBORw0KGgoAAA..."
+}
+```
+응답: `400 { "code": "INVALID_KIND", "availableKinds": ["review", "avatar"] }`
+
+### 16.4 용량 초과 (413, 2MB 초과)
+```http
+POST {{baseUrl}}/api/upload
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "kind": "review",
+  "image": "data:image/png;base64,<2MB 초과 base64>"
+}
+```
+응답: `413 { "code": "FILE_TOO_LARGE" }`
+
+### 16.5 아바타 설정 (set_avatar)
+```http
+POST {{baseUrl}}/api/user-actions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "set_avatar",
+  "image": "data:image/png;base64,iVBORw0KGgoAAA..."
+}
+```
+응답: `200 { "message": "프로필 이미지가 변경되었습니다", "avatarUrl": "data:image/png;base64,..." }` (조회: `GET /api/user-actions?type=profile` → `{ "profile": { "username", "role", "email", "avatarUrl" } }`)
+
+### 16.6 리뷰 이미지 첨부 (images[])
+```http
+POST {{baseUrl}}/api/reviews
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "productId": 5,
+  "rating": 5,
+  "comment": "사진 첨부 리뷰 테스트입니다",
+  "images": ["data:image/png;base64,iVBORw0KGgoAAA...", "https://example.com/photo.jpg"]
+}
+```
+응답: `201` — `images` 최대 3개, 각 항목은 data URL 이미지 또는 http(s) URL. 초과/무효 항목 → `400 { "code": "INVALID_REVIEW_IMAGE" }`. `GET /api/reviews` 는 `images[]` 를 반환.
+
+---
+
+## 17. 배송 상태 전진/지정 API (orders advance · set_status)
+
+> 인증 필요. 상태 흐름: **PAID → PREPARING → SHIPPING → DELIVERED** (+ CANCELED). `SHIPPING` 진입 시 운송장 `MC`+10자리 부여(결정론적).
+
+### 17.1 상태 전진 (advance)
+```http
+PATCH {{baseUrl}}/api/orders/ORD-20260705-AB12
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "advance"
+}
+```
+응답: `200 { "message": "주문 상태가 변경되었습니다: PREPARING", "order": { "status": "PREPARING", ... } }` (SHIPPING 진입 시 `order.trackingNumber`가 `MC##########` 형태로 채워짐)
+
+### 17.2 종료 상태에서 전진 (409 INVALID_TRANSITION)
+```http
+PATCH {{baseUrl}}/api/orders/ORD-20260705-AB12
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "advance"
+}
+```
+응답: `409 { "code": "INVALID_TRANSITION", "currentStatus": "DELIVERED" }` (DELIVERED/CANCELED 등 종료 상태에서 전진 시도)
+
+### 17.3 상태 명시 지정 (관리자 전용, set_status)
+```http
+PATCH {{baseUrl}}/api/orders/ORD-20260705-AB12
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "action": "set_status",
+  "status": "DELIVERED"
+}
+```
+응답: `200 { "message": "주문 상태가 변경되었습니다: DELIVERED", "order": { ... } }` (비관리자 → `403 { "code": "AUTH_FORBIDDEN" }`, 허용되지 않은 상태 → `400 { "code": "INVALID_STATUS" }`)
+
+---
+
+## 18. 배송 추적 API (tracking)
+
+> 모의 택배 API. `?trackingNumber=` 경로는 **공개**(단, 해당 송장의 주문이 존재해야 함), `?orderId=` 경로는 **인증 필요**(본인 주문만, 관리자는 전체). **외부 API 목킹 연습** 대상.
+
+### 18.1 송장번호로 조회 (공개)
+```http
+GET {{baseUrl}}/api/tracking?trackingNumber=MC1234567890
+```
+응답: `200 { "trackingNumber": "MC1234567890", "status": "SHIPPING", "events": [{ "status": "PAID", "label": "결제완료", "at": "...", "location": "온라인" }, ...] }` (events 는 주문 상태·주문시각 기반 결정론적 타임라인)
+
+### 18.2 주문 ID로 조회 (인증)
+```http
+GET {{baseUrl}}/api/tracking?orderId=ORD-20260705-AB12
+Authorization: Bearer {{token}}
+```
+응답: `200 { "trackingNumber", "status", "events" }` (본인 주문만; 없는/타인 주문 → `404 { "code": "TRACKING_NOT_FOUND" }`)
+
+### 18.3 없는 송장번호 (404)
+```http
+GET {{baseUrl}}/api/tracking?trackingNumber=MC0000000000
+```
+응답: `404 { "code": "TRACKING_NOT_FOUND" }`
+
+### 18.4 파라미터 누락 (400)
+```http
+GET {{baseUrl}}/api/tracking
+```
+응답: `400 { "code": "TRACKING_QUERY_REQUIRED" }`
+
+---
+
 ## 테스트 시나리오
 
 ### 시나리오 1: 일반 사용자 플로우
@@ -802,9 +1085,11 @@ Content-Type: application/json
 6. 리뷰 작성
 7. 장바구니 담기 (`POST /api/user-actions`, action: cart_add) 후 조회 (`GET ?type=cart`)
 8. 쿠폰 검증 (`POST /api/coupons`, WELCOME10)
-9. 주문 생성 (`POST /api/user-actions`, action: order — items 생략 시 장바구니 주문, couponCode/shipping 포함 가능)
-10. 주문 목록/상세 확인 (`GET /api/orders`, `GET /api/orders/:id`)
-11. 주문 취소 (`PATCH /api/orders/:id`, action: cancel) 후 재고 원복 확인 (`GET /api/inventory`)
+9. 결제 (`POST /api/payment`, 카드 0000 → 201 DONE) 후 사후검증 (`GET /api/payment?paymentKey=`)
+10. 주문 생성 (`POST /api/user-actions`, action: order — items 생략 시 장바구니 주문, couponCode/shipping/paymentKey 포함 가능)
+11. 주문 목록/상세 확인 (`GET /api/orders`, `GET /api/orders/:id`)
+12. 배송 상태 전진 (`PATCH /api/orders/:id`, action: advance — SHIPPING 진입 시 운송장 부여) 후 배송 추적 (`GET /api/tracking?trackingNumber=`)
+13. 주문 취소 (`PATCH /api/orders/:id`, action: cancel) 후 재고 원복 확인 (`GET /api/inventory`)
 
 ### 시나리오 2: 관리자 플로우
 1. 로그인 (admin/1234)

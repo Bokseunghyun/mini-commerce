@@ -8,9 +8,9 @@
 | 항목 | 값 |
 |---|---|
 | 테스트 계정 | `test` / `1234` (일반), `admin` / `1234` (관리자), `test2` / `1234` (차단 계정 → 로그인 403, 의도적). 회원가입으로 만든 계정도 로그인 가능(USER) |
-| 라우트 (전부 딥링크 가능) | `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/order-complete`, `/admin` |
+| 라우트 (전부 딥링크 가능) | `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin` |
 | 로그인 페이지 셀렉터 | `#login-username`, `#login-password`, `#login-submit` (data-testid: `login-submit-button`) |
-| 홈 헤더 셀렉터 | `#home-login`·`#home-signup-btn`(비로그인 시), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`(로그인 시), `#home-admin-btn`(항상 표시, 권한 체크는 클릭 후), `#home-cart-btn` |
+| 홈 헤더 셀렉터 | `#home-login`·`#home-signup-btn`(비로그인 시), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`·`#home-profile-btn`(로그인 시), `#home-tracking-btn`(항상 표시, 공개 배송조회), `#home-admin-btn`(항상 표시, 권한 체크는 클릭 후), `#home-cart-btn` |
 | 상품 버튼 (data-testid) | `view-detail-btn-{id}`(상세 보기), `add-to-cart-btn-{id}`(장바구니 담기), `wishlist-toggle-{id}`(하트, `aria-pressed`) |
 | 딥링크 | 위 라우트 전부 `page.goto()` 직접 진입 가능 — 단 REQ-1 때문에 딥링크 직후엔 항상 **비로그인** 상태 |
 
@@ -1047,18 +1047,26 @@ await page.locator('.element').waitFor();
 | 배송지 입력 | `#checkout-name`, `#checkout-phone`, `#checkout-address`, `#checkout-memo` |
 | 배송지 에러 | `[data-testid="checkout-name-error"]`, `[data-testid="checkout-phone-error"]`, `[data-testid="checkout-address-error"]` |
 | 쿠폰 | `#coupon-code`, `[data-testid="coupon-apply-btn"]`, `[data-testid="coupon-message"]`, `[data-testid="coupon-remove-btn"]` |
-| 결제수단 라디오 | `#payment-card`, `#payment-bank`, `#payment-kakao` |
+| 결제수단 라디오 | `#payment-card`, `#payment-bank`, `#payment-kakao` (카드만 실제 동작 — 무통장/카카오 선택 시 `#payment-method-notice` 준비중 안내) |
+| 카드 입력 (카드 선택 시에만 렌더) | `#card-number`(data-testid: `card-number-input`), `#card-expiry`(`card-expiry-input`), `#card-cvc`(`card-cvc-input`) |
+| 테스트 카드 안내 (접이식) | `#test-card-guide` / `#test-card-guide-toggle` → `#test-card-guide-body`, 행 `[data-testid="test-card-row-0000"]`·`-0001`·`-0002`·`-9999` |
 | 약관 동의 (체크 전 결제버튼 비활성) | `#agree-terms` |
-| 결제 버튼 | `#place-order-btn` |
-| 금액 요약 / 에러 / 빈 상태 | `[data-testid="checkout-subtotal"]`, `[data-testid="checkout-discount"]`, `[data-testid="checkout-final"]`, `[data-testid="checkout-error"]`, `[data-testid="checkout-empty"]` |
+| 결제 버튼 (라벨: `{금액}원 결제하기`, 진행 중 `결제 승인 중...`) | `#place-order-btn` |
+| 결제 진행 스피너 / 결제 에러 (`role=alert`) | `[data-testid="payment-processing"]`(내부 `loading-spinner`), `[data-testid="payment-error"]` |
+| 금액 요약 / 주문 에러 / 빈 상태 | `[data-testid="checkout-subtotal"]`, `[data-testid="checkout-discount"]`, `[data-testid="checkout-final"]`, `[data-testid="checkout-error"]`, `[data-testid="checkout-empty"]` |
+
+**테스트 카드 (카드번호 끝 4자리로 결과 결정 — 앞자리는 임의):** `…0000` 승인 / `…0001` 거절(402 `PAYMENT_DECLINED`) / `…0002` 한도초과(402 `PAYMENT_LIMIT_EXCEEDED`) / `…9999` 게이트웨이 타임아웃(504 `PAYMENT_GATEWAY_TIMEOUT`, ~500ms 지연) / 그 외 승인. 승인 시 `/order-complete`로 이동하고 주문이 생성되며, 실패 시 `payment-error`에 서버 메시지가 노출되고 **주문은 생성되지 않습니다**.
 
 #### 주문내역 `/orders` (OrderHistory.jsx)
 | 용도 | 셀렉터 |
 |---|---|
 | 주문 행 (클릭 = 상세 확장 토글) | `[data-testid="order-item-{orderId}"]` |
 | 확장된 상세 영역 | `[data-testid="order-detail-{orderId}"]` |
-| 취소 버튼 (확장 후에만 노출, `confirm()` 발생) | `[data-testid="order-cancel-{orderId}"]` |
-| 상태 뱃지 (`결제완료`/`취소됨`, `data-status` 속성) | `[data-testid="order-status-{orderId}"]` |
+| 상태 뱃지 (5종, `data-status` 속성) | `[data-testid="order-status-{orderId}"]` — 라벨 `결제완료`(PAID) / `상품준비중`(PREPARING) / `배송중`(SHIPPING) / `배송완료`(DELIVERED) / `취소됨`(CANCELED) |
+| 상태 진행 버튼 (확장 후 노출, 다음 단계로 전이) | `[data-testid="order-advance-btn-{orderId}"]` — DELIVERED/CANCELED에서는 미노출/비활성 (API는 409 `INVALID_TRANSITION`) |
+| 취소 버튼 (PAID·PREPARING만 노출, `confirm()` 발생) | `[data-testid="order-cancel-{orderId}"]` |
+| 배송조회 (SHIPPING·DELIVERED만 노출) | `[data-testid="order-track-btn-{orderId}"]`, 송장번호 `[data-testid="order-tracking-number-{orderId}"]`(`MC`+10자리) |
+| 인라인 배송 타임라인 | `[data-testid="tracking-timeline-{orderId}"]` → 이벤트 `[data-testid="tracking-event-{orderId}-{i}"]` |
 | 취소 결과 / 빈 목록 / 로그인 필요 | `[data-testid="order-cancel-message"]`, `[data-testid="orders-empty"]`, `[data-testid="orders-login-required"]` |
 
 #### 위시리스트 `/wishlist` (Wishlist.jsx) + 목록/홈 하트
@@ -1078,6 +1086,8 @@ await page.locator('.element').waitFor();
 | 재고 뱃지 (`품절`/`재고 부족`/`재고 충분`) | `[data-testid="stock-badge"]` — 품절 시 `#add-to-cart-button`, `#buy-now-button` 모두 `disabled` |
 | 평점 요약 | `[data-testid="rating-average"]`, `[data-testid="rating-bar-5"]`~`rating-bar-1` |
 | 리뷰 작성 (로그인 필요) | `[data-testid="star-input-1"]`~`star-input-5`, `#review-comment`, `#review-submit`, `[data-testid="review-form-message"]` (in-DOM 메시지, alert 아님) |
+| 리뷰 이미지 첨부 (최대 3장) | `[data-testid="image-upload-input-review"]`(file input), 업로드 후 썸네일 `[data-testid="review-upload-thumb-{i}"]` / 제거 `[data-testid="review-upload-remove-{i}"]` |
+| 리뷰별 첨부 이미지 (목록) | `[data-testid="review-images-{reviewId}"]` → 개별 `[data-testid="review-image-{reviewId}-{i}"]` |
 | 리뷰 정렬 / 더보기 / 항목 | `#review-sort` (`latest`/`rating`), `[data-testid="review-load-more"]`, `[data-testid="review-item-{id}"]` |
 
 #### 목록 `/products` · 홈 `/`
@@ -1091,6 +1101,34 @@ await page.locator('.element').waitFor();
 #### 장바구니 `/cart` · 주문완료 `/order-complete`
 - 장바구니는 **서버 장바구니**(로그인 필수)이며 `cart-item-{productId}` 등 기존 `cart-*` testid는 **productId 기준**입니다. `#checkout-btn` 클릭 시 `/checkout`으로 이동합니다(주문 생성은 체크아웃 페이지에서).
 - 주문완료: `[data-testid="order-complete-id"]`(주문번호 `ORD-yyyymmdd-XXXX`), `[data-testid="order-complete-amount"]`, `[data-testid="go-orders-btn"]`
+
+#### 내정보 `/profile` (Profile.jsx) — 로그인 필요
+| 용도 | 셀렉터 |
+|---|---|
+| 페이지 루트 / 로그인 필요 안내 | `[data-testid="profile-page"]`, `[data-testid="profile-login-required"]` |
+| 아바타 (없으면 이니셜 폴백) / 결과 메시지 | `[data-testid="profile-avatar"]`, `[data-testid="profile-avatar-message"]`(in-DOM, alert 아님) |
+| 아바타 업로드 | `[data-testid="image-upload-input-avatar"]`(file input) — 성공 시 `POST /api/user-actions {action:'set_avatar'}` |
+| 주소검색 버튼 / 위젯 레이어 | `[data-testid="address-search-btn"]`, `[data-testid="address-search-layer"]`(카카오 위젯 마운트 지점) |
+| 스크립트 차단 시 수동입력 폴백 (`role=alert`) | `[data-testid="address-search-fallback"]` → `[data-testid="address-search-manual-zonecode"]`, `-manual-address`, `-manual-submit` |
+| 선택된 우편번호 / 주소 | `[data-testid="profile-zonecode"]`, `[data-testid="profile-address"]` |
+
+> 주소검색은 카카오(다음) 우편번호 위젯을 외부 스크립트(`postcode.v2.js`)로 **동적 로드**합니다. 스크립트가 차단/실패하면 `address-search-fallback` 수동입력 폼으로 폴백됩니다 — 외부 스크립트를 라우트 차단(`page.route('**/*postcode*', r => r.abort())`)해 폴백을 강제하는 것이 목킹 연습 포인트입니다.
+
+#### 배송조회 `/tracking` (Tracking.jsx) — 공개
+| 용도 | 셀렉터 |
+|---|---|
+| 송장번호 입력 / 조회 버튼 | `#tracking-number-input`, `#tracking-search-btn` |
+| 조회 결과 / 상태 뱃지 | `[data-testid="tracking-result"]`, `[data-testid="tracking-status"]`, 송장 `[data-testid="tracking-result-number"]` |
+| 이벤트 타임라인 | `[data-testid="tracking-event-{i}"]`(순번은 0부터) |
+| 없는 송장 (`role=alert`) | `[data-testid="tracking-not-found"]` |
+
+#### 파일 업로드 공통 컴포넌트 (ImageUpload.jsx — 리뷰/아바타 공용)
+| 용도 | 셀렉터 |
+|---|---|
+| 파일 입력 | `[data-testid="image-upload-input-{kind}"]` (`kind` = `review` \| `avatar`) |
+| 로딩 / 에러(형식·용량) / 미리보기 | `[data-testid="image-upload-loading"]`, `[data-testid="image-upload-error"]`, `[data-testid="image-upload-preview"]` |
+
+> 업로드는 실제 저장 없이 검증+에코하는 모의 엔드포인트(`POST /api/upload`)입니다. `image-upload-error`에는 서버 검증 메시지(400 `INVALID_FILE_TYPE` / 413 `FILE_TOO_LARGE`, 2MB 초과)가 노출됩니다. Playwright에서는 `setInputFiles()`로 실제 파일을 올리거나, 형식/용량 에러는 API를 직접 호출(`page.request.post`)해 검증하는 편이 빠릅니다.
 
 ---
 
@@ -1190,13 +1228,21 @@ test('체크아웃 전체 플로우', async ({ page }) => {
   await expect(page.getByTestId('coupon-message')).toContainText('쿠폰이 적용되었습니다');
   await expect(page.getByTestId('checkout-discount')).not.toHaveText('-0원');
 
-  // 5) 배송지 입력 후 주문
+  // 5) 배송지 입력
   await page.fill('#checkout-name', '홍길동');
   await page.fill('#checkout-phone', '010-1234-5678');
   await page.fill('#checkout-address', '서울시 강남구 테헤란로 1');
+
+  // 6) 카드 결제 정보 입력 (카드가 기본 결제수단이며 입력폼이 노출됨)
+  //    끝 4자리 0000 = 승인. 앞자리는 임의, 유효기간 MM/YY, CVC 3자리.
+  await page.fill('#card-number', '4111-1111-1111-0000');
+  await page.fill('#card-expiry', '12/30');
+  await page.fill('#card-cvc', '123');
+
+  // 7) 결제 → 승인 시 주문완료로 이동 (POST /api/payment → POST /api/user-actions 주문)
   await page.click('#place-order-btn');
 
-  // 6) 주문완료: 주문번호 형식 검증 (ORD-yyyymmdd-XXXX)
+  // 8) 주문완료: 주문번호 형식 검증 (ORD-yyyymmdd-XXXX)
   await page.waitForURL('/order-complete');
   await expect(page.getByTestId('order-complete-id'))
     .toHaveText(/^ORD-\d{8}-[A-Z0-9]{4}$/);
@@ -1207,6 +1253,7 @@ test('체크아웃 전체 플로우', async ({ page }) => {
 > 가격/할인은 **서버(DB)가 결정**합니다. 클라이언트가 보낸 가격은 무시되므로,
 > `checkout-final` 금액과 주문 API 응답의 `finalPrice`가 일치하는지 검증하는 것도 좋은 연습입니다.
 > 참고: 상품 3/4 포함 주문은 422 `ORDER_BLOCKED_PRODUCT`, 재고 0(상품 18)은 409 `INSUFFICIENT_STOCK` — `checkout-error`에 표시됩니다(의도적).
+> 결제 실패(끝 4자리 `0001`/`0002`/`9999`)와 외부 PG 목킹 연습은 [8.8](#88-결제-플로우-테스트-카드--외부-pg-목킹) 참고.
 
 ---
 
@@ -1245,6 +1292,30 @@ test('주문 취소 플로우', async ({ page }) => {
 
 > `dialog.dismiss()`로 confirm을 취소하면 상태가 그대로 `결제완료`로 남는 것도 함께 검증해보세요.
 > 이미 취소된 주문을 다시 취소하면 API가 409 `ALREADY_CANCELED`를 반환합니다.
+
+**주문 상태 진행(advance) 검증** — 상태는 `결제완료`(PAID) → `상품준비중`(PREPARING) → `배송중`(SHIPPING) → `배송완료`(DELIVERED) 순으로 전이됩니다. `order-advance-btn-{orderId}`를 반복 클릭해 뱃지 텍스트가 순서대로 바뀌는지, `배송중`부터 송장번호(`order-tracking-number-{orderId}`, `MC`+10자리)와 배송조회 버튼(`order-track-btn-{orderId}`)이 노출되는지, `배송완료`/`취소됨`에서는 진행/취소 버튼이 사라지는지(API는 409 `INVALID_TRANSITION`) 확인하세요.
+
+```typescript
+test('주문 상태 진행 → 배송중 진입 시 송장번호 노출', async ({ page }) => {
+  // (로그인 + /orders 진입은 위와 동일)
+  const firstOrder = page.locator('[data-testid^="order-item-"]').first();
+  const orderId = (await firstOrder.getAttribute('data-testid'))!.replace('order-item-', '');
+  await firstOrder.click();
+
+  const status = page.getByTestId(`order-status-${orderId}`);
+  const advance = page.getByTestId(`order-advance-btn-${orderId}`);
+
+  // 결제완료 → 상품준비중 → 배송중
+  await advance.click();
+  await expect(status).toHaveText('상품준비중');
+  await advance.click();
+  await expect(status).toHaveText('배송중');
+
+  // 배송중부터 송장번호 + 배송조회 버튼 노출
+  await expect(page.getByTestId(`order-tracking-number-${orderId}`)).toContainText(/^MC\d{10}$/);
+  await expect(page.getByTestId(`order-track-btn-${orderId}`)).toBeVisible();
+});
+```
 
 ---
 
@@ -1404,6 +1475,176 @@ test('다른 브라우저 컨텍스트에서도 장바구니 유지', async ({ b
 > REQ-1 때문에 `storageState`로 **로그인 상태**는 재사용할 수 없지만, 장바구니 데이터 자체는
 > 서버에 남아 있다는 점이 핵심입니다. 테스트 간 간섭을 피하려면 테스트 시작/종료 시
 > 장바구니를 비우거나(`cart_update` 수량 0) `POST /api/reset`을 사용하세요.
+
+---
+
+### 8.8 결제 플로우 (테스트 카드 · 외부 PG 목킹)
+
+결제는 **모의 PG**(이니시스 스타일)이며, 카드번호 **끝 4자리로 결과가 결정론적으로** 정해집니다(랜덤 아님). 승인이면 `/order-complete`로 이동하고, 실패면 `payment-error`(`role=alert`)에 서버 메시지가 뜨고 **주문은 생성되지 않습니다**.
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 8.2의 로그인 + 장바구니 담기 + /checkout 진입을 재사용한다고 가정.
+async function fillShippingAndAgree(page) {
+  await page.check('#agree-terms');
+  await page.fill('#checkout-name', '홍길동');
+  await page.fill('#checkout-phone', '010-1234-5678');
+  await page.fill('#checkout-address', '서울시 강남구 테헤란로 1');
+}
+
+test('카드 거절(402) → payment-error 노출, 주문 미생성', async ({ page }) => {
+  // ... 로그인/장바구니/checkout 진입 후 ...
+  await fillShippingAndAgree(page);
+
+  // 끝 4자리 0001 = 카드 거절
+  await page.fill('#card-number', '4111-1111-1111-0001');
+  await page.fill('#card-expiry', '12/30');
+  await page.fill('#card-cvc', '123');
+  await page.click('#place-order-btn');
+
+  // payment-error(role=alert)에 서버 메시지, URL은 그대로 /checkout
+  await expect(page.getByTestId('payment-error')).toContainText('거절');
+  await expect(page).toHaveURL(/\/checkout/);
+});
+
+test('게이트웨이 타임아웃(504) — 진행 스피너 후 실패', async ({ page }) => {
+  await fillShippingAndAgree(page);
+  await page.fill('#card-number', '4111-1111-1111-9999'); // 9999 = 타임아웃(~500ms 지연)
+  await page.fill('#card-expiry', '12/30');
+  await page.fill('#card-cvc', '123');
+  await page.click('#place-order-btn');
+
+  // 결제 진행 중 스피너 → 실패 메시지
+  await expect(page.getByTestId('payment-processing')).toBeVisible();
+  await expect(page.getByTestId('payment-error')).toBeVisible();
+});
+```
+
+**외부 PG 목킹 연습 (핵심)** — 카드 끝 4자리 대신, 프론트가 보내는 `POST /api/payment` 응답 자체를 가로채 실패를 주입할 수 있습니다. 실제 결제 서버가 죽었을 때의 UI 처리를 검증하는 연습입니다.
+
+```typescript
+test('결제 API를 가로채 강제 실패 주입', async ({ page }) => {
+  // /api/payment 요청을 가로채 504로 응답 (외부 PG 무응답 시뮬레이션)
+  await page.route('**/api/payment', (route) =>
+    route.fulfill({
+      status: 504,
+      contentType: 'application/json',
+      body: JSON.stringify({ code: 'PAYMENT_GATEWAY_TIMEOUT', message: '결제 서버가 응답하지 않습니다' }),
+    })
+  );
+  // ... checkout 진입 + fillShippingAndAgree + 카드 입력 후 place-order ...
+  await page.click('#place-order-btn');
+  await expect(page.getByTestId('payment-error')).toContainText('응답하지 않습니다');
+});
+```
+
+> 서버 측 폴트 주입도 가능합니다: `POST /api/payment?simulate=decline|limit|timeout|error` 는 카드번호와 무관하게 결과를 강제합니다(`error` → 500 `PAYMENT_ERROR`). API 레벨 검증은 `page.request.post('/api/payment?simulate=timeout', ...)`로 직접 호출하세요. 결제 사후검증은 `GET /api/payment?paymentKey=...`(없으면 404 `PAYMENT_NOT_FOUND`). `paymentKey`(`PAY-<uuid>`)는 비결정 값이라 값 자체를 단언하지 말고 형식/존재만 확인하세요.
+
+---
+
+### 8.9 파일 업로드 (리뷰 이미지 · 프로필 아바타)
+
+업로드는 실제 저장 없이 **형식/용량을 검증+에코**하는 모의 엔드포인트(`POST /api/upload`)입니다. 허용: `data:image/png|jpeg|webp|gif;base64,...`, 최대 2MB. 실패 메시지는 `image-upload-error`에 노출됩니다.
+
+```typescript
+import { test, expect } from '@playwright/test';
+import path from 'path';
+
+test('리뷰 이미지 첨부 → 썸네일 노출', async ({ page }) => {
+  // 로그인 후 상품 상세 리뷰 탭 진입 (별점/내용 입력은 8.5 참고)
+  await page.goto('/product/1');
+  // ... 로그인 + 리뷰 탭 활성화 ...
+
+  // 실제 파일 업로드 (file input)
+  await page.getByTestId('image-upload-input-review')
+    .setInputFiles(path.resolve('fixtures/sample.png'));
+
+  // 업로드 성공 시 썸네일 노출 (최대 3장: review-upload-thumb-0 ~ -2)
+  await expect(page.getByTestId('review-upload-thumb-0')).toBeVisible();
+  // 제거 버튼으로 삭제 가능
+  await page.getByTestId('review-upload-remove-0').click();
+});
+
+test('잘못된 형식 → image-upload-error (API 직접 호출이 빠름)', async ({ request }) => {
+  // 인증 토큰 확보 후 (login API) — 텍스트 data URL은 이미지가 아니므로 400
+  const res = await request.post('/api/upload', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { kind: 'review', image: 'data:text/plain;base64,aGVsbG8=' },
+  });
+  expect(res.status()).toBe(400); // INVALID_FILE_TYPE
+});
+```
+
+> 프로필 아바타도 동일 컴포넌트(`image-upload-input-avatar`)를 씁니다. 아바타 업로드 성공 시 `POST /api/user-actions {action:'set_avatar'}`로 서버에 반영되고 `profile-avatar`가 갱신됩니다(8.11 참고). 용량 초과(2MB)는 413 `FILE_TOO_LARGE`.
+> 리뷰 이미지가 붙은 기존 리뷰는 목록에서 `review-images-{reviewId}` → `review-image-{reviewId}-{i}`로 확인합니다.
+
+---
+
+### 8.10 배송추적 (공개 페이지 · 외부 택배 API 목킹)
+
+`/tracking`은 **공개** 페이지입니다(로그인 불필요). 송장번호로 조회하되, 해당 송장의 주문이 존재해야 하며 없으면 `tracking-not-found`(`role=alert`)가 뜹니다. 유효한 송장번호(`MC`+10자리)는 8.3의 상태 진행으로 `배송중` 이상 주문에서 얻습니다.
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('없는 송장번호 → tracking-not-found', async ({ page }) => {
+  await page.goto('/tracking');
+  await page.fill('#tracking-number-input', 'MC0000000000');
+  await page.click('#tracking-search-btn');
+  await expect(page.getByTestId('tracking-not-found')).toBeVisible();
+});
+
+test('유효 송장 → 상태 + 이벤트 타임라인', async ({ page }) => {
+  await page.goto('/tracking');
+  await page.fill('#tracking-number-input', trackingNumber); // 배송중 주문의 송장
+  await page.click('#tracking-search-btn');
+  await expect(page.getByTestId('tracking-result')).toBeVisible();
+  await expect(page.getByTestId('tracking-status')).toBeVisible();
+  await expect(page.getByTestId('tracking-event-0')).toBeVisible(); // 이벤트 순번 0부터
+});
+```
+
+> 주문내역(`/orders`)의 `order-track-btn-{orderId}`로도 진입할 수 있고, 확장 행 안에 인라인 타임라인(`tracking-timeline-{orderId}` → `tracking-event-{orderId}-{i}`)이 렌더됩니다.
+> **외부 택배 API 목킹:** 이벤트 타임라인은 `GET /api/tracking?trackingNumber=...`가 주문 상태/주문시각 기반으로 **결정적으로** 생성합니다. `page.route('**/api/tracking**', ...)`로 응답을 가로채 임의의 상태/이벤트를 주입하면 UI 렌더를 독립적으로 검증할 수 있습니다. `?orderId=` 경로는 인증 필요 + 본인 주문만(타인 주문은 존재 비노출 위해 404).
+
+---
+
+### 8.11 내정보 (아바타 · 주소검색 폴백)
+
+`/profile`은 **로그인 필요** 페이지입니다. 딥링크로 바로 들어가면 REQ-1 때문에 비로그인이라 `profile-login-required`가 뜹니다. 주소검색은 카카오(다음) 우편번호 위젯을 외부 스크립트로 동적 로드하며, 차단/실패 시 수동입력 폼(`address-search-fallback`)으로 폴백합니다.
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('비로그인 딥링크 → profile-login-required', async ({ page }) => {
+  await page.goto('/profile');
+  await expect(page.getByTestId('profile-login-required')).toBeVisible();
+});
+
+test('외부 우편번호 스크립트 차단 → 수동입력 폴백', async ({ page }) => {
+  // 카카오 우편번호 스크립트 로드를 차단해 폴백 강제 (외부 스크립트 목킹)
+  await page.route('**/*postcode*', (route) => route.abort());
+
+  // 로그인 후 /profile 진입 (홈에서 #home-profile-btn 사용)
+  // ... UI 로그인 ...
+  await page.click('#home-profile-btn');
+  await page.waitForURL('/profile');
+
+  await page.getByTestId('address-search-btn').click();
+  // 위젯 로드 실패 → 수동입력 폴백 노출
+  await expect(page.getByTestId('address-search-fallback')).toBeVisible();
+  await page.getByTestId('address-search-manual-zonecode').fill('06236');
+  await page.getByTestId('address-search-manual-address').fill('서울시 강남구 테헤란로 1');
+  await page.getByTestId('address-search-manual-submit').click();
+
+  // 선택된 값이 프로필 필드에 반영
+  await expect(page.getByTestId('profile-zonecode')).toHaveValue('06236');
+  await expect(page.getByTestId('profile-address')).toHaveValue(/테헤란로/);
+});
+```
+
+> 아바타 업로드는 `image-upload-input-avatar`(8.9) → 성공 시 `profile-avatar`가 갱신되고 `profile-avatar-message`에 in-DOM 결과 메시지(alert 아님)가 뜹니다. 아바타가 없으면 이니셜 폴백이 표시됩니다.
 
 ---
 

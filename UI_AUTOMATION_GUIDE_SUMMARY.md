@@ -4,8 +4,8 @@
 >
 > **본 사이트 핵심 정보 (코드 기준 검증됨):**
 > - 테스트 계정: `test`/`1234`(일반), `admin`/`1234`(관리자), `test2`/`1234`(차단 계정 → 로그인 403, 의도적). 회원가입으로 만든 계정도 사용 가능
-> - 라우트(전부 딥링크 가능): `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/order-complete`, `/admin`
-> - 로그인 셀렉터: `#login-username`, `#login-password`, `#login-submit` / 홈 헤더: `#home-login`·`#home-signup-btn`(비로그인), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`(로그인), `#home-admin-btn`(항상 표시)
+> - 라우트(전부 딥링크 가능): `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin`
+> - 로그인 셀렉터: `#login-username`, `#login-password`, `#login-submit` / 홈 헤더: `#home-login`·`#home-signup-btn`(비로그인), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`·`#home-profile-btn`(로그인), `#home-tracking-btn`(항상, 공개 배송조회), `#home-admin-btn`(항상 표시)
 > - 주요 data-testid: `login-submit-button`, `loading-spinner`, `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn` → `/checkout` 이동), `admin-row-{id}`, `view-detail-btn-{id}`, `add-to-cart-btn-{id}`, `wishlist-toggle-{id}`(하트, `aria-pressed`), `soldout-badge-{id}`(씨드 기준 3/8/18)
 > - **REQ-1(의도적 제약):** 앱 진입 시 항상 로그아웃 상태로 초기화 → `storageState` 재사용 불가, 각 테스트에서 UI 로그인 필요. 딥링크(`/orders` 등) 직후에도 항상 비로그인 상태
 > - **서버 장바구니(계정 영속):** 장바구니는 서버 DB에 계정 단위로 저장 → 다른 브라우저/컨텍스트에서 로그인해도 유지. localStorage 클리어로 초기화되지 않음 (`POST /api/reset` 또는 `cart_update` 수량 0으로 비움)
@@ -509,11 +509,13 @@ page.on('dialog', async (dialog) => {
 1. **약관 게이팅**: `#agree-terms` 체크 전 `#place-order-btn`은 `toBeDisabled()`
 2. **배송지 검증**: 빈 값 제출 → `checkout-name-error` / `checkout-phone-error` / `checkout-address-error`
 3. **쿠폰**: `#coupon-code` + `coupon-apply-btn` → `coupon-message`. `EXPIRED10`은 "만료된 쿠폰입니다"(의도적 실패), `WELCOME10`(10%)·`SAVE5000`(최소 3만)·`VIP20`(최소 10만) 성공 시 `checkout-discount` 갱신, `coupon-remove-btn`으로 해제
-4. **주문**: 결제수단 라디오 `#payment-card`/`#payment-bank`/`#payment-kakao` → 결제 → `/order-complete`에서 `order-complete-id`가 `/^ORD-\d{8}-[A-Z0-9]{4}$/` 형식인지 검증
+4. **카드 결제**: 결제수단 라디오 `#payment-card`(기본, 유일 동작)/`#payment-bank`/`#payment-kakao` → 카드폼 `#card-number`(끝 4자리 `0000`=승인)/`#card-expiry`(MM/YY)/`#card-cvc` 입력 → `#place-order-btn`(라벨 `{금액}원 결제하기`) → `/order-complete`에서 `order-complete-id`가 `/^ORD-\d{8}-[A-Z0-9]{4}$/` 형식인지 검증 (실패 카드/외부 PG 목킹은 6.8)
 
-### 6.3 주문내역 `/orders`
-`order-item-{orderId}` 행 클릭 → `order-detail-{orderId}` 확장 → **확장 후에만** `order-cancel-{orderId}` 노출
-→ 클릭 시 `confirm()` 발생(다이얼로그 처리 필수) → 수락 시 `order-status-{orderId}`가 `결제완료` → `취소됨` 전이, `order-cancel-message` 표시
+### 6.3 주문내역 `/orders` (상태 진행 + 취소)
+`order-item-{orderId}` 행 클릭 → `order-detail-{orderId}` 확장
+- **상태 뱃지 5종** `order-status-{orderId}`(`data-status`): `결제완료`→`상품준비중`→`배송중`→`배송완료`, 취소 시 `취소됨`
+- **상태 진행** `order-advance-btn-{orderId}` 클릭 → 다음 단계 전이. `배송중`부터 송장 `order-tracking-number-{orderId}`(`MC`+10자리) + 배송조회 `order-track-btn-{orderId}` 노출. 종료 상태에선 진행 버튼 미노출(API 409 `INVALID_TRANSITION`)
+- **취소** `order-cancel-{orderId}`(PAID/PREPARING만) → `confirm()` 발생(다이얼로그 처리 필수) → `취소됨` 전이 + `order-cancel-message` + 재고 복원
 - 비로그인 딥링크: `orders-login-required` 표시
 
 ### 6.4 위시리스트 `/wishlist`
@@ -524,6 +526,7 @@ page.on('dialog', async (dialog) => {
 - **갤러리**: `gallery-thumb-0..2` 클릭 → `product-main-image`의 `src` 변경 검증
 - **탭**: `#tab-description`/`#tab-specs`/`#tab-shipping`/`#tab-reviews` → 활성 탭 패널(`tab-panel-*`)만 DOM에 존재, 스펙 `spec-row-{i}`
 - **리뷰 작성**(로그인 필요): `star-input-1..5` → `#review-comment`(10자 이상) → `#review-submit` → 결과는 alert가 아닌 in-DOM `review-form-message` → `rating-average`/`rating-bar-5..1` 분포 갱신. 중복 작성은 409, 정렬 `#review-sort`(latest/rating), `review-load-more`
+- **리뷰 이미지**(최대 3장): `image-upload-input-review` 업로드 → 썸네일 `review-upload-thumb-{i}`/제거 `review-upload-remove-{i}`, 목록의 리뷰별 이미지 `review-image-{reviewId}-{i}`
 - **품절 검증**: 상품 18은 `stock-badge`가 `품절`, `#add-to-cart-button`/`#buy-now-button` 모두 `toBeDisabled()`
 
 ### 6.6 목록 `/products`
@@ -531,6 +534,20 @@ page.on('dialog', async (dialog) => {
 
 ### 6.7 서버 장바구니 영속성
 새 브라우저 컨텍스트에서 같은 계정으로 로그인 → 이전에 담은 `cart-item-{productId}`가 그대로 보이는지 검증. `storageState`로 로그인은 재사용할 수 없지만(REQ-1) **장바구니 데이터는 서버에 계정 단위로 영속**된다는 점이 연습 포인트.
+
+### 6.8 결제 (테스트 카드 · 외부 PG 목킹)
+결제는 **모의 PG**로 카드 **끝 4자리로 결과 결정**(랜덤 아님): `…0000` 승인 / `…0001` 402 거절 / `…0002` 402 한도 / `…9999` 504 타임아웃. 실패 시 `payment-error`(`role=alert`)에 메시지, 주문 미생성, URL은 `/checkout` 유지.
+- `page.route('**/api/payment', r => r.fulfill({status:504,...}))`로 응답을 가로채 강제 실패 주입(외부 PG 목킹 핵심)
+- 서버 폴트 주입: `POST /api/payment?simulate=decline|limit|timeout|error`(카드 무관). 사후조회 `GET /api/payment?paymentKey=`(없으면 404). `paymentKey`(`PAY-<uuid>`) 값은 단언 금지
+
+### 6.9 파일 업로드 (리뷰/아바타)
+공통 `image-upload-input-{review|avatar}`(file input) → 성공 시 미리보기/썸네일, 실패는 `image-upload-error`. 허용 `data:image/png|jpeg|webp|gif;base64,...` ≤2MB → 위반 시 400 `INVALID_FILE_TYPE` / 413 `FILE_TOO_LARGE`. Playwright `setInputFiles()`로 업로드하거나 형식/용량 에러는 `page.request.post('/api/upload')`로 직접 검증.
+
+### 6.10 배송조회 `/tracking` (공개)
+로그인 불필요. `#tracking-number-input` + `#tracking-search-btn` → 없는 송장 `tracking-not-found`(`role=alert`) / 유효 송장(배송중 이상 주문의 `MC`+10자리) → `tracking-result`/`tracking-status`/`tracking-event-{i}`(0부터). `page.route('**/api/tracking**', ...)`로 외부 택배 API 목킹 연습.
+
+### 6.11 내정보 `/profile` (로그인 필요 · 주소검색 폴백)
+비로그인 딥링크 → `profile-login-required`. 아바타 `image-upload-input-avatar` 업로드 → `profile-avatar` 갱신 + `profile-avatar-message`. 주소검색 `address-search-btn` → 외부 우편번호 스크립트 로드, `page.route('**/*postcode*', r => r.abort())`로 차단 시 `address-search-fallback` 수동입력(`address-search-manual-zonecode`/`-manual-address`/`-manual-submit`) → 결과가 `profile-zonecode`/`profile-address`에 반영.
 
 ---
 

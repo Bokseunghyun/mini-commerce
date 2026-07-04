@@ -377,6 +377,43 @@ await page.request.patch(`/api/orders/${orderId}`, {
 }); // → 200 (재고 원복) | 409 ALREADY_CANCELED
 ```
 
+### 신규 엔드포인트 빠른 참조 (payment / upload / tracking · advance)
+```typescript
+// 결제 (모의 PG, 이니시스 스타일) — 결과는 카드 뒤 4자리 또는 ?simulate= 로 결정론적
+// 0000 승인 / 0001 402 PAYMENT_DECLINED / 0002 402 PAYMENT_LIMIT_EXCEEDED
+// 9999 504 PAYMENT_GATEWAY_TIMEOUT / 그 외 승인. 400 INVALID_CARD / INVALID_AMOUNT
+// ?simulate=decline|limit|timeout|error (error → 500 PAYMENT_ERROR) — 외부 API 목킹 연습
+await page.request.post('/api/payment', {
+  headers: { Authorization: `Bearer ${token}` },
+  data: { cardNumber: '4000000000000000', amount: 129000 }
+}); // → 201 { paymentKey:'PAY-...', status:'DONE', method:'CARD', cardLast4, amount }
+await page.request.get(`/api/payment?paymentKey=${paymentKey}`, {
+  headers: { Authorization: `Bearer ${token}` }
+}); // → 200 결제레코드 | 404 PAYMENT_NOT_FOUND (사후검증)
+// 주문 연동: POST /api/user-actions { action:'order', ..., paymentKey } 로 결제 연결
+//   금액 불일치/미승인/중복사용 → 402 PAYMENT_INVALID, 결제 없음 → 402 PAYMENT_REQUIRED
+
+// 파일 업로드(모의) — data URL 이미지 형식/용량 검증 후 에코
+// 400 INVALID_FILE_TYPE / INVALID_KIND, 413 FILE_TOO_LARGE(>2MB)
+await page.request.post('/api/upload', {
+  headers: { Authorization: `Bearer ${token}` },
+  data: { kind: 'review', image: 'data:image/png;base64,....' }
+}); // → 201 { url, kind }
+// 아바타: POST /api/user-actions { action:'set_avatar', image } → 200 { avatarUrl }
+// 리뷰 이미지: POST/PATCH /api/reviews 에 images:string[](최대 3), 400 INVALID_REVIEW_IMAGE
+
+// 배송 상태 전진 (본인/관리자) — PAID→PREPARING→SHIPPING(운송장 MC+10자리)→DELIVERED
+await page.request.patch(`/api/orders/${orderId}`, {
+  headers: { Authorization: `Bearer ${token}` },
+  data: { action: 'advance' }
+}); // → 200 { order } | 409 INVALID_TRANSITION (DELIVERED/CANCELED)
+// set_status(관리자): { action:'set_status', status } — 비관리자 403, 잘못된 상태 400 INVALID_STATUS
+
+// 배송 추적 (송장번호=공개 / orderId=인증) — events:[{ status, label, at, location }]
+await page.request.get(`/api/tracking?trackingNumber=${trackingNumber}`);
+// → 200 { trackingNumber, status, events } | 404 TRACKING_NOT_FOUND
+```
+
 ---
 
 ## 6. 학습 로드맵

@@ -4,7 +4,7 @@
 
 ## 🗺️ 라우트 (전부 딥링크 가능)
 
-`/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/order-complete`, `/admin`
+`/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin`
 
 > **REQ-1 (의도적 제약):** 앱 진입 시 항상 로그아웃 상태로 초기화됩니다(진입 시 localStorage 토큰 제거).
 > 따라서 어떤 딥링크로 진입하든 **직후에는 항상 비로그인 상태**이며, 로그인이 필요한 페이지는
@@ -152,15 +152,26 @@
 - 적용 시 `checkout-discount`·`checkout-final` 갱신, `coupon-remove-btn`으로 해제
 - 최소 주문금액 미달 → 400 `MIN_ORDER_NOT_MET`, 없는 코드 → 404 `COUPON_NOT_FOUND`
 
-#### 4.4 약관 게이팅 → 주문 → 주문완료
+#### 4.4 약관 게이팅 → 카드 결제 → 주문완료
 - `#agree-terms` 체크 전 `#place-order-btn` **비활성(disabled)** 확인
-- 결제수단 라디오(`#payment-card`/`#payment-bank`/`#payment-kakao`) 선택
-- 결제 → 201 응답 → `/order-complete` 이동
+- 결제수단 라디오(`#payment-card`/`#payment-bank`/`#payment-kakao`) — 카드만 실제 동작, 무통장/카카오 선택 시 `payment-method-notice` 준비중 안내
+- **카드 입력폼(카드 선택 시에만 렌더)**: `#card-number`(끝 4자리 `0000`=승인), `#card-expiry`(MM/YY), `#card-cvc`(3자리)
+- `#place-order-btn` 라벨은 `{금액}원 결제하기`, 클릭 시 `POST /api/payment`(승인) → `POST /api/user-actions`(주문 생성) → `/order-complete` 이동
 - **주문번호 검증**: `order-complete-id`가 `ORD-yyyymmdd-XXXX`(대문자 영숫자 4자리) 형식
 - 결제금액(`order-complete-amount`)이 `checkout-final`과 일치 — 가격은 **서버(DB)가 결정**, 클라이언트 가격 무시
 - 서버 장바구니 주문 시 장바구니 자동 비움 확인
 
-#### 4.5 주문 negative 케이스
+#### 4.5 결제 실패 재현 (테스트 카드 · 외부 PG 목킹)
+카드번호 **끝 4자리로 결과가 결정론적**으로 정해집니다(앞자리 임의). 실패 시 `payment-error`(`role=alert`)에 서버 메시지가 뜨고 **주문은 생성되지 않으며** URL은 `/checkout`에 머뭅니다.
+- `…0001` → 402 `PAYMENT_DECLINED` (카드 거절)
+- `…0002` → 402 `PAYMENT_LIMIT_EXCEEDED` (한도 초과)
+- `…9999` → 504 `PAYMENT_GATEWAY_TIMEOUT` (~500ms 지연; 진행 중 `payment-processing` 스피너 후 실패)
+- 형식 오류(숫자 12~19자리 아님) → 400 `INVALID_CARD`, 금액 ≤ 0 → 400 `INVALID_AMOUNT`
+- **외부 PG 목킹:** `page.route('**/api/payment', r => r.fulfill({status:504,...}))`로 응답을 가로채 강제 실패 주입 → `payment-error` 처리 검증
+- **서버 폴트 주입:** `POST /api/payment?simulate=decline|limit|timeout|error` (카드 무관, `error`→500 `PAYMENT_ERROR`)
+- 결제 사후조회: `GET /api/payment?paymentKey=...` → 없으면 404 `PAYMENT_NOT_FOUND` (`paymentKey`=`PAY-<uuid>`는 비결정 값, 값 단언 금지)
+
+#### 4.6 주문 negative 케이스
 - 상품 3/4 포함 주문 → 422 `ORDER_BLOCKED_PRODUCT` (의도적) → `checkout-error`
 - 재고 0(상품 18) 주문 → 409 `INSUFFICIENT_STOCK` (의도적)
 - 빈 주문 → 400 `EMPTY_ORDER`
@@ -171,11 +182,13 @@
 
 - 비로그인 딥링크 → `orders-login-required`, 주문 없음 → `orders-empty`
 - `order-item-{orderId}` 행 클릭 → `order-detail-{orderId}` 상세 확장 (배송지 포함)
-- **취소 버튼(`order-cancel-{orderId}`)은 확장 후에만 노출**
-- 취소 클릭 → `confirm('주문을 취소하시겠습니까?')` 다이얼로그 (리스너 없으면 자동 dismiss 주의)
-- 수락 시 상태 전이: `order-status-{orderId}` `결제완료` → `취소됨` + `order-cancel-message` 표시 + **재고 복원**
+- **상태 뱃지 5종** `order-status-{orderId}` (`data-status` 속성): `결제완료`(PAID) / `상품준비중`(PREPARING) / `배송중`(SHIPPING) / `배송완료`(DELIVERED) / `취소됨`(CANCELED)
+- **상태 진행** `order-advance-btn-{orderId}` (확장 후 노출) → 다음 단계로 전이 (`PATCH .../advance`). `배송중` 진입 시 송장번호(`order-tracking-number-{orderId}`, `MC`+10자리) 발급. 종료 상태(DELIVERED/CANCELED)에선 버튼 미노출, API는 409 `INVALID_TRANSITION`
+- **배송조회** `order-track-btn-{orderId}`(SHIPPING/DELIVERED만) + 인라인 타임라인 `tracking-timeline-{orderId}` → `tracking-event-{orderId}-{i}`
+- **취소 버튼(`order-cancel-{orderId}`)은 PAID/PREPARING에서만 노출**, 클릭 시 `confirm('주문을 취소하시겠습니까?')` 다이얼로그 (리스너 없으면 자동 dismiss 주의)
+- 수락 시 상태 전이 → `취소됨` + `order-cancel-message` 표시 + **재고 복원**
 - 이미 취소된 주문 재취소 → 409 `ALREADY_CANCELED`
-- 관리자(admin)는 전체 주문 조회 가능, 타인 주문 상세 조회는 404
+- 관리자(admin)는 전체 주문 조회 + `set_status`로 임의 상태 지정(비관리자 403), 타인 주문 상세 조회는 404
 
 ---
 
@@ -201,7 +214,43 @@
   - 결과는 alert가 아닌 **in-DOM `review-form-message`** ("리뷰가 등록되었습니다")
   - 등록 후 `rating-average` / `rating-bar-5..1` 평점 분포 자동 갱신
   - negative: 10자 미만 → 400 `COMMENT_TOO_SHORT`, 같은 상품 중복 작성 → 409 `REVIEW_ALREADY_EXISTS`
+  - **이미지 첨부(최대 3장)**: `image-upload-input-review`(파일 입력) → 썸네일 `review-upload-thumb-{i}` / 제거 `review-upload-remove-{i}`, 형식/용량 에러 `image-upload-error`
 - **리뷰 목록**: 정렬 `#review-sort`(latest/rating), 더보기 `review-load-more`, 항목 `review-item-{id}`, 소유자/관리자만 수정·삭제
+- **리뷰별 첨부 이미지**: `review-images-{reviewId}` → `review-image-{reviewId}-{i}`
+
+---
+
+### 4-4. 파일 업로드 테스트 (모의 · 검증+에코)
+
+공통 `ImageUpload` 컴포넌트가 리뷰/아바타에서 재사용됩니다. 허용: `data:image/png|jpeg|webp|gif;base64,...`, 최대 2MB. 실제 저장 없이 검증 통과한 값을 그대로 돌려줍니다(`POST /api/upload`).
+- 파일 입력 `image-upload-input-{review|avatar}` — Playwright `setInputFiles()`로 실제 파일 업로드
+- 정상 → 201 `{ url, kind }`, 미리보기 `image-upload-preview`
+- **negative(에러는 `image-upload-error`)**: 이미지 아님/미지원 형식 → 400 `INVALID_FILE_TYPE`, 2MB 초과 → 413 `FILE_TOO_LARGE`, `kind` 오류 → 400 `INVALID_KIND`
+- 형식/용량 에러는 API를 직접 호출(`page.request.post('/api/upload', ...)`)해 검증하는 편이 빠릅니다
+- 인증 필요 (401 `AUTH_NO_TOKEN`)
+
+---
+
+### 4-5. 배송조회 테스트 (`/tracking`, 공개)
+
+로그인 불필요한 **공개** 페이지. 모의 택배 API(`GET /api/tracking`)가 주문 상태/주문시각 기반으로 이벤트 타임라인을 결정적으로 생성합니다.
+- 홈 `#home-tracking-btn`(항상 표시) 또는 딥링크로 진입
+- `#tracking-number-input`에 송장번호 입력 + `#tracking-search-btn`
+- **없는 송장** → `tracking-not-found`(`role=alert`) / 404 `TRACKING_NOT_FOUND`
+- **유효 송장**(배송중 이상 주문의 `MC`+10자리) → `tracking-result` / 상태 `tracking-status` / 이벤트 `tracking-event-{i}`(순번 0부터)
+- **외부 택배 API 목킹**: `page.route('**/api/tracking**', ...)`로 응답을 가로채 임의 상태/이벤트 주입 후 UI 렌더 검증
+- `?orderId=` 경로는 인증 필요 + 본인 주문만(타인/없는 주문은 존재 비노출 위해 404)
+
+---
+
+### 4-6. 내정보 테스트 (`/profile`, 로그인 필요)
+
+- 비로그인 딥링크 → `profile-login-required` (REQ-1)
+- 홈 `#home-profile-btn`(로그인 시)로 진입, 루트 `profile-page`
+- **아바타**: `image-upload-input-avatar` 업로드 → `POST /api/user-actions {action:'set_avatar'}` → `profile-avatar` 갱신 + `profile-avatar-message`(in-DOM). 없으면 이니셜 폴백
+- **주소검색**: `address-search-btn` → 카카오(다음) 우편번호 위젯을 외부 스크립트(`postcode.v2.js`)로 동적 로드, `address-search-layer`에 마운트
+- **스크립트 차단 폴백(목킹 연습)**: `page.route('**/*postcode*', r => r.abort())` → `address-search-fallback`(`role=alert`) 수동입력 노출 → `address-search-manual-zonecode`/`-manual-address`/`-manual-submit`
+- 선택 결과는 `profile-zonecode`/`profile-address`에 반영
 
 ---
 
@@ -305,10 +354,30 @@
 - `POST /api/reviews` (인증) `{ productId, rating, comment }` → 201 | 400 `COMMENT_TOO_SHORT`(10자) | 409 `REVIEW_ALREADY_EXISTS`
 - `PATCH`/`DELETE /api/reviews` - 소유자 또는 admin만
 
-### 주문 조회/취소
+### 주문 조회/취소/상태전이
 - `GET /api/orders` (인증) - 본인 주문 목록 (admin은 전체 + username)
 - `GET /api/orders/:id` - 상세 (shipping 포함, 타인 주문은 404)
-- `PATCH /api/orders/:id` `{ "action": "cancel" }` → 200 (재고 복원) | 409 `ALREADY_CANCELED`
+- `PATCH /api/orders/:id`
+  - `{ "action": "cancel" }` → 200 (재고 복원, PAID/PREPARING만) | 409 `ALREADY_CANCELED` | 409 `CANCEL_NOT_ALLOWED`
+  - `{ "action": "advance" }` → 200 다음 상태로 (PAID→PREPARING→SHIPPING[송장 발급]→DELIVERED) | 409 `INVALID_TRANSITION`(종료 상태)
+  - `{ "action": "set_status", "status": "SHIPPING" }` (ADMIN) → 200 | 403 | 400 `INVALID_STATUS`
+
+### 결제 (모의 PG · 이니시스 스타일)
+- `POST /api/payment` (인증) `{ cardNumber, cardExpiry?, cardCvc?, amount, orderName? }`
+  - 결과는 **카드 끝 4자리로 결정**: `…0000`(그 외 포함) 201 `{ paymentKey:'PAY-<uuid>', status:'DONE', method:'CARD', cardLast4, amount }` | `…0001` 402 `PAYMENT_DECLINED` | `…0002` 402 `PAYMENT_LIMIT_EXCEEDED` | `…9999` 504 `PAYMENT_GATEWAY_TIMEOUT`(~500ms)
+  - 400 `INVALID_CARD`(숫자 12~19자리 아님) | 400 `INVALID_AMOUNT`(≤0/비정수)
+  - 폴트 주입: `?simulate=decline|limit|timeout|error` (카드 무관, `error`→500 `PAYMENT_ERROR`)
+- `GET /api/payment?paymentKey=` (인증) → 200 결제 레코드 | 404 `PAYMENT_NOT_FOUND`
+- 주문 연동: `POST /api/user-actions {action:'order', ..., paymentKey?}` — `paymentKey` 주면 상태 DONE + 금액 일치 + 미사용 검증 후 주문에 저장 (402 `PAYMENT_REQUIRED`/`PAYMENT_INVALID`). 생략 시 결제 없이도 주문 성공(하위호환)
+
+### 파일 업로드 (모의 · 검증+에코)
+- `POST /api/upload` (인증) `{ kind:'review'|'avatar', image: dataURL }` → 201 `{ url, kind }` | 400 `INVALID_FILE_TYPE` | 400 `INVALID_KIND` | 413 `FILE_TOO_LARGE`(2MB 초과)
+- 아바타: `POST /api/user-actions {action:'set_avatar', image}` → 200 `{avatarUrl}`; `GET /api/user-actions?type=profile` → `{avatarUrl,...}`; login 응답에도 `user.avatarUrl` 포함
+- 리뷰 이미지: `POST/PATCH /api/reviews`에 `images: string[]`(최대 3, dataURL/http URL) → 400 `INVALID_REVIEW_IMAGE`; `GET`은 `images[]` 반환
+
+### 배송 추적 (모의 택배)
+- `GET /api/tracking?trackingNumber=` (공개, 송장 주문 존재해야) 또는 `?orderId=` (인증) → 200 `{ trackingNumber, status, events:[{status,label,at,location}] }` | 404 `TRACKING_NOT_FOUND`
+- events는 주문 상태/주문시각 기반 결정적 타임라인 — 외부 API 목킹 연습 대상
 
 ### 초기화
 - `POST /api/reset` - **DB 초기화** (모든 테이블 truncate 후 시드 재삽입 — 상품/계정/리뷰/위시리스트/장바구니/주문/쿠폰 전부 복원)
@@ -361,6 +430,8 @@
 - `[data-testid="signup-button"]` (= `#home-signup-btn`) - 회원가입 버튼 (비로그인 시에만)
 - `[data-testid="wishlist-button"]` (= `#home-wishlist-btn`) - 위시리스트 버튼 (로그인 시에만)
 - `[data-testid="orders-button"]` (= `#home-orders-btn`) - 주문내역 버튼 (로그인 시에만)
+- `#home-profile-btn` - 내정보 버튼 (로그인 시에만)
+- `#home-tracking-btn` - 배송조회 버튼 (**항상 표시**, 공개)
 - `[data-testid="admin-button"]` (= `#home-admin-btn`) - 관리자 버튼 (**항상 표시**, 권한 체크는 클릭 후 발생 — 의도적)
 - `[data-testid="logout-button"]` (= `#home-logout`) - 로그아웃 버튼
 - `[data-testid="login-button"]` (= `#home-login`) - 로그인 버튼
@@ -411,17 +482,23 @@
 - `[data-testid="checkout-name-error"]` / `[data-testid="checkout-phone-error"]` / `[data-testid="checkout-address-error"]` - 배송지 검증 에러
 - `#coupon-code` - 쿠폰 코드 입력
 - `[data-testid="coupon-apply-btn"]` / `[data-testid="coupon-message"]` / `[data-testid="coupon-remove-btn"]` - 쿠폰 적용/결과/해제
-- `#payment-card` / `#payment-bank` / `#payment-kakao` - 결제수단 라디오
+- `#payment-card` / `#payment-bank` / `#payment-kakao` - 결제수단 라디오 (카드만 실제 동작, 무통장/카카오는 `[data-testid="payment-method-notice"]` 준비중 안내)
+- `#card-number`(testid `card-number-input`) / `#card-expiry`(`card-expiry-input`) / `#card-cvc`(`card-cvc-input`) - 카드 입력폼 (**카드 선택 시에만 렌더**, 끝 4자리로 결과 결정)
+- `[data-testid="test-card-guide"]` - 테스트 카드 안내 (접이식 `-toggle`/`-body`, 행 `test-card-row-0000`/`-0001`/`-0002`/`-9999`)
 - `#agree-terms` - 약관 동의 체크박스 (체크 전 결제 버튼 비활성)
-- `#place-order-btn` - 결제 버튼
+- `#place-order-btn` - 결제 버튼 (라벨 `{금액}원 결제하기`)
+- `[data-testid="payment-processing"]` - 결제 진행 스피너 (`role=status`) / `[data-testid="payment-error"]` - 결제 실패 (`role=alert`, 주문 미생성)
 - `[data-testid="checkout-subtotal"]` / `[data-testid="checkout-discount"]` / `[data-testid="checkout-final"]` - 금액 요약
 - `[data-testid="checkout-error"]` / `[data-testid="checkout-empty"]` - 주문 실패 에러 / 빈 장바구니
 
 ### 주문내역 페이지 (`/orders`)
 - `[data-testid="order-item-{orderId}"]` - 주문 행 (클릭 = 상세 확장 토글)
 - `[data-testid="order-detail-{orderId}"]` - 확장된 상세 영역 (배송지 포함)
-- `[data-testid="order-cancel-{orderId}"]` - 취소 버튼 (**확장 후에만 노출**, `confirm()` 발생)
-- `[data-testid="order-status-{orderId}"]` - 상태 뱃지 (`결제완료`/`취소됨`, `data-status` 속성)
+- `[data-testid="order-status-{orderId}"]` - 상태 뱃지 5종 (`결제완료`/`상품준비중`/`배송중`/`배송완료`/`취소됨`, `data-status` 속성)
+- `[data-testid="order-advance-btn-{orderId}"]` - 상태 진행 (다음 단계로, 종료 상태에선 미노출)
+- `[data-testid="order-cancel-{orderId}"]` - 취소 버튼 (**PAID/PREPARING만**, `confirm()` 발생)
+- `[data-testid="order-track-btn-{orderId}"]` - 배송조회 (SHIPPING/DELIVERED만) / `[data-testid="order-tracking-number-{orderId}"]` - 송장번호(`MC`+10자리)
+- `[data-testid="tracking-timeline-{orderId}"]` → `[data-testid="tracking-event-{orderId}-{i}"]` - 인라인 배송 타임라인
 - `[data-testid="order-cancel-message"]` - 취소 결과 메시지
 - `[data-testid="orders-empty"]` / `[data-testid="orders-login-required"]` - 빈 목록 / 로그인 필요
 
@@ -443,6 +520,8 @@
 - `[data-testid="star-input-1"]` ~ `star-input-5` - 리뷰 별점 위젯
 - `#review-comment` / `#review-submit` - 리뷰 코멘트(10자 이상) / 등록
 - `[data-testid="review-form-message"]` - 리뷰 등록 결과 (in-DOM, alert 아님)
+- `[data-testid="image-upload-input-review"]` - 리뷰 이미지 첨부 (최대 3장) / 썸네일 `review-upload-thumb-{i}` / 제거 `review-upload-remove-{i}`
+- `[data-testid="review-images-{reviewId}"]` → `[data-testid="review-image-{reviewId}-{i}"]` - 리뷰별 첨부 이미지
 - `#review-sort` (`latest`/`rating`) / `[data-testid="review-load-more"]` / `[data-testid="review-item-{id}"]` - 정렬/더보기/리뷰 항목
 
 ### 상품 목록 페이지 (`/products`)
@@ -457,6 +536,24 @@
 - `[data-testid="order-complete-id"]` - 주문번호 (`ORD-yyyymmdd-XXXX`)
 - `[data-testid="order-complete-amount"]` - 결제금액
 - `[data-testid="go-orders-btn"]` - 주문내역 보기 버튼
+
+### 내정보 페이지 (`/profile`, 로그인 필요)
+- `[data-testid="profile-page"]` - 페이지 루트 / `[data-testid="profile-login-required"]` - 비로그인 딥링크 안내
+- `[data-testid="profile-avatar"]` - 아바타(없으면 이니셜 폴백) / `[data-testid="profile-avatar-message"]` - 결과 메시지(in-DOM)
+- `[data-testid="image-upload-input-avatar"]` - 아바타 업로드 (file input)
+- `[data-testid="address-search-btn"]` - 주소검색 열기 / `[data-testid="address-search-layer"]` - 위젯 마운트 레이어
+- `[data-testid="address-search-fallback"]` - 스크립트 차단 시 수동입력 폴백 (`role=alert`) → `address-search-manual-zonecode`/`-manual-address`/`-manual-submit`
+- `[data-testid="profile-zonecode"]` / `[data-testid="profile-address"]` - 선택된 우편번호 / 주소
+
+### 배송조회 페이지 (`/tracking`, 공개)
+- `#tracking-number-input` / `#tracking-search-btn` - 송장번호 입력 / 조회
+- `[data-testid="tracking-result"]` - 결과 컨테이너 / `[data-testid="tracking-result-number"]` - 결과 송장번호
+- `[data-testid="tracking-status"]` - 상태 뱃지 / `[data-testid="tracking-event-{i}"]` - 이벤트 타임라인(순번 0부터)
+- `[data-testid="tracking-not-found"]` - 없는 송장 (`role=alert`)
+
+### 파일 업로드 공통 컴포넌트 (ImageUpload)
+- `[data-testid="image-upload-input-{review|avatar}"]` - 파일 입력
+- `[data-testid="image-upload-loading"]` - 업로드 중 / `[data-testid="image-upload-error"]` - 형식/용량 에러 / `[data-testid="image-upload-preview"]` - 미리보기
 
 ### 관리자 페이지 (`/admin`)
 - `[data-testid="admin-row-{id}"]` - 상품 행
@@ -482,10 +579,17 @@
 - 상품 3/4 포함 주문 → 422 `ORDER_BLOCKED_PRODUCT`
 - 재고 부족(상품 18 재고 0) → 409 `INSUFFICIENT_STOCK`
 - 빈 주문 → 400 `EMPTY_ORDER`
-- 이미 취소된 주문 재취소 → 409 `ALREADY_CANCELED`
+- 이미 취소된 주문 재취소 → 409 `ALREADY_CANCELED` / 취소 불가 상태 → 409 `CANCEL_NOT_ALLOWED` / 종료 상태 advance → 409 `INVALID_TRANSITION`
 - 만료 쿠폰 `EXPIRED10` → 400 `COUPON_EXPIRED` / 최소 주문금액 미달 → 400 `MIN_ORDER_NOT_MET` / 없는 쿠폰 → 404 `COUPON_NOT_FOUND`
-- 리뷰 10자 미만 → 400 `COMMENT_TOO_SHORT` / 중복 작성 → 409 `REVIEW_ALREADY_EXISTS`
+- 리뷰 10자 미만 → 400 `COMMENT_TOO_SHORT` / 중복 작성 → 409 `REVIEW_ALREADY_EXISTS` / 리뷰 이미지 무효·초과 → 400 `INVALID_REVIEW_IMAGE`
 - 회원가입 중복 아이디 → 409 `USERNAME_TAKEN` / 형식 오류 → 400 `INVALID_USERNAME`/`INVALID_PASSWORD`/`INVALID_EMAIL`
+
+### 3-1. 결제/업로드/배송추적 에러 (신규)
+- 결제 거절 `…0001` → 402 `PAYMENT_DECLINED` / 한도 `…0002` → 402 `PAYMENT_LIMIT_EXCEEDED` / 타임아웃 `…9999` → 504 `PAYMENT_GATEWAY_TIMEOUT`
+- 카드 형식 오류 → 400 `INVALID_CARD` / 금액 오류 → 400 `INVALID_AMOUNT` / `?simulate=error` → 500 `PAYMENT_ERROR` / 없는 결제키 → 404 `PAYMENT_NOT_FOUND`
+- 주문 결제검증 실패 → 402 `PAYMENT_REQUIRED`/`PAYMENT_INVALID`
+- 업로드 형식 오류 → 400 `INVALID_FILE_TYPE` / 2MB 초과 → 413 `FILE_TOO_LARGE` / kind 오류 → 400 `INVALID_KIND`
+- 배송추적 없는 송장/타인 주문 → 404 `TRACKING_NOT_FOUND`
 
 ### 4. 관리자 에러
 - 필수 필드 누락 (400)
@@ -501,10 +605,11 @@
 2. 상품 목록 테스트 (정렬/가격 필터/품절 뱃지)
 3. 상품 상세 테스트 (갤러리/탭/리뷰)
 4. 장바구니 테스트 (서버 장바구니)
-5. 체크아웃/주문 테스트 (쿠폰/약관/주문완료)
-6. 주문내역/위시리스트 테스트
-7. 관리자 기능 테스트 (admin 계정)
-8. 로그아웃 테스트
+5. 체크아웃/주문 테스트 (쿠폰/약관/카드 결제/주문완료)
+6. 결제 실패·파일 업로드·배송추적·내정보 테스트 (신규)
+7. 주문내역(상태 진행)/위시리스트 테스트
+8. 관리자 기능 테스트 (admin 계정)
+9. 로그아웃 테스트
 
 ### 2. 데이터 초기화
 - **localStorage/세션 클리어만으로는 초기화되지 않습니다** — 장바구니·위시리스트·주문·리뷰·가입 계정은 서버 DB에 저장됩니다
@@ -534,8 +639,12 @@
 - [ ] 가격 필터 (에러 케이스 포함, `/products`)
 - [ ] 품절 뱃지 (상품 3/8/18) 및 상세 페이지 버튼 disabled
 - [ ] 회원가입 (중복확인 → 검증 에러 → 가입 → 로그인)
-- [ ] 체크아웃 (배송지 검증 → 쿠폰 → 약관 게이팅 → 주문완료 주문번호)
-- [ ] 주문내역 (행 확장 → 취소 confirm → 상태 전이)
+- [ ] 체크아웃 (배송지 검증 → 쿠폰 → 약관 게이팅 → 카드 결제 → 주문완료 주문번호)
+- [ ] 결제 실패 재현 (테스트 카드 0001/0002/9999 → `payment-error`, 주문 미생성 + 외부 PG 목킹)
+- [ ] 파일 업로드 (리뷰 이미지 썸네일 / 아바타 / 형식·용량 에러 `image-upload-error`)
+- [ ] 주문내역 (행 확장 → 상태 진행 advance → 취소 confirm → 상태 뱃지 5종)
+- [ ] 배송조회 (`/tracking` 송장 조회 / 없는 송장 `tracking-not-found` + 외부 택배 API 목킹)
+- [ ] 내정보 (`/profile` 아바타 / 주소검색 폴백 `address-search-fallback`)
 - [ ] 위시리스트 (하트 토글 `aria-pressed` → 페이지 확인 → 삭제)
 - [ ] 상품 상세 (갤러리 스왑, 탭 전환, 리뷰 작성 → 평점 분포 갱신)
 - [ ] 장바구니 뱃지 카운트
@@ -551,7 +660,10 @@
 - [ ] user-actions API (cart_add/cart_update/cart_remove / order / wishlist)
 - [ ] 쿠폰 API (성공 / EXPIRED10 400 / MIN_ORDER_NOT_MET 400 / 404)
 - [ ] 리뷰 API (작성/COMMENT_TOO_SHORT/REVIEW_ALREADY_EXISTS)
-- [ ] 주문 조회/취소 API (취소 시 재고 복원, ALREADY_CANCELED 409)
+- [ ] 주문 조회/취소/상태전이 API (취소 시 재고 복원, ALREADY_CANCELED 409, advance → INVALID_TRANSITION)
+- [ ] 결제 API (승인 201 / 거절·한도 402 / 타임아웃 504 / `?simulate=` 폴트주입 / paymentKey 사후조회)
+- [ ] 업로드 API (201 / INVALID_FILE_TYPE 400 / FILE_TOO_LARGE 413)
+- [ ] 배송추적 API (송장 조회 200 / TRACKING_NOT_FOUND 404 / orderId 인증)
 - [ ] 재고 API (inventory, 주문/취소 후 실시간 반영)
 - [ ] 관리자 CRUD API (DB 반영 — 목록/상세 즉시 반영)
 - [ ] reset API (데이터 초기화)
@@ -590,6 +702,7 @@ vercel --prod
 ```
 > Vercel 프로젝트 Storage 탭에서 Neon(Postgres) 연결 시 `DATABASE_URL`이 자동 주입됩니다.
 > 배포된 사이트는 여러 사람이 공유하는 연습 환경이므로 `POST /api/reset` 사용에 주의하세요.
+> **⚠️ 신규 기능 배포 후 1회:** 스키마가 늘었으므로(payments 테이블, users.avatar_url, reviews.images, orders.tracking_number/payment_key/payment_method/card_last4) Neon에 `npm run db:migrate`(비파괴 — 기존 데이터 유지)를 실행해야 결제/업로드/배송추적 엔드포인트가 500 없이 동작합니다. 데이터를 초기화해도 되면 `npm run db:init`.
 
 ### 환경 변수
 ```

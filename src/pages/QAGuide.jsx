@@ -2565,9 +2565,13 @@ export default function QAGuide({ onClose }) {
                 <ul style={styles.list}>
                   <li><strong>회원가입</strong> (/signup): 아이디 중복확인, 필드별 유효성 검증</li>
                   <li><strong>체크아웃 + 쿠폰</strong> (/checkout): 배송 정보 입력, 쿠폰 적용, 약관 동의 후 결제</li>
-                  <li><strong>주문내역</strong> (/orders): 주문 상세 확장, 주문 취소(재고 복원)</li>
+                  <li><strong>주문내역</strong> (/orders): 주문 상세 확장, 상태 진행(결제완료→상품준비중→배송중→배송완료), 주문 취소(재고 복원)</li>
                   <li><strong>위시리스트</strong> (/wishlist): 카드 하트 토글, 장바구니 담기</li>
-                  <li><strong>리뷰 작성</strong> (상품 상세 리뷰 탭): 별점 입력, 정렬, 더보기</li>
+                  <li><strong>리뷰 작성</strong> (상품 상세 리뷰 탭): 별점 입력, 정렬, 더보기, 이미지 첨부(최대 3장)</li>
+                  <li><strong>결제(모의 PG)</strong> (/checkout): 카드 입력폼 + 테스트 카드 끝 4자리로 승인/거절(402)/한도초과(402)/타임아웃(504) 재현 — 외부 PG 목킹 연습</li>
+                  <li><strong>파일 업로드(모의)</strong>: 리뷰 이미지·프로필 아바타 업로드, 형식/용량(2MB) 검증</li>
+                  <li><strong>배송추적</strong> (/tracking, 공개): 송장번호 조회, 상태별 이벤트 타임라인 — 외부 택배 API 목킹 연습</li>
+                  <li><strong>내정보</strong> (/profile, 로그인 필요): 아바타 관리 + 카카오(다음) 우편번호 주소검색(스크립트 차단 시 수동입력 폴백)</li>
                 </ul>
               </section>
 
@@ -3392,7 +3396,11 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                     <tr><td style={styles.td}>/api/coupons</td><td style={styles.td}>POST</td><td style={styles.td}>❌</td><td style={styles.td}>쿠폰 유효성 검증 + 할인액 계산</td></tr>
                     <tr><td style={styles.td}>/api/orders</td><td style={styles.td}>GET</td><td style={styles.td}>✅</td><td style={styles.td}>본인 주문 목록 (관리자는 전체)</td></tr>
                     <tr><td style={styles.td}>/api/orders/:id</td><td style={styles.td}>GET</td><td style={styles.td}>✅</td><td style={styles.td}>주문 상세 (타인 주문은 404)</td></tr>
-                    <tr><td style={styles.td}>/api/orders/:id</td><td style={styles.td}>PATCH</td><td style={styles.td}>✅</td><td style={styles.td}>주문 취소 (재취소 시 409 ALREADY_CANCELED)</td></tr>
+                    <tr><td style={styles.td}>/api/orders/:id</td><td style={styles.td}>PATCH</td><td style={styles.td}>✅</td><td style={styles.td}>주문 취소/상태 진행 (action: cancel / advance / set_status[ADMIN], 종료 상태 409 INVALID_TRANSITION)</td></tr>
+                    <tr><td style={styles.td}>/api/payment</td><td style={styles.td}>POST</td><td style={styles.td}>✅</td><td style={styles.td}>모의 카드 결제 (201 DONE / 402 거절·한도 / 504 타임아웃 — 카드 끝 4자리 결정론)</td></tr>
+                    <tr><td style={styles.td}>{'/api/payment?paymentKey='}</td><td style={styles.td}>GET</td><td style={styles.td}>✅</td><td style={styles.td}>결제 내역 조회 (없으면 404 PAYMENT_NOT_FOUND)</td></tr>
+                    <tr><td style={styles.td}>/api/upload</td><td style={styles.td}>POST</td><td style={styles.td}>✅</td><td style={styles.td}>이미지 업로드(모의) — 400 INVALID_FILE_TYPE / 413 FILE_TOO_LARGE(2MB)</td></tr>
+                    <tr><td style={styles.td}>{'/api/tracking?trackingNumber='}</td><td style={styles.td}>GET</td><td style={styles.td}>❌</td><td style={styles.td}>배송 추적 (송장번호 공개 / ?orderId= 는 ✅, 없으면 404 TRACKING_NOT_FOUND)</td></tr>
                     <tr><td style={styles.td}>/api/reset</td><td style={styles.td}>POST</td><td style={styles.td}>❌</td><td style={styles.td}>모든 데이터를 시드 상태로 초기화</td></tr>
                   </tbody>
                 </table>

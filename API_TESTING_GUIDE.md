@@ -47,7 +47,11 @@
 | `/api/coupons` | POST | ❌ | 쿠폰 유효성 검증 + 할인액 계산 |
 | `/api/orders` | GET | ✅ | 내 주문 목록 (관리자는 전체 주문) |
 | `/api/orders/:id` | GET | ✅ | 주문 상세 조회 (배송지 포함) |
-| `/api/orders/:id` | PATCH | ✅ | 주문 취소 (`{ action: 'cancel' }`, 재고 원복) |
+| `/api/orders/:id` | PATCH | ✅ | 주문 취소/상태전진/상태지정 (`cancel`/`advance`/`set_status`, 재고 원복) |
+| `/api/payment` | POST | ✅ | 모의 결제(이니시스 스타일) — 테스트 카드/`?simulate=`로 결정론적 결과 |
+| `/api/payment` | GET | ✅ | 결제 사후검증 (`?paymentKey=`) |
+| `/api/upload` | POST | ✅ | 파일 업로드(모의) — 이미지 형식/용량 검증 후 에코 |
+| `/api/tracking` | GET | ❔ | 배송 추적 (`?trackingNumber=` 공개 / `?orderId=` 인증) |
 | `/api/status-codes` | GET | ❌ | 상태 코드 연습 |
 | `/api/reset` | POST | ❌ | 테스트 상태 초기화 (DB TRUNCATE + 재시드 — 서버 재시작으로는 초기화되지 않음) |
 
@@ -1610,6 +1614,321 @@ test('주문 취소 및 재고 원복', async ({ request }) => {
 
 ---
 
+### 12. 결제 API (payment) — 외부 API 목킹 연습
+
+모의 PG(이니시스 스타일)로, **항상 동작하고 무료**입니다. 실제 결제창은 없고 검증 로직만 있습니다. 인증(Bearer 토큰)이 필요합니다.
+
+핵심은 **외부 결제 서버 장애를 결정론적으로 재현**해 클라이언트의 실패 처리를 검증하는 것입니다. 결과는 랜덤이 아니라 **카드번호 뒤 4자리** 또는 **`?simulate=` 쿼리**로 정해집니다. `paymentKey`는 `PAY-<uuid>`라 값 자체는 단언하지 마세요.
+
+| 요청 | 성공/결과 | 네거티브 |
+|------|-----------|----------|
+| `POST /api/payment` (승인) | 201 `{ paymentKey, status:'DONE', method:'CARD', cardLast4, amount }` | 400 `INVALID_CARD`, 400 `INVALID_AMOUNT`, 401 |
+| `POST /api/payment` (거절 카드) | — | 402 `PAYMENT_DECLINED` |
+| `POST /api/payment` (한도초과 카드) | — | 402 `PAYMENT_LIMIT_EXCEEDED` |
+| `POST /api/payment` (타임아웃 카드) | — | 504 `PAYMENT_GATEWAY_TIMEOUT` (~500ms 지연 후) |
+| `GET /api/payment?paymentKey=` | 200 결제 레코드 | 404 `PAYMENT_NOT_FOUND`, 400 `PAYMENT_KEY_REQUIRED` |
+
+**테스트 카드 결과표** (카드번호 뒤 4자리로 결정):
+
+| 카드 뒤 4자리 | HTTP | code | 의미 |
+|--------------|------|------|------|
+| `0000` | 201 | — (status `DONE`) | 승인 |
+| `0001` | 402 | `PAYMENT_DECLINED` | 카드 거절 |
+| `0002` | 402 | `PAYMENT_LIMIT_EXCEEDED` | 한도 초과 |
+| `9999` | 504 | `PAYMENT_GATEWAY_TIMEOUT` | 결제서버 무응답(약 500ms 지연) |
+| 그 외 | 201 | — (status `DONE`) | 기본 해피패스(승인) |
+
+**폴트 주입** `?simulate=`는 카드번호와 무관하게 결과를 강제합니다: `decline`(402 DECLINED) / `limit`(402 LIMIT_EXCEEDED) / `timeout`(504 GATEWAY_TIMEOUT) / `error`(500 `PAYMENT_ERROR`).
+
+```javascript
+// 승인 (뒤 4자리 0000) → 201 DONE
+test('결제 승인', async ({ request }) => {
+  const { token } = await (await request.post('http://localhost:3000/api/login', {
+    data: { username: 'test', password: '1234' }
+  })).json();
+
+  const res = await request.post('http://localhost:3000/api/payment', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000-1234-5678-0000', amount: 129000, orderName: '테스트 주문' }
+  });
+  expect(res.status()).toBe(201);
+  const pay = await res.json();
+  expect(pay.status).toBe('DONE');
+  expect(pay.method).toBe('CARD');
+  expect(pay.cardLast4).toBe('0000');
+  expect(pay.amount).toBe(129000);
+  expect(pay.paymentKey).toMatch(/^PAY-/);   // 값 자체는 비결정 — 접두사만 확인
+});
+
+// 거절 카드 (뒤 4자리 0001) → 402 PAYMENT_DECLINED
+test('결제 거절', async ({ request }) => {
+  const res = await request.post('http://localhost:3000/api/payment', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000000000000001', amount: 10000 }
+  });
+  expect(res.status()).toBe(402);
+  expect((await res.json()).code).toBe('PAYMENT_DECLINED');
+});
+
+// 타임아웃 폴트 주입 (?simulate=timeout) — 카드와 무관하게 504
+test('결제 게이트웨이 타임아웃 재현', async ({ request }) => {
+  const res = await request.post('http://localhost:3000/api/payment?simulate=timeout', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 10000 }
+  });
+  expect(res.status()).toBe(504);
+  expect((await res.json()).code).toBe('PAYMENT_GATEWAY_TIMEOUT');
+  // 클라이언트는 이 504를 잡아 "결제 재시도" UI 를 노출해야 한다 — 그 처리를 검증
+});
+
+// 사후검증: GET ?paymentKey= 로 결제 레코드 재조회
+test('결제 사후검증', async ({ request }) => {
+  const pay = await (await request.post('http://localhost:3000/api/payment', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 5000 }
+  })).json();
+
+  const res = await request.get(`http://localhost:3000/api/payment?paymentKey=${pay.paymentKey}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  expect(res.status()).toBe(200);
+  const record = await res.json();
+  expect(record.id).toBe(pay.paymentKey);
+  expect(record.status).toBe('DONE');
+  expect(record.amount).toBe(5000);
+  expect(record.orderId).toBeNull();   // 아직 주문에 연결 전
+
+  // 없는 결제키 → 404
+  const notFound = await request.get('http://localhost:3000/api/payment?paymentKey=PAY-none', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  expect(notFound.status()).toBe(404);
+  expect((await notFound.json()).code).toBe('PAYMENT_NOT_FOUND');
+});
+```
+
+**주문에 결제 연동** — 주문 생성(`POST /api/user-actions { action: 'order' }`)에 `paymentKey`를 함께 보내면, 서버가 **결제 상태 DONE + 금액 일치 + 미사용**을 검증한 뒤 주문에 `payment_key/payment_method/card_last4`를 저장합니다. `paymentKey`를 생략하면 기존처럼 결제 없이 주문 성공(하위호환).
+
+| 위반 상황 | HTTP | code |
+|-----------|------|------|
+| 결제키에 해당하는 결제 없음 | 402 | `PAYMENT_REQUIRED` |
+| 결제 상태가 DONE 이 아님 | 402 | `PAYMENT_INVALID` |
+| 결제 금액 ≠ 주문 최종 금액 | 402 | `PAYMENT_INVALID` |
+| 이미 다른 주문에 사용된 결제 | 402 | `PAYMENT_INVALID` |
+
+```javascript
+// 결제 → 주문 연동 (금액 일치)
+test('결제 후 주문 연동', async ({ request }) => {
+  // 1) 결제 승인 (주문 최종금액과 동일하게)
+  const pay = await (await request.post('http://localhost:3000/api/payment', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 129000 }
+  })).json();
+
+  // 2) 주문에 paymentKey 전달
+  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }], paymentKey: pay.paymentKey }
+  });
+  expect(orderRes.status()).toBe(201);
+  const { order } = await orderRes.json();
+  expect(order.paymentKey).toBe(pay.paymentKey);
+  expect(order.cardLast4).toBe('0000');
+});
+
+// 금액 불일치 → 402 PAYMENT_INVALID
+test('결제-주문 금액 불일치', async ({ request }) => {
+  const pay = await (await request.post('http://localhost:3000/api/payment', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { cardNumber: '4000000000000000', amount: 1 }   // 주문 금액과 다르게
+  })).json();
+
+  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }], paymentKey: pay.paymentKey }
+  });
+  expect(orderRes.status()).toBe(402);
+  expect((await orderRes.json()).code).toBe('PAYMENT_INVALID');
+});
+```
+
+> **실제 이니시스 연동은 옵션입니다.** 현재 코드는 모의 PG가 기본이며, 실제로 붙이려면 포트원(구 아임포트) 무료 테스트 모드(공유 테스트 MID `INIpayTest` 등)를 쓰고 프론트 SDK + 백엔드 결제검증(REST)이 필요합니다. 팝업/리다이렉트라 UI 자동화가 까다로우니, API 레벨 검증은 위의 모의 PG로 연습하세요.
+
+---
+
+### 13. 파일 업로드 API (upload) — 형식/용량 검증 연습
+
+실제 외부 스토리지(S3 등)는 없습니다. data URL(base64) 이미지의 **형식·용량을 검증**하고 통과 시 그대로 에코하는 "검증 연습용" 엔드포인트입니다. 인증이 필요합니다.
+
+| 요청 | 성공 | 네거티브 |
+|------|------|----------|
+| `POST /api/upload` `{ kind, image }` | 201 `{ url, kind }` | 400 `INVALID_KIND`, 400 `INVALID_FILE_TYPE`, 413 `FILE_TOO_LARGE`(>2MB), 401 |
+| GET/PATCH/DELETE `/api/upload` | — | 405 `METHOD_NOT_ALLOWED` |
+
+- `kind`: `'review'` 또는 `'avatar'` (그 외 → 400 `INVALID_KIND`)
+- `image`: `data:image/(png|jpeg|webp|gif);base64,...` (그 외/이미지 아님 → 400 `INVALID_FILE_TYPE`)
+- 디코딩 용량 **2MB 초과 → 413 `FILE_TOO_LARGE`**
+
+```javascript
+// 정상 업로드 → 201 { url, kind }
+test('이미지 업로드 성공', async ({ request }) => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const res = await request.post('http://localhost:3000/api/upload', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { kind: 'review', image: png }
+  });
+  expect(res.status()).toBe(201);
+  const body = await res.json();
+  expect(body.kind).toBe('review');
+  expect(body.url).toBe(png);   // 에코
+});
+
+// 이미지 아님 → 400 INVALID_FILE_TYPE
+test('잘못된 파일 형식', async ({ request }) => {
+  const res = await request.post('http://localhost:3000/api/upload', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { kind: 'avatar', image: 'data:text/plain;base64,aGVsbG8=' }
+  });
+  expect(res.status()).toBe(400);
+  expect((await res.json()).code).toBe('INVALID_FILE_TYPE');
+});
+
+// 2MB 초과 → 413 FILE_TOO_LARGE
+test('용량 초과 업로드', async ({ request }) => {
+  const bigBase64 = 'A'.repeat(3 * 1024 * 1024);   // 디코딩 시 ~2.25MB
+  const res = await request.post('http://localhost:3000/api/upload', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { kind: 'review', image: `data:image/png;base64,${bigBase64}` }
+  });
+  expect(res.status()).toBe(413);
+  expect((await res.json()).code).toBe('FILE_TOO_LARGE');
+});
+```
+
+**아바타 설정** (`POST /api/user-actions { action: 'set_avatar', image }`) 은 upload 와 동일한 이미지 검증을 공유합니다.
+
+```javascript
+// set_avatar → 200 { avatarUrl }, 이후 GET ?type=profile 로 확인
+test('아바타 설정', async ({ request }) => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const res = await request.post('http://localhost:3000/api/user-actions', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'set_avatar', image: png }
+  });
+  expect(res.status()).toBe(200);
+  expect((await res.json()).avatarUrl).toBe(png);
+
+  const profile = await (await request.get('http://localhost:3000/api/user-actions?type=profile', {
+    headers: { 'Authorization': `Bearer ${token}` }
+  })).json();
+  expect(profile.profile.avatarUrl).toBe(png);   // { profile: { username, role, email, avatarUrl } }
+});
+```
+
+**리뷰 이미지** — `POST/PATCH /api/reviews` 에 `images: string[]`(최대 3개, data URL 이미지 또는 http(s) URL)을 첨부할 수 있고, `GET /api/reviews` 는 `images[]`를 반환합니다. 잘못된 항목/4개 이상 → 400 `INVALID_REVIEW_IMAGE`.
+
+```javascript
+// 리뷰에 이미지 첨부
+test('이미지 포함 리뷰 작성', async ({ request }) => {
+  const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const res = await request.post('http://localhost:3000/api/reviews', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { productId: 1, rating: 5, comment: '사진 첨부 테스트 리뷰입니다', images: [png] }
+  });
+  expect([201, 409]).toContain(res.status());   // 이미 리뷰가 있으면 409 (product_id+username UNIQUE)
+
+  // 이미지 4개 → 400 INVALID_REVIEW_IMAGE
+  const tooMany = await request.post('http://localhost:3000/api/reviews', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { productId: 2, rating: 5, comment: '이미지 개수 초과 테스트', images: [png, png, png, png] }
+  });
+  expect(tooMany.status()).toBe(400);
+  expect((await tooMany.json()).code).toBe('INVALID_REVIEW_IMAGE');
+});
+```
+
+---
+
+### 14. 배송 상태/추적 API (orders advance · tracking)
+
+주문 상태는 5종으로 흐릅니다: **PAID(결제완료) → PREPARING(상품준비중) → SHIPPING(배송중) → DELIVERED(배송완료)**, 그리고 **CANCELED(취소됨)**. 취소는 `PAID`/`PREPARING` 에서만 가능합니다. `SHIPPING` 진입 시 운송장번호 `MC` + 10자리가 결정론적으로 부여됩니다(같은 주문이면 항상 같은 값).
+
+| 요청 | 성공 | 네거티브 |
+|------|------|----------|
+| `PATCH /api/orders/:id` `{ action:'advance' }` (본인/관리자) | 200 `{ message, order }` (다음 상태) | 409 `INVALID_TRANSITION`(DELIVERED/CANCELED, `currentStatus` 포함), 404 |
+| `PATCH /api/orders/:id` `{ action:'set_status', status }` (관리자) | 200 `{ message, order }` | 403 `AUTH_FORBIDDEN`(비관리자), 400 `INVALID_STATUS`, 404 |
+| `GET /api/tracking?trackingNumber=` (공개) | 200 `{ trackingNumber, status, events }` | 404 `TRACKING_NOT_FOUND` |
+| `GET /api/tracking?orderId=` (인증) | 200 동일 | 401(토큰 없음), 404(없는/타인 주문) |
+| `GET /api/tracking` (파라미터 없음) | — | 400 `TRACKING_QUERY_REQUIRED` |
+
+tracking 응답의 `events`는 `[{ status, label, at, location }]` 형태이며 주문 상태·주문시각 기반의 결정론적 타임라인입니다(외부 택배 API 목킹 연습 대상). 단계 라벨: 결제완료 → 상품준비중 → 집화(SHIPPING) → 배송중(SHIPPING) → 배송완료. 취소 주문은 결제완료 1건만 노출됩니다.
+
+```javascript
+// 상태 전진: PAID → PREPARING → SHIPPING(운송장 부여)
+test('주문 상태 전진', async ({ request }) => {
+  const { order } = await (await request.post('http://localhost:3000/api/user-actions', {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'order', items: [{ id: 1, quantity: 1 }] }
+  })).json();
+
+  const step1 = await request.patch(`http://localhost:3000/api/orders/${order.id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'advance' }
+  });
+  expect(step1.status()).toBe(200);
+  expect((await step1.json()).order.status).toBe('PREPARING');
+
+  const step2 = await request.patch(`http://localhost:3000/api/orders/${order.id}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'advance' }
+  });
+  const shipping = (await step2.json()).order;
+  expect(shipping.status).toBe('SHIPPING');
+  expect(shipping.trackingNumber).toMatch(/^MC\d{10}$/);   // 운송장 부여
+});
+
+// 종료 상태에서 advance → 409 INVALID_TRANSITION
+test('배송완료 후 전진 불가', async ({ request }) => {
+  // ... DELIVERED 까지 진행시킨 orderId 라고 가정
+  const res = await request.patch(`http://localhost:3000/api/orders/${deliveredOrderId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'advance' }
+  });
+  expect(res.status()).toBe(409);
+  const body = await res.json();
+  expect(body.code).toBe('INVALID_TRANSITION');
+  expect(body.currentStatus).toBe('DELIVERED');
+});
+
+// set_status 는 관리자 전용 — 일반 사용자 403
+test('일반 사용자 set_status 금지', async ({ request }) => {
+  const res = await request.patch(`http://localhost:3000/api/orders/${orderId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+    data: { action: 'set_status', status: 'DELIVERED' }
+  });
+  expect(res.status()).toBe(403);
+  expect((await res.json()).code).toBe('AUTH_FORBIDDEN');
+});
+
+// 배송 추적: 송장번호 경로(공개)
+test('배송 추적 조회', async ({ request }) => {
+  const res = await request.get(`http://localhost:3000/api/tracking?trackingNumber=${trackingNumber}`);
+  expect(res.status()).toBe(200);
+  const data = await res.json();
+  expect(data.trackingNumber).toBe(trackingNumber);
+  expect(Array.isArray(data.events)).toBe(true);
+  // 각 이벤트: { status, label, at, location }
+  expect(data.events[0]).toMatchObject({ status: 'PAID', label: '결제완료' });
+
+  // 없는 송장번호 → 404
+  const notFound = await request.get('http://localhost:3000/api/tracking?trackingNumber=MC0000000000');
+  expect(notFound.status()).toBe(404);
+  expect((await notFound.json()).code).toBe('TRACKING_NOT_FOUND');
+});
+```
+
+---
+
 ## 추가 검증 포인트
 
 ### 1. 에러 응답 형식 일관성
@@ -1739,6 +2058,28 @@ test('재고 초과 주문 방지', async ({ request }) => {
 - [ ] GET /api/orders 본인 주문만 조회 (관리자는 전체 + username)
 - [ ] GET /api/orders/:id 상세 (shipping 포함), 타인/없는 주문 404
 - [ ] PATCH 취소 시 200 + 재고 원복, 재취소 409 (ALREADY_CANCELED)
+
+### 결제 (payment)
+- [ ] 승인 카드(0000) → 201 { paymentKey, status:'DONE', cardLast4, amount }
+- [ ] 거절(0001) 402 PAYMENT_DECLINED / 한도초과(0002) 402 PAYMENT_LIMIT_EXCEEDED
+- [ ] 타임아웃(9999 또는 ?simulate=timeout) 504 PAYMENT_GATEWAY_TIMEOUT
+- [ ] ?simulate=error 500 PAYMENT_ERROR, INVALID_CARD/INVALID_AMOUNT 400
+- [ ] GET ?paymentKey= 사후검증 200, 없는 키 404 PAYMENT_NOT_FOUND
+- [ ] 주문에 paymentKey 연동 성공, 금액불일치/미승인/중복사용 402 (PAYMENT_REQUIRED/PAYMENT_INVALID)
+
+### 파일 업로드 (upload)
+- [ ] 정상 이미지 201 { url, kind } (에코)
+- [ ] 이미지 아님 400 INVALID_FILE_TYPE, 잘못된 kind 400 INVALID_KIND
+- [ ] 2MB 초과 413 FILE_TOO_LARGE
+- [ ] set_avatar 200 { avatarUrl } 후 GET ?type=profile 반영
+- [ ] 리뷰 images[] 최대 3개, 초과/무효 400 INVALID_REVIEW_IMAGE
+
+### 배송 상태/추적 (advance · tracking)
+- [ ] advance 로 PAID→PREPARING→SHIPPING(운송장 MC+10자리)→DELIVERED 전진
+- [ ] 종료 상태(DELIVERED/CANCELED) advance 409 INVALID_TRANSITION (currentStatus 포함)
+- [ ] set_status 관리자만 (비관리자 403 AUTH_FORBIDDEN), 잘못된 상태 400 INVALID_STATUS
+- [ ] GET /api/tracking?trackingNumber= 공개 200 { trackingNumber, status, events[] }
+- [ ] GET /api/tracking?orderId= 인증 필요, 타인/없는 주문 404 TRACKING_NOT_FOUND
 
 ### 상태 초기화
 - [ ] POST /api/reset 200 및 reset 목록(7종) 확인
