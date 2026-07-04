@@ -57,6 +57,7 @@ function mapUser(row) {
     role: row.role,
     status: row.status,
     avatarUrl: row.avatar_url ?? null,
+    defaultAddress: row.default_address ?? null,
     createdAt: toIso(row.created_at),
   };
 }
@@ -320,6 +321,15 @@ export async function setAvatar(username, avatarUrl) {
   const { rows } = await query(
     `UPDATE users SET avatar_url = $1 WHERE username = $2 RETURNING *`,
     [avatarUrl ?? null, username]
+  );
+  return mapUser(rows[0] ?? null);
+}
+
+// 기본 배송지 설정 (없는 사용자면 null 반환)
+export async function setUserAddress(username, address) {
+  const { rows } = await query(
+    `UPDATE users SET default_address = $1 WHERE username = $2 RETURNING *`,
+    [address ? JSON.stringify(address) : null, username]
   );
   return mapUser(rows[0] ?? null);
 }

@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS coupons (
 export const SCHEMA_MIGRATIONS_SQL = `
 -- 사용자 아바타 이미지 URL
 ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+-- 사용자 기본 배송지 (JSON: { zonecode, address, detail, name, phone })
+ALTER TABLE users ADD COLUMN IF NOT EXISTS default_address JSONB;
 
 -- 리뷰 첨부 이미지 (문자열 URL 배열)
 ALTER TABLE reviews ADD COLUMN IF NOT EXISTS images JSONB DEFAULT '[]';

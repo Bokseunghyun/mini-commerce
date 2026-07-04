@@ -45,7 +45,6 @@ export default function HomePage({
   onGoWishlist = () => {},
   onGoOrders = () => {},
   onGoSignup = () => {},
-  onGoTracking = () => {},
   onGoProfile = () => {},
   isLoading = false,
   isLoggedIn = false,
@@ -413,19 +412,7 @@ export default function HomePage({
                 )}
               </button>
 
-              {/* 배송조회 버튼 - 로그인 불필요, 항상 표시 */}
-              <button
-                type="button"
-                id="home-tracking-btn"
-                name="trackingButton"
-                className="btn btn-ghost tracking-nav-button"
-                aria-label="배송조회로 이동"
-                onClick={onGoTracking}
-                style={styles.logoutBtn}
-                data-testid="tracking-button"
-              >
-                배송조회
-              </button>
+              {/* 배송조회는 메인 헤더에서 제거 → 내정보(마이페이지) 좌측 메뉴로 이동 */}
 
               {/* 위시리스트 / 주문내역 / 내정보 버튼 - 로그인 시에만 표시 */}
               {isLoggedIn && (

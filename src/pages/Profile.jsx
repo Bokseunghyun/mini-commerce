@@ -55,8 +55,18 @@ function LoadingSpinner() {
   );
 }
 
-export default function ProfilePage({ apiBase, onBack }) {
+// 마이페이지 좌측 메뉴
+const MYPAGE_MENU = [
+  { key: "profile", label: "프로필" },
+  { key: "address", label: "배송지 관리" },
+  { key: "coupons", label: "내 쿠폰" },
+  { key: "orders", label: "주문 내역", nav: "onGoOrders" },
+  { key: "tracking", label: "배송 조회", nav: "onGoTracking" },
+];
+
+export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking }) {
   const API_BASE = apiBase || "";
+  const [activeMenu, setActiveMenu] = useState("profile");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(true);
@@ -68,9 +78,14 @@ export default function ProfilePage({ apiBase, onBack }) {
   const [avatarMessage, setAvatarMessage] = useState(null);
   const [savingAvatar, setSavingAvatar] = useState(false);
 
-  // 배송지 데모 표시 필드
+  // 배송지 관리 필드
   const [zonecode, setZonecode] = useState("");
   const [address, setAddress] = useState("");
+  const [addressDetail, setAddressDetail] = useState("");
+  const [receiverName, setReceiverName] = useState("");
+  const [receiverPhone, setReceiverPhone] = useState("");
+  const [addressMessage, setAddressMessage] = useState(null);
+  const [savingAddress, setSavingAddress] = useState(false);
 
   // 내 쿠폰
   const [coupons, setCoupons] = useState([]);
@@ -103,8 +118,17 @@ export default function ProfilePage({ apiBase, onBack }) {
         setLoadError(data.message || `프로필 조회 실패 (status=${res.status})`);
         return;
       }
-      if (data.avatarUrl) setAvatarUrl(data.avatarUrl);
-      if (data.username) setUsername(data.username);
+      const p = data.profile || data;
+      if (p.avatarUrl) setAvatarUrl(p.avatarUrl);
+      if (p.username) setUsername(p.username);
+      if (p.defaultAddress) {
+        const a = p.defaultAddress;
+        setZonecode(a.zonecode || "");
+        setAddress(a.address || "");
+        setAddressDetail(a.detail || "");
+        setReceiverName(a.name || "");
+        setReceiverPhone(a.phone || "");
+      }
     } catch (e) {
       setLoadError(`네트워크 오류: ${e.message}`);
     } finally {
@@ -208,6 +232,43 @@ export default function ProfilePage({ apiBase, onBack }) {
     setAddress(addr || "");
   };
 
+  const handleSaveAddress = async (e) => {
+    e?.preventDefault?.();
+    setAddressMessage(null);
+    if (!address.trim()) {
+      setAddressMessage({ type: "error", text: "주소를 검색하거나 입력해주세요" });
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/user-actions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}` },
+        body: JSON.stringify({
+          action: "set_address",
+          address: {
+            zonecode: zonecode.trim(),
+            address: address.trim(),
+            detail: addressDetail.trim(),
+            name: receiverName.trim(),
+            phone: receiverPhone.trim(),
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAddressMessage({ type: "error", text: data.message || data.code || `저장 실패 (status=${res.status})` });
+        return;
+      }
+      setAddressMessage({ type: "success", text: data.message || "배송지가 저장되었습니다" });
+    } catch (err) {
+      setAddressMessage({ type: "error", text: `배송지 저장 중 오류가 발생했습니다: ${err.message}` });
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
   const initial = (username || "?").charAt(0).toUpperCase();
 
   return (
@@ -266,7 +327,40 @@ export default function ProfilePage({ apiBase, onBack }) {
             </button>
           </div>
         ) : (
-          <>
+          <div style={styles.layout}>
+            <nav style={styles.sidePanel} data-testid="mypage-menu" aria-label="마이페이지 메뉴">
+              {MYPAGE_MENU.map((m) => {
+                const isActive = activeMenu === m.key;
+                return (
+                  <button
+                    key={m.key}
+                    type="button"
+                    id={`mypage-menu-${m.key}`}
+                    data-testid={`mypage-menu-${m.key}`}
+                    className={`mypage-menu-item${isActive ? " active" : ""}`}
+                    aria-current={isActive ? "page" : undefined}
+                    onClick={() => {
+                      if (m.nav === "onGoOrders") return onGoOrders?.();
+                      if (m.nav === "onGoTracking") return onGoTracking?.();
+                      setActiveMenu(m.key);
+                      const testid =
+                        m.key === "profile"
+                          ? "profile-avatar-section"
+                          : m.key === "address"
+                          ? "profile-address-section"
+                          : "profile-coupons-section";
+                      document
+                        .querySelector(`[data-testid="${testid}"]`)
+                        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }}
+                    style={{ ...styles.menuItem, ...(isActive ? styles.menuItemActive : {}) }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </nav>
+            <div style={styles.content}>
             {loadError && (
               <div
                 id="profile-error"
@@ -354,9 +448,9 @@ export default function ProfilePage({ apiBase, onBack }) {
                 주소 검색으로 우편번호와 주소를 불러올 수 있습니다.
               </p>
 
-              <AddressSearch onComplete={handleAddressComplete} buttonLabel="주소 검색" />
+              <AddressSearch onComplete={handleAddressComplete} buttonLabel="주소 검색(팝업)" />
 
-              <div style={styles.addressFields}>
+              <form onSubmit={handleSaveAddress} style={styles.addressFields} className="profile-address-form">
                 <div style={styles.fieldRow}>
                   <label htmlFor="profile-zonecode" style={styles.fieldLabel}>
                     우편번호
@@ -368,9 +462,9 @@ export default function ProfilePage({ apiBase, onBack }) {
                     className="profile-zonecode"
                     value={zonecode}
                     readOnly
-                    placeholder="우편번호"
+                    placeholder="주소 검색으로 자동 입력"
                     style={styles.readonlyInput}
-                    aria-label="선택된 우편번호"
+                    aria-label="우편번호"
                   />
                 </div>
                 <div style={styles.fieldRow}>
@@ -384,12 +478,86 @@ export default function ProfilePage({ apiBase, onBack }) {
                     className="profile-address"
                     value={address}
                     readOnly
-                    placeholder="주소"
+                    placeholder="주소 검색으로 자동 입력"
                     style={styles.readonlyInput}
-                    aria-label="선택된 주소"
+                    aria-label="주소"
                   />
                 </div>
-              </div>
+                <div style={styles.fieldRow}>
+                  <label htmlFor="profile-address-detail" style={styles.fieldLabel}>
+                    상세주소
+                  </label>
+                  <input
+                    type="text"
+                    id="profile-address-detail"
+                    data-testid="profile-address-detail"
+                    className="profile-address-detail"
+                    value={addressDetail}
+                    onChange={(e) => setAddressDetail(e.target.value)}
+                    placeholder="동/호수 등 상세주소"
+                    style={styles.editInput}
+                    aria-label="상세주소"
+                  />
+                </div>
+                <div style={styles.fieldRow}>
+                  <label htmlFor="profile-receiver-name" style={styles.fieldLabel}>
+                    받는 분
+                  </label>
+                  <input
+                    type="text"
+                    id="profile-receiver-name"
+                    data-testid="profile-receiver-name"
+                    className="profile-receiver-name"
+                    value={receiverName}
+                    onChange={(e) => setReceiverName(e.target.value)}
+                    placeholder="받는 분 이름"
+                    style={styles.editInput}
+                    aria-label="받는 분 이름"
+                  />
+                </div>
+                <div style={styles.fieldRow}>
+                  <label htmlFor="profile-receiver-phone" style={styles.fieldLabel}>
+                    연락처
+                  </label>
+                  <input
+                    type="text"
+                    id="profile-receiver-phone"
+                    data-testid="profile-receiver-phone"
+                    className="profile-receiver-phone"
+                    value={receiverPhone}
+                    onChange={(e) => setReceiverPhone(e.target.value)}
+                    placeholder="010-0000-0000"
+                    style={styles.editInput}
+                    aria-label="연락처"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  id="profile-address-save-btn"
+                  data-testid="profile-address-save-btn"
+                  className="profile-address-save-btn"
+                  disabled={savingAddress}
+                  style={styles.saveBtn}
+                >
+                  {savingAddress ? "저장 중..." : "배송지 저장"}
+                </button>
+              </form>
+
+              {addressMessage && (
+                <p
+                  id="profile-address-message"
+                  data-testid="profile-address-message"
+                  role={addressMessage.type === "success" ? "status" : "alert"}
+                  aria-live="polite"
+                  style={{
+                    ...styles.messageBox,
+                    ...(addressMessage.type === "success" ? styles.messageSuccess : styles.messageError),
+                  }}
+                >
+                  {addressMessage.text}
+                </p>
+              )}
             </section>
 
             {/* ===== 내 쿠폰 ===== */}
@@ -482,7 +650,8 @@ export default function ProfilePage({ apiBase, onBack }) {
                 </ul>
               )}
             </section>
-          </>
+            </div>
+          </div>
         )}
       </main>
     </div>
@@ -540,6 +709,50 @@ const styles = {
     flexDirection: "column",
     gap: "16px",
   },
+  layout: {
+    display: "flex",
+    gap: "20px",
+    alignItems: "flex-start",
+    flexWrap: "wrap",
+  },
+  sidePanel: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+    width: "200px",
+    flexShrink: 0,
+    backgroundColor: "#ffffff",
+    borderRadius: "12px",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.1)",
+    padding: "12px",
+    position: "sticky",
+    top: "88px",
+  },
+  menuItem: {
+    textAlign: "left",
+    padding: "12px 14px",
+    fontSize: "14px",
+    fontWeight: "500",
+    color: "#374151",
+    backgroundColor: "transparent",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "background-color 0.15s, color 0.15s",
+    whiteSpace: "nowrap",
+  },
+  menuItemActive: {
+    backgroundColor: "#1a1a1a",
+    color: "#ffffff",
+    fontWeight: "700",
+  },
+  content: {
+    flex: 1,
+    minWidth: "300px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "16px",
+  },
   section: {
     backgroundColor: "#ffffff",
     borderRadius: "12px",
@@ -548,6 +761,29 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: "16px",
+  },
+  editInput: {
+    flex: 1,
+    minWidth: "160px",
+    padding: "10px 12px",
+    fontSize: "14px",
+    color: "#1a1a1a",
+    backgroundColor: "#ffffff",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+  },
+  saveBtn: {
+    alignSelf: "flex-start",
+    marginTop: "4px",
+    padding: "12px 24px",
+    fontSize: "14px",
+    fontWeight: "700",
+    color: "#ffffff",
+    backgroundColor: "#1a1a1a",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   sectionTitle: {
     fontSize: "16px",

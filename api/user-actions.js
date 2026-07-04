@@ -28,6 +28,7 @@ import {
   markPaymentUsed,
   findUser,
   setAvatar,
+  setUserAddress,
   registerUserCoupon,
   listUserCoupons,
   markUserCouponUsed,
@@ -46,6 +47,7 @@ const AVAILABLE_ACTIONS = [
   'wishlist_remove',
   'order',
   'set_avatar',
+  'set_address',
   'register_coupon',
 ];
 
@@ -470,6 +472,32 @@ async function handleSetAvatar(req, res, user) {
   });
 }
 
+// set_address: 기본 배송지 저장 (내 정보 배송지 관리)
+async function handleSetAddress(req, res, user) {
+  const { address } = req.body || {};
+  if (!address || typeof address !== 'object') {
+    return res.status(400).json({ message: '배송지 정보가 필요합니다', code: 'ADDRESS_REQUIRED' });
+  }
+  const addr = {
+    zonecode: String(address.zonecode ?? '').trim(),
+    address: String(address.address ?? '').trim(),
+    detail: String(address.detail ?? '').trim(),
+    name: String(address.name ?? '').trim(),
+    phone: String(address.phone ?? '').trim(),
+  };
+  if (!addr.address) {
+    return res.status(400).json({ message: '주소를 입력해주세요', code: 'INVALID_ADDRESS' });
+  }
+  const updated = await setUserAddress(user.username, addr);
+  if (!updated) {
+    return res.status(404).json({ message: '사용자를 찾을 수 없습니다', code: 'USER_NOT_FOUND' });
+  }
+  return res.status(200).json({
+    message: '배송지가 저장되었습니다',
+    defaultAddress: updated.defaultAddress,
+  });
+}
+
 // ======================
 // 쿠폰 등록
 // ======================
@@ -562,6 +590,7 @@ async function handleGet(req, res, user) {
         role: found.role,
         email: found.email ?? null,
         avatarUrl: found.avatarUrl ?? null,
+        defaultAddress: found.defaultAddress ?? null,
       },
     });
   }
@@ -620,6 +649,8 @@ export default async function userActionsHandler(req, res) {
           return await handleOrder(req, res, user);
         case 'set_avatar':
           return await handleSetAvatar(req, res, user);
+        case 'set_address':
+          return await handleSetAddress(req, res, user);
         case 'register_coupon':
           return await handleRegisterCoupon(req, res, user);
         default:

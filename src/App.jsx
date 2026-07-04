@@ -471,7 +471,6 @@ export default function App() {
         onGoOrders={() => goWithLoginCheck('orders')}
         onGoProducts={handleGoToProducts}
         onGoAdmin={() => setPage('admin')}
-        onGoTracking={() => setPage('tracking')}
         onGoProfile={() => goWithLoginCheck('profile')}
         isLoading={isLoadingProducts}
         isLoggedIn={isLoggedIn()}
@@ -649,6 +648,8 @@ export default function App() {
       <ProfilePage
         apiBase={API_BASE}
         onBack={() => setPage('home')}
+        onGoOrders={() => setPage('orders')}
+        onGoTracking={() => setPage('tracking')}
       />
     );
   }
