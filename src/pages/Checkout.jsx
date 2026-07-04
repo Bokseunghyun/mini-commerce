@@ -360,7 +360,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
         z-index: 10;
       }
       .checkout-header-content {
-        max-width: 1024px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 14px 16px;
         display: flex;
@@ -383,7 +383,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       .checkout-back-btn:hover { background-color: #f5f5f5; }
       .checkout-title { font-size: 1.25rem; font-weight: 700; margin: 0; }
       .checkout-container {
-        max-width: 1024px;
+        max-width: 1200px;
         margin: 0 auto;
         padding: 24px 16px;
         display: flex;

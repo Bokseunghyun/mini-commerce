@@ -432,7 +432,7 @@ export default function ProductDetailPage({
           background-color: #ffffff;
         }
         .header-content {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 16px 16px;
           display: flex;
@@ -508,7 +508,7 @@ export default function ProductDetailPage({
           .cart-badge { min-width: 20px; height: 20px; padding: 0 6px; font-size: 12px; line-height: 20px; }
         }
 
-        .main-content { max-width: 1280px; margin: 0 auto; padding: 16px 12px; width: 350px; box-sizing: border-box; }
+        .main-content { max-width: 1200px; margin: 0 auto; padding: 16px 12px; width: 350px; box-sizing: border-box; }
         @media (min-width: 768px) { .main-content { padding: 40px 24px; width: 100%; } }
 
         .product-layout { display: flex; flex-direction: column; gap: 24px; }

@@ -828,7 +828,7 @@ const styles = {
     zIndex: 100,
   },
   headerInner: {
-    maxWidth: "1024px",
+    maxWidth: "1200px",
     margin: "0 auto",
     display: "flex",
     alignItems: "center",
@@ -855,7 +855,7 @@ const styles = {
   container: {
     flex: 1,
     width: "100%",
-    maxWidth: "1024px",
+    maxWidth: "1200px",
     margin: "0 auto",
     padding: "24px 16px 48px",
     boxSizing: "border-box",

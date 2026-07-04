@@ -836,8 +836,11 @@ const styles = {
   headerActions: {
     display: "flex",
     alignItems: "center",
-    gap: "12px",
+    gap: "8px",
     marginLeft: "auto",
+    flexWrap: "wrap",
+    rowGap: "8px",
+    justifyContent: "flex-end",
   },
   cartBtn: {
     display: "flex",
@@ -888,7 +891,7 @@ const styles = {
     whiteSpace: "nowrap",
   },
   logoutBtn: {
-    padding: "10px 16px",
+    padding: "10px 14px",
     fontSize: "14px",
     fontWeight: "500",
     color: "#6b7280",
@@ -897,9 +900,11 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     transition: "color 0.2s, border-color 0.2s",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   loginBtn: {
-    padding: "10px 16px",
+    padding: "10px 14px",
     fontSize: "14px",
     fontWeight: "500",
     color: "#6b7280",
@@ -908,6 +913,8 @@ const styles = {
     borderRadius: "8px",
     cursor: "pointer",
     transition: "color 0.2s, border-color 0.2s",
+    whiteSpace: "nowrap",
+    flexShrink: 0,
   },
   banner: {
     background: "linear-gradient(135deg, #1a1a1a 0%, #374151 100%)",

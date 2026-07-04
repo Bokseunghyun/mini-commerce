@@ -277,7 +277,7 @@ export default function CartPage({
   }
 
   .header-content {
-    max-width: 1024px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 12px;
     display: flex;
@@ -330,7 +330,7 @@ export default function CartPage({
   .cart-icon-header { width: 24px; height: 24px; }
 
   .cart-container {
-    max-width: 1024px;
+    max-width: 1200px;
     margin: 0 auto;
     padding: 16px 12px;
     display: flex;

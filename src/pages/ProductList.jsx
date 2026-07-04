@@ -430,7 +430,7 @@ export default function ProductListPage({
         .page-header { border-bottom: 1px solid #e5e5e5; background-color: #ffffff; }
 
         .header-content {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 24px 16px;
           width: 350px;
@@ -492,7 +492,7 @@ export default function ProductListPage({
 
         /* 검색 및 필터 영역 */
         .search-filter-container {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 24px 16px 0;
           display: flex;
@@ -569,7 +569,7 @@ export default function ProductListPage({
         }
 
         .results-info {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 16px 16px 0;
           font-size: 0.875rem;
@@ -582,7 +582,7 @@ export default function ProductListPage({
 
         /* 가격 필터 */
         .price-filter-container {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 16px 16px 0;
           display: flex;
@@ -651,7 +651,7 @@ export default function ProductListPage({
         }
 
         .price-filter-error {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 8px 16px 0;
           font-size: 0.875rem;
@@ -663,7 +663,7 @@ export default function ProductListPage({
         }
 
         .main-content {
-          max-width: 1280px;
+          max-width: 1200px;
           margin: 0 auto;
           padding: 32px 16px;
           width: 350px;
