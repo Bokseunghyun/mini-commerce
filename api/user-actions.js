@@ -28,6 +28,9 @@ import {
   markPaymentUsed,
   findUser,
   setAvatar,
+  registerUserCoupon,
+  listUserCoupons,
+  markUserCouponUsed,
 } from './_lib/store.js';
 import { computeCoupon } from './_lib/coupon-utils.js';
 import { validateImageDataUrl } from './_lib/upload-utils.js';
@@ -43,6 +46,7 @@ const AVAILABLE_ACTIONS = [
   'wishlist_remove',
   'order',
   'set_avatar',
+  'register_coupon',
 ];
 
 // ======================
@@ -390,6 +394,12 @@ async function handleOrder(req, res, user) {
       await markPaymentUsed(paymentInfo.paymentKey, order.id);
     }
 
+    // 사용자가 등록한 쿠폰을 사용된 것으로 표시 (best-effort).
+    // 등록하지 않은 코드로도 주문은 성공하므로(기존 동작) no-op 이어도 실패시키지 않는다.
+    if (couponCode) {
+      await markUserCouponUsed(user.username, couponCode, order.id);
+    }
+
     return res.status(201).json({
       message: '주문 완료',
       order: {
@@ -461,6 +471,49 @@ async function handleSetAvatar(req, res, user) {
 }
 
 // ======================
+// 쿠폰 등록
+// ======================
+
+// register_coupon: 사용자가 쿠폰 코드를 자신의 계정에 등록한다.
+async function handleRegisterCoupon(req, res, user) {
+  const { code } = req.body || {};
+
+  if (code === undefined || code === null || String(code).trim() === '') {
+    return res.status(400).json({
+      message: '쿠폰 코드는 필수입니다',
+      code: 'COUPON_CODE_REQUIRED',
+    });
+  }
+
+  let coupon;
+  try {
+    coupon = await registerUserCoupon(user.username, String(code).trim());
+  } catch (err) {
+    // 이미 등록된 쿠폰 (user_coupons PK 위반)
+    if (err.code === 'ALREADY_REGISTERED') {
+      return res.status(409).json({
+        message: '이미 등록된 쿠폰입니다',
+        code: 'COUPON_ALREADY_REGISTERED',
+      });
+    }
+    throw err;
+  }
+
+  // 존재하지 않는 쿠폰 -> 404
+  if (!coupon) {
+    return res.status(404).json({
+      message: '존재하지 않는 쿠폰입니다',
+      code: 'COUPON_NOT_FOUND',
+    });
+  }
+
+  return res.status(201).json({
+    message: '쿠폰이 등록되었습니다',
+    coupon,
+  });
+}
+
+// ======================
 // 조회 (GET)
 // ======================
 
@@ -469,7 +522,7 @@ async function handleGet(req, res, user) {
 
   if (!type) {
     return res.status(400).json({
-      message: 'type 파라미터가 필요합니다 (예: type=cart, type=wishlist)',
+      message: 'type 파라미터가 필요합니다 (예: type=cart, type=wishlist, type=coupons)',
       code: 'TYPE_REQUIRED',
     });
   }
@@ -486,6 +539,12 @@ async function handleGet(req, res, user) {
       items,
       totalPrice: cartTotal(items),
     });
+  }
+
+  // 사용자 보유 쿠폰 목록 (my-coupons)
+  if (type === 'coupons') {
+    const coupons = await listUserCoupons(user.username);
+    return res.status(200).json({ count: coupons.length, coupons });
   }
 
   // 프로필 조회 — 프론트가 아바타 URL 을 읽는 경로
@@ -561,6 +620,8 @@ export default async function userActionsHandler(req, res) {
           return await handleOrder(req, res, user);
         case 'set_avatar':
           return await handleSetAvatar(req, res, user);
+        case 'register_coupon':
+          return await handleRegisterCoupon(req, res, user);
         default:
           return res.status(400).json({
             message: `지원하지 않는 action: ${action}`,

@@ -137,6 +137,17 @@ CREATE TABLE IF NOT EXISTS payments (
   fault TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- 사용자 보유 쿠폰 (사용자가 등록한 쿠폰 + 사용 여부)
+-- code 는 coupons.code(대문자)를 참조하는 논리적 FK (제약은 걸지 않음 — 비파괴/유연성)
+CREATE TABLE IF NOT EXISTS user_coupons (
+  username TEXT NOT NULL,
+  code TEXT NOT NULL,
+  registered_at TIMESTAMPTZ DEFAULT now(),
+  used_at TIMESTAMPTZ,
+  order_id TEXT,
+  PRIMARY KEY (username, code)
+);
 `;
 
 export default SCHEMA_SQL;

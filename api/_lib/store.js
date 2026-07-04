@@ -1002,6 +1002,150 @@ export async function getCoupon(code) {
   return mapCoupon(rows[0] ?? null);
 }
 
+// 쿠폰 생성 (관리자) — code 는 대문자로 저장. 중복 코드는 PK 위반(23505) ->
+// err.code='COUPON_EXISTS' 로 재래핑해 호출부에서 409로 매핑한다.
+export async function createCoupon({
+  code,
+  type,
+  amount,
+  minOrder = 0,
+  maxDiscount = null,
+  expiresAt = null,
+  active = true,
+}) {
+  try {
+    const { rows } = await query(
+      `INSERT INTO coupons (code, type, amount, min_order, max_discount, expires_at, active)
+       VALUES (UPPER($1), $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        String(code ?? ''),
+        type,
+        amount,
+        minOrder ?? 0,
+        maxDiscount ?? null,
+        expiresAt ?? null,
+        active ?? true,
+      ]
+    );
+    return mapCoupon(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') {
+      const e = new Error('이미 존재하는 쿠폰 코드입니다');
+      e.code = 'COUPON_EXISTS';
+      throw e;
+    }
+    throw err;
+  }
+}
+
+// 전체 쿠폰 목록 (관리자) — 만료 임박/신규 우선 정렬 후 코드 순
+export async function listCoupons() {
+  const { rows } = await query(
+    `SELECT * FROM coupons ORDER BY code ASC`
+  );
+  return rows.map(mapCoupon);
+}
+
+// ---------------------------------------------------------------------------
+// 사용자 보유 쿠폰 (user_coupons)
+// ---------------------------------------------------------------------------
+
+// 사용자 보유 쿠폰 상세 매퍼 (user_coupons JOIN coupons 결과)
+// status 는 사용여부/만료/활성 여부로 파생한다.
+function mapUserCoupon(row) {
+  if (!row) return null;
+  const usedAt = toIso(row.used_at);
+  const expiresAt = toIso(row.expires_at);
+  let status;
+  if (usedAt) {
+    status = 'USED';
+  } else if (expiresAt && new Date(expiresAt).getTime() < Date.now()) {
+    status = 'EXPIRED';
+  } else if (row.active) {
+    status = 'AVAILABLE';
+  } else {
+    status = 'INACTIVE';
+  }
+  return {
+    code: row.code,
+    type: row.type,
+    amount: row.amount,
+    minOrder: row.min_order,
+    maxDiscount: row.max_discount,
+    expiresAt,
+    registeredAt: toIso(row.registered_at),
+    usedAt,
+    orderId: row.order_id ?? null,
+    status,
+  };
+}
+
+// 사용자 쿠폰 등록 — 존재하지 않는 쿠폰이면 null 반환(호출부 -> 404).
+// 이미 등록된 쿠폰은 PK 위반(23505) -> err.code='ALREADY_REGISTERED'.
+// 성공 시 등록된 쿠폰 상세(status 포함)를 반환한다.
+export async function registerUserCoupon(username, code) {
+  const coupon = await getCoupon(code);
+  if (!coupon) return null;
+
+  try {
+    await query(
+      `INSERT INTO user_coupons (username, code)
+       VALUES ($1, UPPER($2))`,
+      [username, String(code ?? '')]
+    );
+  } catch (err) {
+    if (err.code === '23505') {
+      const e = new Error('이미 등록된 쿠폰입니다');
+      e.code = 'ALREADY_REGISTERED';
+      throw e;
+    }
+    throw err;
+  }
+
+  const { rows } = await query(
+    `SELECT uc.username, uc.code, uc.registered_at, uc.used_at, uc.order_id,
+            c.type, c.amount, c.min_order, c.max_discount, c.expires_at, c.active
+       FROM user_coupons uc
+       JOIN coupons c USING (code)
+      WHERE uc.username = $1 AND uc.code = UPPER($2)`,
+    [username, String(code ?? '')]
+  );
+  return mapUserCoupon(rows[0] ?? null);
+}
+
+// 사용자 보유 쿠폰 목록 — 사용 가능(AVAILABLE) 먼저, 그다음 등록 최신순
+export async function listUserCoupons(username) {
+  const { rows } = await query(
+    `SELECT uc.username, uc.code, uc.registered_at, uc.used_at, uc.order_id,
+            c.type, c.amount, c.min_order, c.max_discount, c.expires_at, c.active
+       FROM user_coupons uc
+       JOIN coupons c USING (code)
+      WHERE uc.username = $1
+      ORDER BY
+        (CASE
+           WHEN uc.used_at IS NOT NULL THEN 3
+           WHEN c.expires_at IS NOT NULL AND c.expires_at < now() THEN 2
+           WHEN c.active THEN 0
+           ELSE 1
+         END) ASC,
+        uc.registered_at DESC`,
+    [username]
+  );
+  return rows.map(mapUserCoupon);
+}
+
+// 사용자 보유 쿠폰을 사용됨으로 표시 (주문 시 best-effort).
+// 등록되어 있지 않거나 이미 사용된 경우 no-op (throw 하지 않음).
+export async function markUserCouponUsed(username, code, orderId) {
+  await query(
+    `UPDATE user_coupons
+        SET used_at = now(), order_id = $3
+      WHERE username = $1 AND code = UPPER($2) AND used_at IS NULL`,
+    [username, String(code ?? ''), orderId ?? null]
+  );
+}
+
 // ---------------------------------------------------------------------------
 // 재고
 // ---------------------------------------------------------------------------
@@ -1023,7 +1167,7 @@ export async function resetAll() {
     await client.query('BEGIN');
 
     await client.query(
-      `TRUNCATE products, users, reviews, wishlists, carts, orders, order_items, coupons, payments
+      `TRUNCATE products, users, reviews, wishlists, carts, orders, order_items, coupons, payments, user_coupons
        RESTART IDENTITY CASCADE`
     );
 
@@ -1095,8 +1239,14 @@ export async function resetAll() {
       );
     }
 
+    // 시드 사용자 'test' 에게 WELCOME10 쿠폰을 미리 등록 (my-coupons UI 초기 데이터).
+    // 등록만 하고 사용하지 않으므로 computeCoupon/쿠폰 검증 테스트에는 영향이 없다.
+    await client.query(
+      `INSERT INTO user_coupons (username, code) VALUES ('test', 'WELCOME10')`
+    );
+
     await client.query('COMMIT');
-    return ['products', 'users', 'reviews', 'wishlists', 'carts', 'orders', 'coupons', 'payments'];
+    return ['products', 'users', 'reviews', 'wishlists', 'carts', 'orders', 'coupons', 'payments', 'user_coupons'];
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

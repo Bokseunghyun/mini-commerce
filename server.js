@@ -20,6 +20,7 @@ import trackingHandler from './api/tracking.js';
 import ordersHandler from './api/orders.js';
 import orderDetailHandler from './api/orders/[id].js';
 import adminHandler from './api/admin.js';
+import adminCouponsHandler from './api/admin-coupons.js';
 import statusCodesHandler from './api/status-codes.js';
 import resetHandler from './api/reset.js';
 
@@ -87,6 +88,8 @@ app.all('/api/orders/:id', wrap((req, res) => {
   });
   return orderDetailHandler(req, res);
 }));
+// 관리자 쿠폰 관리 (반드시 /api/admin 보다 먼저 등록 — 더 구체적 경로 우선)
+app.all('/api/admin/coupons', wrap(adminCouponsHandler));
 app.all('/api/admin', wrap(adminHandler));
 app.all('/api/status-codes', wrap(statusCodesHandler));
 // 테스트 상태 초기화 (반드시 /api 404 폴백보다 먼저 등록)

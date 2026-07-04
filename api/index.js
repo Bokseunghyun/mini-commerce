@@ -24,6 +24,7 @@ import trackingHandler from './tracking.js';
 import ordersHandler from './orders.js';
 import orderDetailHandler from './orders/[id].js';
 import adminHandler from './admin.js';
+import adminCouponsHandler from './admin-coupons.js';
 import statusCodesHandler from './status-codes.js';
 import resetHandler from './reset.js';
 
@@ -60,6 +61,11 @@ export default async function handler(req, res) {
   }
 
   setQuery();
+
+  // 정확 경로 우선 매칭: /api/admin/coupons 는 'admin' 케이스보다 먼저 처리
+  if (path === 'admin/coupons') {
+    return adminCouponsHandler(req, res);
+  }
 
   switch (path) {
     case 'login':
