@@ -45,6 +45,8 @@ export default function HomePage({
   onGoWishlist = () => {},
   onGoOrders = () => {},
   onGoSignup = () => {},
+  onGoTracking = () => {},
+  onGoProfile = () => {},
   isLoading = false,
   isLoggedIn = false,
 }) {
@@ -411,9 +413,35 @@ export default function HomePage({
                 )}
               </button>
 
-              {/* 위시리스트 / 주문내역 버튼 - 로그인 시에만 표시 */}
+              {/* 배송조회 버튼 - 로그인 불필요, 항상 표시 */}
+              <button
+                type="button"
+                id="home-tracking-btn"
+                name="trackingButton"
+                className="btn btn-ghost tracking-nav-button"
+                aria-label="배송조회로 이동"
+                onClick={onGoTracking}
+                style={styles.logoutBtn}
+                data-testid="tracking-button"
+              >
+                배송조회
+              </button>
+
+              {/* 위시리스트 / 주문내역 / 내정보 버튼 - 로그인 시에만 표시 */}
               {isLoggedIn && (
                 <>
+                  <button
+                    type="button"
+                    id="home-profile-btn"
+                    name="profileButton"
+                    className="btn btn-ghost profile-nav-button"
+                    aria-label="내정보로 이동"
+                    onClick={onGoProfile}
+                    style={styles.logoutBtn}
+                    data-testid="profile-button"
+                  >
+                    내정보
+                  </button>
                   <button
                     type="button"
                     id="home-wishlist-btn"

@@ -27,6 +27,34 @@ function itemSummary(items) {
   return items.length > 1 ? `${first} 외 ${items.length - 1}건` : first;
 }
 
+// 주문 상태 5종: 한글 라벨 + 구분 색상 (badge 스타일 키는 styles 참조)
+const STATUS_META = {
+  PAID: { label: "결제완료", style: "statusPaid" },
+  PREPARING: { label: "상품준비중", style: "statusPreparing" },
+  SHIPPING: { label: "배송중", style: "statusShipping" },
+  DELIVERED: { label: "배송완료", style: "statusDelivered" },
+  CANCELED: { label: "취소됨", style: "statusCanceled" },
+};
+
+function statusMeta(status) {
+  return STATUS_META[status] || { label: status || "-", style: "statusCanceled" };
+}
+
+// 취소 가능 상태 (PAID/PREPARING 만)
+function isCancelable(status) {
+  return status === "PAID" || status === "PREPARING";
+}
+
+// 진행 가능 상태 (종료 상태 제외)
+function isAdvanceable(status) {
+  return status !== "DELIVERED" && status !== "CANCELED";
+}
+
+// 송장/배송조회 노출 상태 (SHIPPING/DELIVERED)
+function hasTracking(status) {
+  return status === "SHIPPING" || status === "DELIVERED";
+}
+
 function LoadingSpinner() {
   return (
     <div style={styles.loadingContainer} data-testid="loading-spinner">
@@ -49,6 +77,11 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
   // 취소 결과 메시지: { type: 'success' | 'error', text }
   const [cancelMessage, setCancelMessage] = useState(null);
   const [cancelingId, setCancelingId] = useState(null);
+  // 배송조회 인라인 상태: { [orderId]: { loading, data, error } }
+  const [tracking, setTracking] = useState({});
+  // 상태 진행 결과 메시지: { type: 'success' | 'error', text }
+  const [advanceMessage, setAdvanceMessage] = useState(null);
+  const [advancingId, setAdvancingId] = useState(null);
 
   const fetchOrders = useCallback(async () => {
     const token = localStorage.getItem("token");
@@ -175,6 +208,104 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
     }
   };
 
+  // 배송조회 (GET /api/tracking?orderId= — 인증). 외부 택배 API 목킹 연습 대상.
+  const handleTrack = async (orderId) => {
+    setTracking((prev) => ({ ...prev, [orderId]: { loading: true } }));
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/tracking?orderId=${encodeURIComponent(orderId)}`, {
+        headers: { Authorization: `Bearer ${token || ""}` },
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const text =
+          res.status === 404
+            ? data.message || "배송 추적 정보를 찾을 수 없습니다"
+            : data.message || `배송 조회 실패 (status=${res.status})`;
+        setTracking((prev) => ({ ...prev, [orderId]: { loading: false, error: text } }));
+        return;
+      }
+
+      setTracking((prev) => ({ ...prev, [orderId]: { loading: false, data } }));
+    } catch (e) {
+      setTracking((prev) => ({
+        ...prev,
+        [orderId]: { loading: false, error: `네트워크 오류: ${e.message}` },
+      }));
+    }
+  };
+
+  // 주문 상태 진행 (PATCH /api/orders/:id {action:'advance'}) — 테스터가 라이프사이클을 직접 진행
+  const handleAdvance = async (orderId) => {
+    setAdvanceMessage(null);
+    setAdvancingId(orderId);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+        body: JSON.stringify({ action: "advance" }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setAdvanceMessage({
+          type: "error",
+          text:
+            res.status === 409
+              ? data.message || "더 이상 진행할 수 없는 주문 상태입니다"
+              : data.message || `주문 상태 진행 실패 (status=${res.status})`,
+        });
+        return;
+      }
+
+      const nextStatus = data.order?.status;
+      const nextTracking = data.order?.trackingNumber;
+      if (nextStatus) {
+        setOrders((prev) =>
+          prev.map((o) =>
+            o.id === orderId
+              ? { ...o, status: nextStatus, trackingNumber: nextTracking ?? o.trackingNumber }
+              : o
+          )
+        );
+        setDetails((prev) => {
+          if (!prev[orderId]?.order) return prev;
+          return {
+            ...prev,
+            [orderId]: {
+              ...prev[orderId],
+              order: {
+                ...prev[orderId].order,
+                status: nextStatus,
+                trackingNumber: nextTracking ?? prev[orderId].order.trackingNumber,
+              },
+            },
+          };
+        });
+      }
+      // 이전 배송조회 결과는 상태가 바뀌었으니 무효화 (다시 조회하도록)
+      setTracking((prev) => {
+        if (!prev[orderId]) return prev;
+        const next = { ...prev };
+        delete next[orderId];
+        return next;
+      });
+      setAdvanceMessage({
+        type: "success",
+        text: data.message || `주문 상태가 변경되었습니다: ${nextStatus || ""}`,
+      });
+    } catch (e) {
+      setAdvanceMessage({ type: "error", text: `네트워크 오류: ${e.message}` });
+    } finally {
+      setAdvancingId(null);
+    }
+  };
+
   return (
     <div
       id="order-history-page"
@@ -292,13 +423,36 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
               </div>
             )}
 
+            {/* 상태 진행 결과 메시지 */}
+            {advanceMessage && (
+              <div
+                id="order-advance-message"
+                className={`order-advance-message advance-${advanceMessage.type}`}
+                style={{
+                  ...styles.messageBox,
+                  ...(advanceMessage.type === "success"
+                    ? styles.messageSuccess
+                    : styles.messageError),
+                }}
+                data-testid="order-advance-message"
+                data-status={advanceMessage.type}
+                role={advanceMessage.type === "success" ? "status" : "alert"}
+                aria-live="polite"
+              >
+                {advanceMessage.text}
+              </div>
+            )}
+
             <div style={styles.orderList} className="order-list" data-testid="order-list" role="list">
               {orders.map((order) => {
                 const isExpanded = expandedId === order.id;
-                const isPaid = order.status === "PAID";
                 const detail = details[order.id];
                 const detailOrder = detail?.order;
                 const items = detailOrder?.items || order.items || [];
+                const status = order.status;
+                const meta = statusMeta(status);
+                const trackNo = detailOrder?.trackingNumber ?? order.trackingNumber ?? null;
+                const track = tracking[order.id];
 
                 return (
                   <article
@@ -365,12 +519,12 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
                         className={`order-status-badge status-${(order.status || "").toLowerCase()}`}
                         style={{
                           ...styles.statusBadge,
-                          ...(isPaid ? styles.statusPaid : styles.statusCanceled),
+                          ...(styles[meta.style] || styles.statusCanceled),
                         }}
                         data-testid={`order-status-${order.id}`}
                         data-status={order.status}
                       >
-                        {isPaid ? "결제완료" : "취소됨"}
+                        {meta.label}
                       </span>
                     </div>
 
@@ -490,29 +644,157 @@ export default function OrderHistoryPage({ apiBase, onBack, onGoHome }) {
                               )}
                             </div>
 
-                            {/* 주문취소 버튼 (PAID 주문만) */}
-                            {isPaid && (
-                              <div style={styles.cancelRow}>
-                                <button
-                                  type="button"
-                                  id={`order-cancel-${order.id}`}
-                                  className="btn btn-danger order-cancel-button"
-                                  aria-label={`주문 ${order.id} 취소`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleCancel(order.id);
-                                  }}
-                                  disabled={cancelingId === order.id}
-                                  style={{
-                                    ...styles.cancelBtn,
-                                    ...(cancelingId === order.id
-                                      ? styles.cancelBtnDisabled
-                                      : {}),
-                                  }}
-                                  data-testid={`order-cancel-${order.id}`}
-                                >
-                                  {cancelingId === order.id ? "취소 처리 중..." : "주문취소"}
-                                </button>
+                            {/* 배송 추적 (SHIPPING/DELIVERED) — 외부 택배 API 목킹 연습 대상 */}
+                            {hasTracking(status) && (
+                              <div
+                                style={styles.trackingBox}
+                                className="order-tracking"
+                                data-testid={`order-tracking-${order.id}`}
+                              >
+                                <div style={styles.trackingHeader}>
+                                  <div>
+                                    <p style={styles.shippingTitle}>배송 추적</p>
+                                    <p style={styles.trackingNumberLine}>
+                                      운송장 번호:{" "}
+                                      <span
+                                        style={styles.trackingNumberValue}
+                                        className="order-tracking-number"
+                                        data-testid={`order-tracking-number-${order.id}`}
+                                        data-tracking-number={trackNo || ""}
+                                      >
+                                        {trackNo || "발급 대기중"}
+                                      </span>
+                                    </p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    id={`order-track-btn-${order.id}`}
+                                    className="btn btn-secondary order-track-button"
+                                    aria-label={`주문 ${order.id} 배송조회`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTrack(order.id);
+                                    }}
+                                    disabled={track?.loading}
+                                    style={{
+                                      ...styles.trackBtn,
+                                      ...(track?.loading ? styles.cancelBtnDisabled : {}),
+                                    }}
+                                    data-testid={`order-track-btn-${order.id}`}
+                                  >
+                                    {track?.loading ? "조회 중..." : "배송조회"}
+                                  </button>
+                                </div>
+
+                                {track?.loading && (
+                                  <div
+                                    style={styles.trackingLoading}
+                                    data-testid="loading-spinner"
+                                    className="order-tracking-loading"
+                                    role="status"
+                                    aria-live="polite"
+                                  >
+                                    <div style={styles.spinnerSmall}></div>
+                                    <span>배송 정보를 조회하는 중...</span>
+                                  </div>
+                                )}
+
+                                {track?.error && (
+                                  <p
+                                    style={styles.detailError}
+                                    className="order-tracking-error"
+                                    role="alert"
+                                    data-testid={`tracking-error-${order.id}`}
+                                  >
+                                    {track.error}
+                                  </p>
+                                )}
+
+                                {track?.data && (
+                                  <ol
+                                    style={styles.timeline}
+                                    className="order-tracking-timeline"
+                                    data-testid={`tracking-timeline-${order.id}`}
+                                    data-status={track.data.status}
+                                  >
+                                    {(track.data.events || []).length === 0 ? (
+                                      <li
+                                        style={styles.timelineEmpty}
+                                        className="order-tracking-empty"
+                                        data-testid={`tracking-empty-${order.id}`}
+                                      >
+                                        배송 이벤트가 없습니다
+                                      </li>
+                                    ) : (
+                                      (track.data.events || []).map((ev, i) => (
+                                        <li
+                                          key={`${order.id}-track-${i}`}
+                                          style={styles.timelineRow}
+                                          className="order-tracking-event"
+                                          data-testid={`tracking-event-${order.id}-${i}`}
+                                          data-status={ev.status}
+                                        >
+                                          <span style={styles.timelineDot}></span>
+                                          <div style={styles.timelineBody}>
+                                            <span style={styles.timelineLabel}>{ev.label}</span>
+                                            <span style={styles.timelineMeta}>
+                                              {formatDate(ev.at)}
+                                              {ev.location ? ` · ${ev.location}` : ""}
+                                            </span>
+                                          </div>
+                                        </li>
+                                      ))
+                                    )}
+                                  </ol>
+                                )}
+                              </div>
+                            )}
+
+                            {/* 액션 버튼 영역: 상태 진행 + 주문취소 */}
+                            {(isAdvanceable(status) || isCancelable(status)) && (
+                              <div style={styles.actionRow}>
+                                {isAdvanceable(status) && (
+                                  <button
+                                    type="button"
+                                    id={`order-advance-btn-${order.id}`}
+                                    className="btn btn-primary order-advance-button"
+                                    aria-label={`주문 ${order.id} 상태 진행`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleAdvance(order.id);
+                                    }}
+                                    disabled={advancingId === order.id}
+                                    style={{
+                                      ...styles.advanceBtn,
+                                      ...(advancingId === order.id ? styles.cancelBtnDisabled : {}),
+                                    }}
+                                    data-testid={`order-advance-btn-${order.id}`}
+                                  >
+                                    {advancingId === order.id ? "진행 중..." : "주문 상태 진행"}
+                                  </button>
+                                )}
+                                {isCancelable(status) && (
+                                  <button
+                                    type="button"
+                                    id={`order-cancel-${order.id}`}
+                                    className="btn btn-danger order-cancel-button"
+                                    aria-label={`주문 ${order.id} 취소`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCancel(order.id);
+                                    }}
+                                    disabled={cancelingId === order.id}
+                                    style={{
+                                      ...styles.cancelBtn,
+                                      ...(cancelingId === order.id
+                                        ? styles.cancelBtnDisabled
+                                        : {}),
+                                    }}
+                                    data-testid={`order-cancel-${order.id}`}
+                                  >
+                                    {cancelingId === order.id ? "취소 처리 중..." : "주문취소"}
+                                  </button>
+                                )}
                               </div>
                             )}
                           </>
@@ -664,6 +946,21 @@ const styles = {
     color: "#2563eb",
     border: "1px solid #bfdbfe",
   },
+  statusPreparing: {
+    backgroundColor: "#fffbeb",
+    color: "#d97706",
+    border: "1px solid #fde68a",
+  },
+  statusShipping: {
+    backgroundColor: "#f5f3ff",
+    color: "#7c3aed",
+    border: "1px solid #ddd6fe",
+  },
+  statusDelivered: {
+    backgroundColor: "#f0fdf4",
+    color: "#16a34a",
+    border: "1px solid #bbf7d0",
+  },
   statusCanceled: {
     backgroundColor: "#f3f4f6",
     color: "#9ca3af",
@@ -783,6 +1080,117 @@ const styles = {
     fontSize: "13px",
     color: "#9ca3af",
     margin: 0,
+  },
+  trackingBox: {
+    backgroundColor: "#ffffff",
+    borderRadius: "8px",
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "12px",
+  },
+  trackingHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  trackingNumberLine: {
+    fontSize: "13px",
+    color: "#6b7280",
+    margin: 0,
+  },
+  trackingNumberValue: {
+    fontWeight: "600",
+    color: "#1f2937",
+    fontFamily: "monospace",
+  },
+  trackBtn: {
+    padding: "8px 16px",
+    fontSize: "13px",
+    fontWeight: "600",
+    color: "#7c3aed",
+    backgroundColor: "#f5f3ff",
+    border: "1px solid #ddd6fe",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    whiteSpace: "nowrap",
+  },
+  trackingLoading: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "13px",
+    color: "#6b7280",
+  },
+  spinnerSmall: {
+    width: "18px",
+    height: "18px",
+    border: "3px solid #e5e7eb",
+    borderTopColor: "#7c3aed",
+    borderRadius: "50%",
+    animation: "spin 1s linear infinite",
+    flexShrink: 0,
+  },
+  timeline: {
+    listStyle: "none",
+    margin: 0,
+    padding: 0,
+    display: "flex",
+    flexDirection: "column",
+    gap: "0",
+  },
+  timelineRow: {
+    display: "flex",
+    gap: "12px",
+    padding: "10px 0",
+    borderBottom: "1px solid #f3f4f6",
+  },
+  timelineDot: {
+    width: "10px",
+    height: "10px",
+    borderRadius: "50%",
+    backgroundColor: "#7c3aed",
+    marginTop: "5px",
+    flexShrink: 0,
+  },
+  timelineBody: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "2px",
+  },
+  timelineLabel: {
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#1f2937",
+  },
+  timelineMeta: {
+    fontSize: "12px",
+    color: "#9ca3af",
+  },
+  timelineEmpty: {
+    fontSize: "13px",
+    color: "#9ca3af",
+    padding: "8px 0",
+  },
+  actionRow: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  advanceBtn: {
+    padding: "10px 20px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#ffffff",
+    backgroundColor: "#1a1a1a",
+    border: "none",
+    borderRadius: "8px",
+    cursor: "pointer",
+    transition: "all 0.2s",
   },
   cancelRow: {
     display: "flex",

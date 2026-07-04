@@ -1,6 +1,9 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
+import ImageUpload from "../components/ImageUpload";
+
+const MAX_REVIEW_IMAGES = 3;
 
 // ============================================
 // 가격 포맷
@@ -123,6 +126,7 @@ export default function ProductDetailPage({
   // 리뷰 작성 폼 상태
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState("");
+  const [newReviewImages, setNewReviewImages] = useState([]); // 업로드된 리뷰 이미지 url (최대 3)
   const [submittingReview, setSubmittingReview] = useState(false);
   const [reviewFormMessage, setReviewFormMessage] = useState(null); // {type:'success'|'error', text}
 
@@ -145,6 +149,7 @@ export default function ProductDetailPage({
     setQuantity(1);
     setNewReviewRating(5);
     setNewReviewComment("");
+    setNewReviewImages([]);
     setReviewFormMessage(null);
     setEditingReviewId(null);
   }, [productId]);
@@ -275,6 +280,14 @@ export default function ProductDetailPage({
     onBuyNow?.(qty);
   };
 
+  // 리뷰 이미지 업로드 성공 시 url 누적 (최대 3장)
+  const handleReviewImageUploaded = (url) => {
+    setNewReviewImages((prev) => (prev.length >= MAX_REVIEW_IMAGES ? prev : [...prev, url]));
+  };
+  const handleRemoveReviewImage = (idx) => {
+    setNewReviewImages((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   // 리뷰 작성 (인라인 메시지 표시)
   const handleSubmitReview = async () => {
     if (submittingReview) return;
@@ -293,6 +306,7 @@ export default function ProductDetailPage({
           productId: safeProduct.id,
           rating: newReviewRating,
           comment: newReviewComment.trim(),
+          images: newReviewImages,
         }),
       });
 
@@ -310,6 +324,7 @@ export default function ProductDetailPage({
       setReviewFormMessage({ type: 'success', text: '리뷰가 등록되었습니다' });
       setNewReviewRating(5);
       setNewReviewComment('');
+      setNewReviewImages([]);
       setReviewsVersion((v) => v + 1); // 목록 + 요약 새로고침
     } catch (err) {
       setReviewFormMessage({ type: 'error', text: '리뷰 등록 중 오류가 발생했습니다: ' + err.message });
@@ -808,6 +823,28 @@ export default function ProductDetailPage({
         .review-item-rating-num { margin-left: 4px; color: #6b7280; font-size: 0.8125rem; }
         .review-item-username { font-size: 0.75rem; color: #9ca3af; }
         .review-item-comment { font-size: 0.875rem; color: #374151; line-height: 1.6; margin-bottom: 8px; }
+        .review-item-images { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+        .review-item-image {
+          width: 80px; height: 80px; object-fit: cover;
+          border-radius: 8px; border: 1px solid #e5e7eb; background-color: #fff;
+        }
+
+        /* 리뷰 이미지 업로드 */
+        .review-image-upload { margin-bottom: 12px; }
+        .review-image-upload-label { font-size: 0.8125rem; font-weight: 600; color: #525252; margin-bottom: 8px; }
+        .review-image-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+        .review-image-thumb-wrap { position: relative; width: 72px; height: 72px; }
+        .review-image-thumb {
+          width: 72px; height: 72px; object-fit: cover;
+          border-radius: 8px; border: 1px solid #e5e7eb;
+        }
+        .review-image-remove {
+          position: absolute; top: -6px; right: -6px;
+          width: 20px; height: 20px; line-height: 18px; text-align: center;
+          padding: 0; border-radius: 50%;
+          background-color: #1a1a1a; color: #fff;
+          border: none; cursor: pointer; font-size: 14px;
+        }
         .review-item-footer { display: flex; justify-content: space-between; align-items: center; }
         .review-item-date { font-size: 0.75rem; color: #9ca3af; }
         .review-empty { font-size: 0.875rem; color: #6b7280; padding: 24px 0; text-align: center; }
@@ -1196,6 +1233,44 @@ export default function ProductDetailPage({
                     />
                     <p className="review-char-count">{newReviewComment.length} / 500자 (최소 10자)</p>
 
+                    {/* 리뷰 이미지 첨부 (최대 3장) */}
+                    <div className="review-image-upload" data-testid="review-image-upload">
+                      <p className="review-image-upload-label">
+                        사진 첨부 <span style={{ color: '#9ca3af' }}>({newReviewImages.length}/{MAX_REVIEW_IMAGES})</span>
+                      </p>
+                      {newReviewImages.length > 0 && (
+                        <div className="review-image-thumbs" data-testid="review-image-thumbs">
+                          {newReviewImages.map((url, i) => (
+                            <div key={i} className="review-image-thumb-wrap">
+                              <img
+                                src={url}
+                                alt={`첨부 이미지 ${i + 1}`}
+                                className="review-image-thumb"
+                                data-testid={`review-upload-thumb-${i}`}
+                              />
+                              <button
+                                type="button"
+                                className="review-image-remove"
+                                data-testid={`review-upload-remove-${i}`}
+                                aria-label={`첨부 이미지 ${i + 1} 삭제`}
+                                onClick={() => handleRemoveReviewImage(i)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {newReviewImages.length < MAX_REVIEW_IMAGES && (
+                        <ImageUpload
+                          kind="review"
+                          apiBase={API_BASE}
+                          maxLabel={`이미지 최대 ${MAX_REVIEW_IMAGES}장, 각 2MB 이하`}
+                          onUploaded={handleReviewImageUploaded}
+                        />
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       id="review-submit"
@@ -1353,6 +1428,23 @@ export default function ProductDetailPage({
                                 <span className="review-item-username">{review.username}</span>
                               </div>
                               <p className="review-item-comment">{review.comment}</p>
+                              {Array.isArray(review.images) && review.images.length > 0 && (
+                                <div
+                                  className="review-item-images"
+                                  data-testid={`review-images-${review.id}`}
+                                >
+                                  {review.images.map((img, i) => (
+                                    <img
+                                      key={i}
+                                      src={img}
+                                      alt={`리뷰 이미지 ${i + 1}`}
+                                      className="review-item-image"
+                                      data-testid={`review-image-${review.id}-${i}`}
+                                      loading="lazy"
+                                    />
+                                  ))}
+                                </div>
+                              )}
                               <div className="review-item-footer">
                                 <span className="review-item-date">
                                   {review.createdAt ? new Date(review.createdAt).toLocaleDateString('ko-KR') : ''}

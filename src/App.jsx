@@ -10,6 +10,8 @@ import OrderCompletePage from "./pages/OrderComplete.jsx";
 import OrderHistoryPage from './pages/OrderHistory.jsx';
 import WishlistPage from './pages/Wishlist.jsx';
 import AdminPage from "./pages/AdminPage.jsx";
+import ProfilePage from './pages/Profile.jsx';
+import TrackingPage from './pages/Tracking.jsx';
 
 // URL 경로 → page 상태 매핑 (초기 진입 시 사용)
 function getPageFromPath(path) {
@@ -26,6 +28,8 @@ function getPageFromPath(path) {
   if (path === '/orders') return 'orders';
   if (path === '/wishlist') return 'wishlist';
   if (path === '/admin') return 'admin';
+  if (path === '/profile') return 'profile';
+  if (path === '/tracking') return 'tracking';
   return 'home';
 }
 
@@ -120,6 +124,8 @@ export default function App() {
     else if (page === 'orders') newPath = '/orders';
     else if (page === 'wishlist') newPath = '/wishlist';
     else if (page === 'admin') newPath = '/admin';
+    else if (page === 'profile') newPath = '/profile';
+    else if (page === 'tracking') newPath = '/tracking';
     else newPath = '/';
 
     if (currentPath !== newPath) {
@@ -465,6 +471,8 @@ export default function App() {
         onGoOrders={() => goWithLoginCheck('orders')}
         onGoProducts={handleGoToProducts}
         onGoAdmin={() => setPage('admin')}
+        onGoTracking={() => setPage('tracking')}
+        onGoProfile={() => goWithLoginCheck('profile')}
         isLoading={isLoadingProducts}
         isLoggedIn={isLoggedIn()}
         userRole={localStorage.getItem('role') || ''}
@@ -632,6 +640,24 @@ export default function App() {
         onBack={() => setPage('home')}
         onView={handleView}
         onAddToCart={(product, qty = 1) => addToCart(product, qty, false)}
+      />
+    );
+  }
+
+  if (page === 'profile') {
+    return (
+      <ProfilePage
+        apiBase={API_BASE}
+        onBack={() => setPage('home')}
+      />
+    );
+  }
+
+  if (page === 'tracking') {
+    return (
+      <TrackingPage
+        apiBase={API_BASE}
+        onBack={() => setPage('home')}
       />
     );
   }

@@ -5,8 +5,18 @@ import { useEffect, useState } from "react";
  * - 주문 소스: buyNowItem(바로구매)이 있으면 해당 상품 1건, 없으면 서버 장바구니(GET /api/user-actions?type=cart)
  * - 배송지 입력(이름/휴대폰/주소 필수, 메모 선택) + 필드별 in-DOM 에러
  * - 쿠폰 적용: POST /api/coupons { code, orderAmount } → 할인 반영 / 에러 메시지 그대로 표시
- * - 결제수단 라디오(연출용), 약관 동의 체크 전까지 결제 버튼 비활성화
- * - 제출: POST /api/user-actions { action:'order', items?, couponCode?, shipping } → 201 시 onOrderComplete(order)
+ * - 결제수단 라디오: 신용카드만 실제 결제 동작(무통장/카카오는 '준비중' 안내)
+ * - 결제 플로우(카드): 약관 동의 + 배송지 유효 상태에서 '결제하기' 클릭 시
+ *     (1) POST /api/payment { cardNumber, cardExpiry, cardCvc, amount, orderName }
+ *         → 진행 중 payment-processing(스피너) 노출, 버튼 disabled
+ *     (2) 402/504/500 등 실패 시 응답 message 를 payment-error(role=alert)에 노출하고 주문 미생성
+ *         (재현: 테스트 카드 뒤 4자리 0001 거절 / 0002 한도초과 / 9999 게이트웨이 타임아웃)
+ *     (3) 성공(201 DONE) 시 받은 paymentKey 로
+ *         POST /api/user-actions { action:'order', ..., paymentKey } → 201 시 onOrderComplete(order)
+ *         (주문 단계 실패는 기존 checkout-error 에 표시)
+ * - 외부 PG 목킹 대비: payment fetch 자체가 throw 해도 payment-error 에
+ *   '결제 요청 중 오류가 발생했습니다' 를 노출하고 멈춘다(무한 로딩 금지).
+ * - 약관 미동의 시 '결제하기' 버튼 disabled 유지
  */
 
 const PHONE_REGEX = /^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/;
@@ -14,6 +24,24 @@ const PHONE_REGEX = /^01[0-9]-?[0-9]{3,4}-?[0-9]{4}$/;
 function formatPrice(price) {
   const n = Number(price) || 0;
   return n.toLocaleString("ko-KR");
+}
+
+// 카드번호: 숫자만 남기고 최대 16자리, 4자리마다 하이픈
+function formatCardNumber(raw) {
+  const digits = String(raw).replace(/\D/g, "").slice(0, 16);
+  return digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
+}
+
+// 유효기간: 숫자만 남기고 MM/YY 형태로 자동 변환 (최대 4자리)
+function formatCardExpiry(raw) {
+  const digits = String(raw).replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+// CVC: 숫자만, 최대 4자리
+function formatCardCvc(raw) {
+  return String(raw).replace(/\D/g, "").slice(0, 4);
 }
 
 function ArrowLeftIcon() {
@@ -59,7 +87,19 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
   const [paymentMethod, setPaymentMethod] = useState("card");
   const [agreed, setAgreed] = useState(false);
 
-  // 제출
+  // 카드 입력 (신용카드 선택 시에만 노출)
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvc, setCardCvc] = useState("");
+
+  // 결제 진행 상태 / 결제 에러(외부 PG 실패 표면화)
+  const [isPaying, setIsPaying] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+
+  // 테스트 카드 안내 박스 접힘/펼침
+  const [showTestCardGuide, setShowTestCardGuide] = useState(false);
+
+  // 제출(주문 생성)
   const [submitError, setSubmitError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -175,13 +215,10 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     return Object.keys(errors).length === 0;
   };
 
-  // 주문 제출
-  const handlePlaceOrder = async () => {
+  // 주문 생성 호출(결제 성공 후, 또는 결제 없는 수단 예외 처리에서 재사용)
+  // paymentKey 가 주어지면 서버가 결제를 검증 후 주문에 연결한다.
+  const submitOrder = async (paymentKey) => {
     setSubmitError("");
-
-    if (!validateShipping()) return;
-    if (items.length === 0) return;
-
     setIsSubmitting(true);
     try {
       const token = localStorage.getItem("token");
@@ -206,6 +243,9 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       if (appliedCoupon) {
         body.couponCode = appliedCoupon.code;
       }
+      if (paymentKey) {
+        body.paymentKey = paymentKey;
+      }
 
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
@@ -218,6 +258,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
       const data = await res.json().catch(() => ({}));
 
       if (res.status !== 201) {
+        // 결제 검증 실패(PAYMENT_REQUIRED/PAYMENT_INVALID) 포함 — 기존 checkout-error 에 표시
         setSubmitError(data.message || `주문에 실패했습니다 (status=${res.status})`);
         return;
       }
@@ -228,6 +269,78 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // '결제하기' 클릭 — 카드 결제(실제 동작) → 성공 시 주문 생성
+  const handlePlaceOrder = async () => {
+    setSubmitError("");
+    setPaymentError("");
+
+    if (!validateShipping()) return;
+    if (items.length === 0) return;
+
+    // 무통장입금/카카오페이는 연출용 — 실제 결제는 카드만 동작(준비중 안내)
+    if (paymentMethod !== "card") {
+      setPaymentError("선택하신 결제수단은 준비 중입니다. 신용카드로 결제해 주세요.");
+      return;
+    }
+
+    // 카드 입력 클라이언트 검증(형식만; 승인 여부는 서버가 결정론적으로 판정)
+    const normalizedCard = cardNumber.replace(/\D/g, "");
+    if (normalizedCard.length < 12) {
+      setPaymentError("카드번호를 정확히 입력해 주세요");
+      return;
+    }
+    if (!/^\d{2}\/\d{2}$/.test(cardExpiry)) {
+      setPaymentError("유효기간을 MM/YY 형식으로 입력해 주세요");
+      return;
+    }
+    if (cardCvc.length < 3) {
+      setPaymentError("CVC를 정확히 입력해 주세요");
+      return;
+    }
+
+    // (a) 결제 요청 — 금액은 최종 결제 금액(finalAmount). 서버는 결제금액==주문금액을 검증한다.
+    //     테스트 카드 뒤 4자리로 결과 재현 가능:
+    //       0000 승인 / 0001 카드거절(402) / 0002 한도초과(402) / 9999 게이트웨이 타임아웃(504)
+    let paymentKey = "";
+    setIsPaying(true);
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/payment`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token}` : "",
+        },
+        body: JSON.stringify({
+          cardNumber,
+          cardExpiry,
+          cardCvc,
+          amount: finalAmount,
+          orderName: items[0]?.name
+            ? `${items[0].name}${items.length > 1 ? ` 외 ${items.length - 1}건` : ""}`
+            : "미니커머스 주문",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      // (b) 결제 실패(402/504/500 등) — 응답 message 를 그대로 payment-error 에 노출, 주문 미생성
+      if (res.status !== 201 || data.status !== "DONE" || !data.paymentKey) {
+        setPaymentError(data.message || `결제에 실패했습니다 (status=${res.status})`);
+        return;
+      }
+      paymentKey = data.paymentKey;
+    } catch {
+      // 외부 PG 목킹 대비: 네트워크 자체가 실패해도 멈춘다(무한 로딩 금지)
+      setPaymentError("결제 요청 중 오류가 발생했습니다");
+      return;
+    } finally {
+      setIsPaying(false);
+    }
+
+    // (c) 결제 승인(DONE) — 받은 paymentKey 로 주문 생성
+    await submitOrder(paymentKey);
   };
 
   const styleBlock = (
@@ -424,6 +537,85 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
         font-weight: 600;
       }
       .payment-option input { width: 18px; height: 18px; cursor: pointer; accent-color: #1a1a1a; }
+      .card-form {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px dashed #e5e5e5;
+      }
+      .card-form-row { display: flex; gap: 10px; }
+      .card-form-row .checkout-field { flex: 1; margin-bottom: 0; }
+      .payment-method-notice {
+        margin-top: 14px;
+        padding: 12px 14px;
+        background-color: #f8fafc;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        color: #6b7280;
+        font-size: 0.875rem;
+      }
+      .payment-processing-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 14px;
+        padding: 12px 14px;
+        background-color: #f8fafc;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        color: #374151;
+        font-size: 0.875rem;
+      }
+      .payment-processing-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2px solid #d1d5db;
+        border-top-color: #1a1a1a;
+        border-radius: 50%;
+        animation: checkout-spin 0.8s linear infinite;
+        flex-shrink: 0;
+      }
+      .payment-error-box {
+        margin-top: 14px;
+        padding: 12px 14px;
+        background-color: #fef2f2;
+        border: 1px solid #fecaca;
+        border-radius: 8px;
+        color: #dc2626;
+        font-size: 0.875rem;
+      }
+      .test-card-guide {
+        margin-top: 16px;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .test-card-guide-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 14px;
+        border: none;
+        background-color: #f8fafc;
+        color: #374151;
+        font-size: 0.8125rem;
+        font-weight: 600;
+        cursor: pointer;
+        text-align: left;
+      }
+      .test-card-guide-toggle:hover { background-color: #f1f5f9; }
+      .test-card-guide-caret { color: #9ca3af; font-size: 0.75rem; }
+      .test-card-guide-body { padding: 14px; }
+      .test-card-guide-desc { margin: 0 0 10px; font-size: 0.8125rem; color: #6b7280; }
+      .test-card-table { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+      .test-card-table th,
+      .test-card-table td {
+        text-align: left;
+        padding: 8px 10px;
+        border-bottom: 1px solid #f1f5f9;
+      }
+      .test-card-table th { color: #374151; font-weight: 600; background-color: #f8fafc; }
+      .test-card-table td:first-child { font-family: monospace; color: #1a1a1a; }
       .agree-terms-row {
         display: flex;
         align-items: flex-start;
@@ -860,6 +1052,132 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
                   카카오페이
                 </label>
               </div>
+
+              {/* 신용카드 선택 시 카드 입력 폼 노출 (무통장/카카오는 준비중 안내) */}
+              {paymentMethod === "card" ? (
+                <div id="card-form" className="card-form" data-testid="card-form">
+                  <div className="checkout-field">
+                    <label className="checkout-label" htmlFor="card-number">
+                      카드번호
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      id="card-number"
+                      data-testid="card-number-input"
+                      className="checkout-input"
+                      placeholder="0000-0000-0000-0000"
+                      value={cardNumber}
+                      onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                      autoComplete="cc-number"
+                      aria-label="카드번호"
+                    />
+                  </div>
+                  <div className="card-form-row">
+                    <div className="checkout-field">
+                      <label className="checkout-label" htmlFor="card-expiry">
+                        유효기간
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        id="card-expiry"
+                        data-testid="card-expiry-input"
+                        className="checkout-input"
+                        placeholder="MM/YY"
+                        value={cardExpiry}
+                        onChange={(e) => setCardExpiry(formatCardExpiry(e.target.value))}
+                        autoComplete="cc-exp"
+                        aria-label="카드 유효기간"
+                      />
+                    </div>
+                    <div className="checkout-field">
+                      <label className="checkout-label" htmlFor="card-cvc">
+                        CVC
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        id="card-cvc"
+                        data-testid="card-cvc-input"
+                        className="checkout-input"
+                        placeholder="000"
+                        value={cardCvc}
+                        onChange={(e) => setCardCvc(formatCardCvc(e.target.value))}
+                        autoComplete="cc-csc"
+                        aria-label="카드 CVC"
+                      />
+                    </div>
+                  </div>
+
+                  {/* 접을 수 있는 테스트 카드 안내 (연습용 힌트) */}
+                  <div id="test-card-guide" className="test-card-guide" data-testid="test-card-guide">
+                    <button
+                      type="button"
+                      id="test-card-guide-toggle"
+                      className="test-card-guide-toggle"
+                      data-testid="test-card-guide-toggle"
+                      onClick={() => setShowTestCardGuide((v) => !v)}
+                      aria-expanded={showTestCardGuide}
+                      aria-controls="test-card-guide-body"
+                    >
+                      <span>테스트 카드 안내 (QA 연습용)</span>
+                      <span className="test-card-guide-caret" aria-hidden="true">
+                        {showTestCardGuide ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {showTestCardGuide && (
+                      <div
+                        id="test-card-guide-body"
+                        className="test-card-guide-body"
+                        data-testid="test-card-guide-body"
+                      >
+                        <p className="test-card-guide-desc">
+                          카드번호 <strong>끝 4자리</strong>로 결제 결과가 결정됩니다. 앞자리는 임의의 숫자로
+                          채우세요 (예: 4111-1111-1111-0001).
+                        </p>
+                        <table className="test-card-table">
+                          <thead>
+                            <tr>
+                              <th>끝 4자리</th>
+                              <th>결과</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr data-testid="test-card-row-0000">
+                              <td>0000</td>
+                              <td>승인 (결제 성공)</td>
+                            </tr>
+                            <tr data-testid="test-card-row-0001">
+                              <td>0001</td>
+                              <td>카드 거절 (402)</td>
+                            </tr>
+                            <tr data-testid="test-card-row-0002">
+                              <td>0002</td>
+                              <td>한도 초과 (402)</td>
+                            </tr>
+                            <tr data-testid="test-card-row-9999">
+                              <td>9999</td>
+                              <td>게이트웨이 타임아웃 (504)</td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div
+                  id="payment-method-notice"
+                  className="payment-method-notice"
+                  data-testid="payment-method-notice"
+                  role="status"
+                >
+                  {paymentMethod === "bank"
+                    ? "무통장입금은 준비 중입니다. 현재는 신용카드 결제만 이용할 수 있습니다."
+                    : "카카오페이는 준비 중입니다. 현재는 신용카드 결제만 이용할 수 있습니다."}
+                </div>
+              )}
             </section>
 
             {/* (e) 약관 동의 */}
@@ -921,13 +1239,49 @@ export default function CheckoutPage({ apiBase, buyNowItem, onOrderComplete, onB
               className="place-order-btn"
               data-testid="place-order-btn"
               onClick={handlePlaceOrder}
-              disabled={!agreed || isSubmitting}
+              disabled={!agreed || isPaying || isSubmitting}
               aria-label="결제하기"
-              aria-disabled={!agreed || isSubmitting}
+              aria-busy={isPaying || isSubmitting}
+              aria-disabled={!agreed || isPaying || isSubmitting}
             >
-              {isSubmitting ? "결제 처리 중..." : `${formatPrice(finalAmount)}원 결제하기`}
+              {isPaying
+                ? "결제 승인 중..."
+                : isSubmitting
+                  ? "주문 처리 중..."
+                  : `${formatPrice(finalAmount)}원 결제하기`}
             </button>
 
+            {/* (a) 결제 진행 중 표시 (스피너 포함) */}
+            {isPaying && (
+              <div
+                id="payment-processing"
+                className="payment-processing-row"
+                data-testid="payment-processing"
+                role="status"
+                aria-live="polite"
+              >
+                <span
+                  className="payment-processing-spinner"
+                  data-testid="loading-spinner"
+                  aria-hidden="true"
+                />
+                <span>결제를 진행하고 있습니다...</span>
+              </div>
+            )}
+
+            {/* (b)(5) 결제 실패 / 네트워크 오류 표면화 (주문은 생성되지 않음) */}
+            {paymentError && (
+              <div
+                id="payment-error"
+                className="payment-error-box"
+                data-testid="payment-error"
+                role="alert"
+              >
+                {paymentError}
+              </div>
+            )}
+
+            {/* 주문 생성 단계 실패 (결제 검증 실패 포함) */}
             {submitError && (
               <div id="checkout-error" className="checkout-error-box" data-testid="checkout-error" role="alert">
                 {submitError}
