@@ -13,8 +13,7 @@
 
 import { applyCors } from './_lib/common.js';
 
-// Rate limiting을 위한 메모리 저장소
-const rateLimitStore = new Map();
+// Rate limiting 응답(429) 헤더에 사용하는 상수
 const RATE_LIMIT = 10; // 10회
 const RATE_WINDOW = 60000; // 1분
 
@@ -61,13 +60,10 @@ export default async function statusCodesHandler(req, res) {
 
   // 특별한 헤더가 필요한 케이스들
   switch (statusCode) {
-    // 301 Moved Permanently
+    // 리다이렉트 계열: 301 Moved Permanently / 302 Found / 307 Temporary Redirect / 308 Permanent Redirect
     case 301:
-    // 302 Found
     case 302:
-    // 307 Temporary Redirect
     case 307:
-    // 308 Permanent Redirect
     case 308:
       res.setHeader('Location', 'https://example.com/new-location');
       return res.status(statusCode).json({
@@ -91,7 +87,8 @@ export default async function statusCodesHandler(req, res) {
       });
 
     // 429 Too Many Requests (Rate Limiting)
-    case 429:
+    // case 블록 내 lexical 선언(no-case-declarations)을 피하기 위해 중괄호로 감싼다
+    case 429: {
       const retryAfter = 60; // 60초 후 재시도
       res.setHeader('Retry-After', retryAfter.toString());
       res.setHeader('X-RateLimit-Limit', RATE_LIMIT.toString());
@@ -104,6 +101,7 @@ export default async function statusCodesHandler(req, res) {
         limit: RATE_LIMIT,
         window: RATE_WINDOW / 1000
       });
+    }
 
     // 503 Service Unavailable
     case 503:

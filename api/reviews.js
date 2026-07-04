@@ -1,10 +1,14 @@
 /**
  * api/reviews.js - 상품 리뷰 API
  *
- * GET    /api/reviews?productId=1 - 리뷰 목록 조회
+ * GET    /api/reviews?productId=1&sort=latest&limit=20&offset=0 - 리뷰 목록 조회
  * POST   /api/reviews - 리뷰 작성
  * PATCH  /api/reviews - 리뷰 수정
  * DELETE /api/reviews - 리뷰 삭제
+ *
+ * 리뷰는 Postgres(reviews 테이블)에 저장된다.
+ * - 중복 작성 방지는 DB UNIQUE(product_id, username) 제약 → 23505 를 409로 매핑
+ * - GET 응답 { count, reviews } 의 count는 limit/offset 적용 전 전체 매칭 건수
  *
  * QA 검증 포인트:
  * - HTTP 메서드별 동작
@@ -13,67 +17,42 @@
  * - 별점 범위 검증 (1-5)
  * - 리뷰 길이 제한
  * - 존재하지 않는 리뷰 처리
+ * - 페이지네이션 (sort=latest|rating, limit 기본 20, offset 기본 0)
  */
 
 import { applyCors, requireUser } from './_lib/common.js';
+import { isConfigured, respondDbNotConfigured } from './_lib/db.js';
+import {
+  listReviews,
+  getReview,
+  createReview,
+  updateReview,
+  deleteReview,
+} from './_lib/store.js';
 
-// 메모리 저장소 (서버리스 환경이므로 재시작 시 초기화됨)
-let reviews = [
-  {
-    id: 1,
-    productId: 1,
-    username: 'test',
-    rating: 5,
-    comment: '음질이 정말 좋아요! 노이즈 캔슬링도 훌륭합니다.',
-    createdAt: '2024-01-15T10:30:00Z',
-    updatedAt: '2024-01-15T10:30:00Z',
-  },
-  {
-    id: 2,
-    productId: 1,
-    username: 'user123',
-    rating: 4,
-    comment: '가격 대비 만족스럽습니다.',
-    createdAt: '2024-01-20T14:20:00Z',
-    updatedAt: '2024-01-20T14:20:00Z',
-  },
-  {
-    id: 3,
-    productId: 2,
-    username: 'test',
-    rating: 5,
-    comment: '운동할 때 정말 유용해요!',
-    createdAt: '2024-01-25T09:15:00Z',
-    updatedAt: '2024-01-25T09:15:00Z',
-  },
-];
+// 외부 정렬 파라미터 -> DAL 정렬 키 (화이트리스트 매핑)
+const SORT_MAP = {
+  latest: 'latest',
+  rating: 'rating_desc',
+};
 
-let nextId = 4;
+// GET - 리뷰 목록 조회 (공개)
+async function handleGet(req, res) {
+  const { productId, username, minRating, maxRating, sort, limit, offset } = req.query;
 
-// GET - 리뷰 목록 조회
-function handleGet(req, res) {
-  const { productId, username, minRating, maxRating } = req.query;
-
-  let filtered = [...reviews];
-
-  // 상품 ID 필터링
+  // 상품 ID 필터링 검증
+  let pid;
   if (productId) {
-    const pid = Number(productId);
+    pid = Number(productId);
     if (isNaN(pid)) {
       return res.status(400).json({
         message: '상품 ID는 숫자여야 합니다',
         code: 'INVALID_PRODUCT_ID'
       });
     }
-    filtered = filtered.filter(r => r.productId === pid);
   }
 
-  // 사용자 이름 필터링
-  if (username) {
-    filtered = filtered.filter(r => r.username === username);
-  }
-
-  // 별점 범위 필터링
+  // 별점 범위 검증
   if (minRating) {
     const min = Number(minRating);
     if (isNaN(min) || min < 1 || min > 5) {
@@ -82,7 +61,6 @@ function handleGet(req, res) {
         code: 'INVALID_MIN_RATING'
       });
     }
-    filtered = filtered.filter(r => r.rating >= min);
   }
 
   if (maxRating) {
@@ -93,21 +71,60 @@ function handleGet(req, res) {
         code: 'INVALID_MAX_RATING'
       });
     }
-    filtered = filtered.filter(r => r.rating <= max);
   }
 
-  // 최신순 정렬
-  filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  // 정렬 옵션 검증 (기본: latest)
+  if (sort && !SORT_MAP[sort]) {
+    return res.status(400).json({
+      message: '정렬 옵션이 유효하지 않습니다. 사용 가능한 옵션: latest, rating',
+      code: 'INVALID_SORT_OPTION'
+    });
+  }
+
+  // limit 검증 (기본: 20)
+  let limitNum = 20;
+  if (limit !== undefined && limit !== '') {
+    limitNum = Number(limit);
+    if (!Number.isInteger(limitNum) || limitNum < 1 || limitNum > 100) {
+      return res.status(400).json({
+        message: 'limit은 1-100 사이 정수여야 합니다',
+        code: 'INVALID_LIMIT'
+      });
+    }
+  }
+
+  // offset 검증 (기본: 0)
+  let offsetNum = 0;
+  if (offset !== undefined && offset !== '') {
+    offsetNum = Number(offset);
+    if (!Number.isInteger(offsetNum) || offsetNum < 0) {
+      return res.status(400).json({
+        message: 'offset은 0 이상 정수여야 합니다',
+        code: 'INVALID_OFFSET'
+      });
+    }
+  }
+
+  // count는 limit/offset 적용 전 전체 매칭 건수
+  const { count, reviews } = await listReviews({
+    productId: pid,
+    username,
+    minRating,
+    maxRating,
+    sort: SORT_MAP[sort] || 'latest',
+    limit: limitNum,
+    offset: offsetNum,
+  });
 
   return res.status(200).json({
-    count: filtered.length,
-    reviews: filtered,
+    count,
+    reviews,
   });
 }
 
 // POST - 리뷰 작성
-function handlePost(req, res, user) {
-  const { productId, rating, comment } = req.body;
+async function handlePost(req, res, user) {
+  const { productId, rating, comment } = req.body || {};
 
   // 필수 필드 검증
   if (!productId) {
@@ -142,6 +159,14 @@ function handlePost(req, res, user) {
     });
   }
 
+  // 코멘트 타입 검증 (숫자/배열 등이 들어오면 .trim() 호출 시 500이 나므로 400으로 방어)
+  if (comment !== undefined && comment !== null && typeof comment !== 'string') {
+    return res.status(400).json({
+      message: '리뷰 내용은 문자열이어야 합니다',
+      code: 'INVALID_COMMENT_TYPE'
+    });
+  }
+
   // 코멘트 검증
   if (!comment || !comment.trim()) {
     return res.status(400).json({
@@ -164,29 +189,24 @@ function handlePost(req, res, user) {
     });
   }
 
-  // 중복 리뷰 체크
-  const existing = reviews.find(
-    r => r.productId === pid && r.username === user.username
-  );
-  if (existing) {
-    return res.status(409).json({
-      message: '이미 이 상품에 리뷰를 작성하셨습니다',
-      code: 'REVIEW_ALREADY_EXISTS'
+  // 리뷰 생성 — 중복 작성은 DB UNIQUE(product_id, username) 위반(23505)으로 감지
+  let newReview;
+  try {
+    newReview = await createReview({
+      productId: pid,
+      username: user.username,
+      rating: r,
+      comment: comment.trim(),
     });
+  } catch (error) {
+    if (error && error.code === '23505') {
+      return res.status(409).json({
+        message: '이미 이 상품에 리뷰를 작성하셨습니다',
+        code: 'REVIEW_ALREADY_EXISTS'
+      });
+    }
+    throw error; // 나머지 DB 오류는 바깥 try에서 500 처리
   }
-
-  // 리뷰 생성
-  const newReview = {
-    id: nextId++,
-    productId: pid,
-    username: user.username,
-    rating: r,
-    comment: comment.trim(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  reviews.push(newReview);
 
   return res.status(201).json({
     message: '리뷰가 작성되었습니다',
@@ -195,8 +215,8 @@ function handlePost(req, res, user) {
 }
 
 // PATCH - 리뷰 수정
-function handlePatch(req, res, user) {
-  const { id, rating, comment } = req.body;
+async function handlePatch(req, res, user) {
+  const { id, rating, comment } = req.body || {};
 
   // ID 검증
   if (!id) {
@@ -215,21 +235,23 @@ function handlePatch(req, res, user) {
   }
 
   // 리뷰 찾기
-  const index = reviews.findIndex(r => r.id === reviewId);
-  if (index === -1) {
+  const review = await getReview(reviewId);
+  if (!review) {
     return res.status(404).json({
       message: '리뷰를 찾을 수 없습니다',
       code: 'REVIEW_NOT_FOUND'
     });
   }
 
-  // 권한 확인 (본인 리뷰만 수정 가능)
-  if (reviews[index].username !== user.username && user.role !== 'ADMIN') {
+  // 권한 확인 (본인 리뷰만 수정 가능, 관리자는 모든 리뷰 수정 가능)
+  if (review.username !== user.username && user.role !== 'ADMIN') {
     return res.status(403).json({
       message: '본인의 리뷰만 수정할 수 있습니다',
       code: 'FORBIDDEN'
     });
   }
+
+  const patch = {};
 
   // 별점 검증 (제공된 경우)
   if (rating !== undefined) {
@@ -240,11 +262,19 @@ function handlePatch(req, res, user) {
         code: 'INVALID_RATING'
       });
     }
-    reviews[index].rating = r;
+    patch.rating = r;
   }
 
   // 코멘트 검증 (제공된 경우)
   if (comment !== undefined) {
+    // 타입 검증 (문자열이 아니면 .trim() 호출 시 500이 나므로 400으로 방어)
+    if (typeof comment !== 'string') {
+      return res.status(400).json({
+        message: '리뷰 내용은 문자열이어야 합니다',
+        code: 'INVALID_COMMENT_TYPE'
+      });
+    }
+
     if (!comment.trim()) {
       return res.status(400).json({
         message: '리뷰 내용은 비어있을 수 없습니다',
@@ -266,20 +296,20 @@ function handlePatch(req, res, user) {
       });
     }
 
-    reviews[index].comment = comment.trim();
+    patch.comment = comment.trim();
   }
 
-  reviews[index].updatedAt = new Date().toISOString();
+  const updated = await updateReview(reviewId, patch);
 
   return res.status(200).json({
     message: '리뷰가 수정되었습니다',
-    review: reviews[index],
+    review: updated,
   });
 }
 
 // DELETE - 리뷰 삭제
-function handleDelete(req, res, user) {
-  const { id } = req.body;
+async function handleDelete(req, res, user) {
+  const { id } = req.body || {};
 
   // ID 검증
   if (!id) {
@@ -298,8 +328,8 @@ function handleDelete(req, res, user) {
   }
 
   // 리뷰 찾기
-  const index = reviews.findIndex(r => r.id === reviewId);
-  if (index === -1) {
+  const review = await getReview(reviewId);
+  if (!review) {
     return res.status(404).json({
       message: '리뷰를 찾을 수 없습니다',
       code: 'REVIEW_NOT_FOUND'
@@ -307,14 +337,14 @@ function handleDelete(req, res, user) {
   }
 
   // 권한 확인 (본인 리뷰만 삭제 가능, 관리자는 모든 리뷰 삭제 가능)
-  if (reviews[index].username !== user.username && user.role !== 'ADMIN') {
+  if (review.username !== user.username && user.role !== 'ADMIN') {
     return res.status(403).json({
       message: '본인의 리뷰만 삭제할 수 있습니다',
       code: 'FORBIDDEN'
     });
   }
 
-  const deleted = reviews.splice(index, 1)[0];
+  const deleted = await deleteReview(reviewId);
 
   return res.status(200).json({
     message: '리뷰가 삭제되었습니다',
@@ -326,10 +356,13 @@ export default async function reviewsHandler(req, res) {
   // CORS 처리
   if (applyCors(req, res)) return;
 
+  // DB 미설정 시 503 (인메모리 폴백 없음 — 단일 코드 경로)
+  if (!isConfigured()) return respondDbNotConfigured(res);
+
   try {
     // GET은 인증 불필요
     if (req.method === 'GET') {
-      return handleGet(req, res);
+      return await handleGet(req, res);
     }
 
     // POST, PATCH, DELETE는 인증 필요
@@ -338,11 +371,11 @@ export default async function reviewsHandler(req, res) {
 
     switch (req.method) {
       case 'POST':
-        return handlePost(req, res, user);
+        return await handlePost(req, res, user);
       case 'PATCH':
-        return handlePatch(req, res, user);
+        return await handlePatch(req, res, user);
       case 'DELETE':
-        return handleDelete(req, res, user);
+        return await handleDelete(req, res, user);
       default:
         return res.status(405).json({
           message: '허용되지 않은 메서드',
@@ -352,7 +385,7 @@ export default async function reviewsHandler(req, res) {
   } catch (error) {
     console.error('Reviews API error:', error);
     return res.status(500).json({
-      message: '서버 오류가 발생했습니다',
+      message: '서버 내부 오류',
       code: 'INTERNAL_SERVER_ERROR'
     });
   }

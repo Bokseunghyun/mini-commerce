@@ -4,27 +4,24 @@
  * GET  /api/inventory?productId=1 - 재고 정보 조회
  * HEAD /api/inventory?productId=1 - 재고 존재 여부만 확인 (헤더만 반환)
  *
+ * 재고는 Postgres(products.stock)에서 조회하므로 주문/취소에 따른 증감이 반영된다.
+ *
  * QA 검증 포인트:
  * - HEAD 메서드 사용
  * - 커스텀 응답 헤더 검증
  * - Cache-Control 헤더
  * - ETag 사용
+ * - 존재하지 않는 상품 404
  * - 재고 부족 케이스 (status code 200이지만 stock=0)
  */
 
 import { applyCors } from './_lib/common.js';
+import { isConfigured, respondDbNotConfigured } from './_lib/db.js';
+import { getStock } from './_lib/store.js';
 
-// 재고 데이터
-const inventory = {
-  1: { productId: 1, stock: 15, warehouse: 'Seoul', lastUpdated: '2024-02-01T10:00:00Z' },
-  2: { productId: 2, stock: 8, warehouse: 'Seoul', lastUpdated: '2024-02-01T10:00:00Z' },
-  3: { productId: 3, stock: 0, warehouse: 'Busan', lastUpdated: '2024-02-01T09:30:00Z' },
-  4: { productId: 4, stock: 23, warehouse: 'Seoul', lastUpdated: '2024-02-01T11:00:00Z' },
-  5: { productId: 5, stock: 5, warehouse: 'Incheon', lastUpdated: '2024-02-01T08:45:00Z' },
-  6: { productId: 6, stock: 12, warehouse: 'Seoul', lastUpdated: '2024-02-01T10:30:00Z' },
-  7: { productId: 7, stock: 30, warehouse: 'Busan', lastUpdated: '2024-02-01T09:00:00Z' },
-  8: { productId: 8, stock: 0, warehouse: 'Seoul', lastUpdated: '2024-02-01T12:00:00Z' },
-};
+// products 테이블에는 창고 메타데이터가 없으므로 고정값을 유지한다 (기존 응답 형태 보존)
+const WAREHOUSE = 'Seoul';
+const LAST_UPDATED = '2024-02-01T10:00:00Z';
 
 export default async function inventoryHandler(req, res) {
   // CORS 처리
@@ -57,59 +54,65 @@ export default async function inventoryHandler(req, res) {
     });
   }
 
-  // 재고 조회
-  const stock = inventory[pid];
+  // DB 미설정 시 503 (인메모리 폴백 없음 — 단일 코드 경로)
+  if (!isConfigured()) return respondDbNotConfigured(res);
 
-  // 요구사항 4: 재고 정보가 없으면 임의의 값 생성
-  let stockData = stock;
-  if (!stockData) {
-    const randomStock = Math.floor(Math.random() * 30) + 1;
-    const warehouses = ['Seoul', 'Busan', 'Incheon', 'Daegu'];
-    const randomWarehouse = warehouses[Math.floor(Math.random() * warehouses.length)];
-    
-    stockData = {
-      productId: pid,
-      stock: randomStock,
-      warehouse: randomWarehouse,
-      lastUpdated: new Date().toISOString(),
-    };
+  try {
+    // 재고 조회 — Postgres products.stock
+    // 의도적 테스트 시나리오: id 18은 시드 재고 0 (재고 부족 네거티브 테스트 픽스처)
+    const stockData = await getStock(pid);
+
+    // 존재하지 않는 상품은 404
+    if (!stockData) {
+      res.setHeader('X-Error-Code', 'PRODUCT_NOT_FOUND');
+      return res.status(404).json({
+        message: '상품 없음',
+        code: 'PRODUCT_NOT_FOUND'
+      });
+    }
+
+    // 커스텀 헤더 설정
+    res.setHeader('X-Product-Id', stockData.productId);
+    res.setHeader('X-Stock-Count', stockData.stock);
+    res.setHeader('X-Warehouse', WAREHOUSE);
+    res.setHeader('X-Last-Updated', LAST_UPDATED);
+
+    // 재고 상태 헤더
+    if (stockData.stock === 0) {
+      res.setHeader('X-Stock-Status', 'OUT_OF_STOCK');
+    } else if (stockData.stock < 5) {
+      res.setHeader('X-Stock-Status', 'LOW_STOCK');
+    } else {
+      res.setHeader('X-Stock-Status', 'IN_STOCK');
+    }
+
+    // ETag 설정 (재고 변경 감지용)
+    const etag = `"${stockData.productId}-${stockData.stock}-${LAST_UPDATED}"`;
+    res.setHeader('ETag', etag);
+
+    // Cache-Control 설정 (재고는 자주 변경되므로 짧은 캐시)
+    res.setHeader('Cache-Control', 'public, max-age=60');
+
+    // HEAD 요청이면 헤더만 반환
+    if (req.method === 'HEAD') {
+      return res.status(200).end();
+    }
+
+    // GET 요청이면 본문 포함
+    return res.status(200).json({
+      productId: stockData.productId,
+      stock: stockData.stock,
+      available: stockData.stock > 0,
+      warehouse: WAREHOUSE,
+      lastUpdated: LAST_UPDATED,
+      status: stockData.stock === 0 ? 'OUT_OF_STOCK' :
+              stockData.stock < 5 ? 'LOW_STOCK' : 'IN_STOCK',
+    });
+  } catch (error) {
+    console.error('Inventory API error:', error);
+    return res.status(500).json({
+      message: '서버 내부 오류',
+      code: 'INTERNAL_SERVER_ERROR'
+    });
   }
-
-  // 커스텀 헤더 설정
-  res.setHeader('X-Product-Id', stockData.productId);
-  res.setHeader('X-Stock-Count', stockData.stock);
-  res.setHeader('X-Warehouse', stockData.warehouse);
-  res.setHeader('X-Last-Updated', stockData.lastUpdated);
-
-  // 재고 상태 헤더
-  if (stockData.stock === 0) {
-    res.setHeader('X-Stock-Status', 'OUT_OF_STOCK');
-  } else if (stockData.stock < 5) {
-    res.setHeader('X-Stock-Status', 'LOW_STOCK');
-  } else {
-    res.setHeader('X-Stock-Status', 'IN_STOCK');
-  }
-
-  // ETag 설정 (재고 변경 감지용)
-  const etag = `"${stockData.productId}-${stockData.stock}-${stockData.lastUpdated}"`;
-  res.setHeader('ETag', etag);
-
-  // Cache-Control 설정 (재고는 자주 변경되므로 짧은 캐시)
-  res.setHeader('Cache-Control', 'public, max-age=60');
-
-  // HEAD 요청이면 헤더만 반환
-  if (req.method === 'HEAD') {
-    return res.status(200).end();
-  }
-
-  // GET 요청이면 본문 포함
-  return res.status(200).json({
-    productId: stockData.productId,
-    stock: stockData.stock,
-    available: stockData.stock > 0,
-    warehouse: stockData.warehouse,
-    lastUpdated: stockData.lastUpdated,
-    status: stockData.stock === 0 ? 'OUT_OF_STOCK' :
-            stockData.stock < 5 ? 'LOW_STOCK' : 'IN_STOCK',
-  });
 }

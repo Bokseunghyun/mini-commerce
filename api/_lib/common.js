@@ -46,7 +46,7 @@ export function requireUser(req, res) {
   try {
     const user = jwt.verify(token, SECRET);
     return user;
-  } catch (e) {
+  } catch {
     res.status(401).json({ message: '토큰 유효하지 않음', code: 'AUTH_INVALID_TOKEN' });
     return null;
   }

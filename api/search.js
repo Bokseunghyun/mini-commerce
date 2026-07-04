@@ -3,6 +3,8 @@
  *
  * GET /api/search?q=검색어&category=카테고리&minPrice=최소가격&maxPrice=최대가격&sort=정렬
  *
+ * 검색 대상은 Postgres의 전체 상품이다 (기존 5개 하드코딩 목록 드리프트 해소).
+ *
  * QA 검증 포인트:
  * - 쿼리 파라미터 검증
  * - 빈 검색어 처리
@@ -12,59 +14,16 @@
  */
 
 import { applyCors } from './_lib/common.js';
+import { isConfigured, respondDbNotConfigured } from './_lib/db.js';
+import { listProducts } from './_lib/store.js';
 
-const PRODUCTS = [
-  {
-    id: 1,
-    name: "프리미엄 무선 블루투스 이어폰 노이즈 캔슬링",
-    category: "전자기기",
-    originalPrice: 189000,
-    discountedPrice: 129000,
-    price: 129000,
-    discountRate: 32,
-    imageUrl: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=400&h=400&fit=crop",
-  },
-  {
-    id: 2,
-    name: "스마트 워치 헬스 트래커 방수 기능",
-    category: "전자기기",
-    originalPrice: 299000,
-    discountedPrice: 199000,
-    price: 199000,
-    discountRate: 33,
-    imageUrl: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=400&h=400&fit=crop",
-  },
-  {
-    id: 3,
-    name: "휴대용 블루투스 스피커 360도 서라운드 사운드",
-    category: "전자기기",
-    originalPrice: 79000,
-    discountedPrice: 59000,
-    price: 59000,
-    discountRate: 25,
-    imageUrl: "https://images.unsplash.com/photo-1608043152269-423dbba4e7e1?w=400&h=400&fit=crop",
-  },
-  {
-    id: 7,
-    name: "인체공학 무선 마우스 DPI 조절 가능",
-    category: "액세서리",
-    originalPrice: 49000,
-    discountedPrice: 35000,
-    price: 35000,
-    discountRate: 29,
-    imageUrl: "https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=400&h=400&fit=crop",
-  },
-  {
-    id: 13,
-    name: "스테인리스 텀블러 보온보냉 500ml",
-    category: "생활",
-    originalPrice: 35000,
-    discountedPrice: 24000,
-    price: 24000,
-    discountRate: 31,
-    imageUrl: "https://images.unsplash.com/photo-1602143407151-7111542de6e8?w=400&h=400&fit=crop",
-  },
-];
+// 외부 정렬 파라미터 -> DAL 정렬 키 (화이트리스트 매핑)
+const SORT_MAP = {
+  'price-asc': 'price_asc',
+  'price-desc': 'price_desc',
+  name: 'name',
+  discount: 'discount',
+};
 
 export default async function searchHandler(req, res) {
   // CORS 처리
@@ -80,18 +39,20 @@ export default async function searchHandler(req, res) {
   try {
     const { q, category, minPrice, maxPrice, sort } = req.query;
 
-    // 검색어 검증
+    // 검색어 타입 검증 — .trim() 호출 전에 먼저 확인해야 함
+    // (q가 배열 등으로 파싱되면 q.trim()에서 500이 나므로 400으로 방어)
+    if (q !== undefined && q !== null && typeof q !== 'string') {
+      return res.status(400).json({
+        message: '검색어는 문자열이어야 합니다',
+        code: 'INVALID_QUERY_TYPE'
+      });
+    }
+
+    // 검색어 검증 (빈 문자열)
     if (q !== undefined && q !== null && !q.trim()) {
       return res.status(400).json({
         message: '검색어를 입력해주세요',
         code: 'EMPTY_QUERY'
-      });
-    }
-
-    if (q && typeof q !== 'string') {
-      return res.status(400).json({
-        message: '검색어는 문자열이어야 합니다',
-        code: 'INVALID_QUERY_TYPE'
       });
     }
 
@@ -144,45 +105,17 @@ export default async function searchHandler(req, res) {
       });
     }
 
-    // 필터링
-    let results = [...PRODUCTS];
+    // DB 미설정 시 503 (인메모리 폴백 없음 — 단일 코드 경로)
+    if (!isConfigured()) return respondDbNotConfigured(res);
 
-    // 검색어 필터링
-    if (q && q.trim()) {
-      const searchTerm = q.toLowerCase().trim();
-      results = results.filter(p =>
-        p.name.toLowerCase().includes(searchTerm)
-      );
-    }
-
-    // 카테고리 필터링
-    if (category) {
-      results = results.filter(p => p.category === category);
-    }
-
-    // 가격 범위 필터링
-    results = results.filter(p => {
-      const price = p.discountedPrice || p.price;
-      return price >= min && price <= max;
+    // Postgres 전체 상품 대상 검색 (q는 상품명 ILIKE 부분 일치)
+    const results = await listProducts({
+      q: q ? q.trim() : undefined,
+      category,
+      minPrice: min > 0 ? min : undefined,
+      maxPrice: max === Infinity ? undefined : max,
+      sort: sort ? SORT_MAP[sort] : undefined,
     });
-
-    // 정렬
-    if (sort) {
-      switch (sort) {
-        case 'price-asc':
-          results.sort((a, b) => (a.price || 0) - (b.price || 0));
-          break;
-        case 'price-desc':
-          results.sort((a, b) => (b.price || 0) - (a.price || 0));
-          break;
-        case 'name':
-          results.sort((a, b) => a.name.localeCompare(b.name, 'ko-KR'));
-          break;
-        case 'discount':
-          results.sort((a, b) => (b.discountRate || 0) - (a.discountRate || 0));
-          break;
-      }
-    }
 
     // 응답
     return res.status(200).json({
