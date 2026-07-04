@@ -430,7 +430,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                 주소 검색으로 우편번호와 주소를 불러올 수 있습니다.
               </p>
 
-              <AddressSearch onComplete={handleAddressComplete} buttonLabel="주소 검색(팝업)" />
+              <AddressSearch onComplete={handleAddressComplete} buttonLabel="주소 검색" />
 
               <form onSubmit={handleSaveAddress} style={styles.addressFields} className="profile-address-form">
                 <div style={styles.fieldRow}>
