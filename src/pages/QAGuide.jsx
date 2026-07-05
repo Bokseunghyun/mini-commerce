@@ -2896,7 +2896,7 @@ test('일반 사용자는 관리자 API 접근 불가', async ({ page }) => {
   
   // localStorage에서 토큰 가져오기
   const token = await page.evaluate(() => 
-    localStorage.getItem('token')
+    sessionStorage.getItem('token')
   );
   
   // 관리자 API 호출 (인증 토큰 포함)
@@ -2966,7 +2966,7 @@ test('검색 API - 긴 검색어', async ({ page }) => {
 test('리뷰 작성 - 입력 검증', async ({ page }) => {
   await loginAs(page, 'test', '1234');
   const token = await page.evaluate(() => 
-    localStorage.getItem('token')
+    sessionStorage.getItem('token')
   );
   
   // 너무 짧은 리뷰
@@ -3018,7 +3018,7 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                         <li>UI: username, password 입력</li>
                         <li>API: POST /api/login → 200 응답 확인</li>
                         <li>API: token 포함 여부 확인</li>
-                        <li>UI: localStorage에 token 저장 확인</li>
+                        <li>UI: sessionStorage에 token 저장 확인</li>
                       </ul>
                     </li>
                     <li>

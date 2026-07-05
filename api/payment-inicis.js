@@ -78,6 +78,13 @@ export default async function inicisHandler(req, res) {
     );
   }
 
+  // 가상계좌 입금통보(noti) 수신 — INIpayTest 테스트 상점은 실제 입금이 없어
+  // 호출되지 않지만, Vbank 규격상 notiUrl 이 요구되므로 200 OK 로만 응답한다.
+  if (query.noti === '1' || query.noti === 'true') {
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    return res.status(200).send ? res.status(200).send('OK') : res.status(200).end('OK');
+  }
+
   if (!isConfigured()) return respondDbNotConfigured(res);
 
   // 1) 결제 준비: 서명 파라미터 발급
@@ -109,6 +116,7 @@ export default async function inicisHandler(req, res) {
         buyername: user.username,
         returnUrl: absoluteUrl(req, '/api/payment-inicis'),
         closeUrl: absoluteUrl(req, '/api/payment-inicis?close=1'),
+        notiUrl: absoluteUrl(req, '/api/payment-inicis?noti=1'),
       },
     });
   }
@@ -165,11 +173,17 @@ export default async function inicisHandler(req, res) {
       const amount = Math.trunc(Number(approval.TotPrice || approval.price || 0));
       const paymentKey = `PAY-INICIS-${tid}`;
 
+      // 결제수단 구분: 가상계좌(무통장입금) vs 신용카드.
+      // 테스트 가상계좌는 '계좌 발급 = 완료(입금대기)'로 보고 status DONE 으로 저장한다
+      // (실제 입금 통보가 없으므로 데모에선 발급 시점을 결제완료로 취급).
+      const payMethod = String(approval.payMethod || approval.PayMethod || '').toUpperCase();
+      const isVbank = payMethod.includes('VBANK') || payMethod.includes('VACT') || !!approval.VACT_Num;
+
       await createPayment({
         id: paymentKey,
         orderId: null,
         username: approval.buyerName || body.buyername || '',
-        method: 'INICIS',
+        method: isVbank ? 'INICIS-VBANK' : 'INICIS',
         cardLast4: '',
         amount,
         status: 'DONE',

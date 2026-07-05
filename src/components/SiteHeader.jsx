@@ -1,5 +1,7 @@
 "use client";
 
+import UserMenu from "./UserMenu.jsx";
+
 // ============================================
 // 공통 사이트 헤더 (서브 페이지 전역 헤더)
 // - 좌측: 뒤로 버튼 + 로고(홈 이동)
@@ -20,6 +22,7 @@ export default function SiteHeader({
   onLogout,
   isLoggedIn = false,
   role = "",
+  username = "",
   cartCount = 0,
 }) {
   return (
@@ -111,48 +114,6 @@ export default function SiteHeader({
             배송조회
           </button>
 
-          {/* 로그인 시에만: 위시리스트 / 주문내역 / 내정보 */}
-          {isLoggedIn && (
-            <>
-              <button
-                type="button"
-                id="site-nav-wishlist"
-                name="siteNavWishlist"
-                className="btn btn-ghost site-nav-wishlist"
-                aria-label="위시리스트로 이동"
-                onClick={onGoWishlist}
-                style={styles.navBtn}
-                data-testid="site-nav-wishlist"
-              >
-                위시리스트
-              </button>
-              <button
-                type="button"
-                id="site-nav-orders"
-                name="siteNavOrders"
-                className="btn btn-ghost site-nav-orders"
-                aria-label="주문내역으로 이동"
-                onClick={onGoOrders}
-                style={styles.navBtn}
-                data-testid="site-nav-orders"
-              >
-                주문내역
-              </button>
-              <button
-                type="button"
-                id="site-nav-profile"
-                name="siteNavProfile"
-                className="btn btn-ghost site-nav-profile"
-                aria-label="내정보로 이동"
-                onClick={onGoProfile}
-                style={styles.navBtn}
-                data-testid="site-nav-profile"
-              >
-                내정보
-              </button>
-            </>
-          )}
-
           {/* 관리자 - 항상 표시 (HomePage와 동일) */}
           <button
             type="button"
@@ -167,48 +128,18 @@ export default function SiteHeader({
             관리자
           </button>
 
-          {/* 로그인 / 로그아웃 토글 */}
-          {isLoggedIn ? (
-            <button
-              type="button"
-              id="site-nav-logout"
-              name="siteNavLogout"
-              className="btn btn-ghost site-nav-logout"
-              aria-label="로그아웃"
-              onClick={onLogout}
-              style={styles.logoutBtn}
-              data-testid="site-nav-logout"
-            >
-              로그아웃
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                id="site-nav-login"
-                name="siteNavLogin"
-                className="btn btn-ghost site-nav-login"
-                aria-label="로그인"
-                onClick={onGoLogin}
-                style={styles.loginBtn}
-                data-testid="site-nav-login"
-              >
-                로그인
-              </button>
-              <button
-                type="button"
-                id="site-nav-signup"
-                name="siteNavSignup"
-                className="btn btn-ghost site-nav-signup"
-                aria-label="회원가입"
-                onClick={onGoSignup}
-                style={styles.loginBtn}
-                data-testid="site-nav-signup"
-              >
-                회원가입
-              </button>
-            </>
-          )}
+          {/* 계정 메뉴 (로그인/회원가입 또는 내정보/위시리스트/주문내역/로그아웃) */}
+          <UserMenu
+            isLoggedIn={isLoggedIn}
+            role={role}
+            username={username}
+            onGoLogin={onGoLogin}
+            onGoSignup={onGoSignup}
+            onGoProfile={onGoProfile}
+            onGoWishlist={onGoWishlist}
+            onGoOrders={onGoOrders}
+            onLogout={onLogout}
+          />
         </nav>
       </div>
     </header>

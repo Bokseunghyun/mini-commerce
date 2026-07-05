@@ -60,7 +60,9 @@ export default function App() {
 
   const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-  // 로그인 상태는 새로고침 후에도 유지된다 (토큰은 localStorage에 보관).
+  // 로그인 상태는 sessionStorage(토큰/역할/사용자명)에 보관한다.
+  //  - 같은 탭에서는 새로고침해도 유지된다.
+  //  - 탭을 닫으면 사라진다(다음날/새 탭에서는 로그아웃 상태). 탭 간에도 공유되지 않는다.
   // 로그아웃/주문완료 시에만 명시적으로 토큰을 제거한다.
 
   // URL 기반 라우팅: URL 변경 시 page 상태 업데이트
@@ -137,7 +139,7 @@ export default function App() {
   }, [page, selectedProduct]);
 
   const isLoggedIn = () => {
-    return !!localStorage.getItem('token');
+    return !!sessionStorage.getItem('token');
   };
 
   // 로그인 필요 페이지 이동 (미로그인 시 로그인 페이지 이동 confirm)
@@ -167,7 +169,7 @@ export default function App() {
 
   // 서버 장바구니 조회 → cart 상태 동기화
   const fetchCart = async () => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) {
       setCart([]);
       return;
@@ -201,8 +203,9 @@ export default function App() {
         return;
       }
 
-      localStorage.setItem("token", result.data.token || "");
-      localStorage.setItem("role", result.data.user?.role || "");
+      sessionStorage.setItem("token", result.data.token || "");
+      sessionStorage.setItem("role", result.data.user?.role || "");
+      sessionStorage.setItem("username", result.data.user?.username || "");
       // 로그인 성공 시 서버 장바구니 동기화
       fetchCart();
       setPage("home");
@@ -236,7 +239,7 @@ export default function App() {
   useEffect(() => {
     if (page === 'products' || page === 'home') {
       setIsLoadingProducts(true);
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
 
       fetch(`${API_BASE}/api/products`, {
         headers: {
@@ -265,7 +268,7 @@ export default function App() {
 
   // 장바구니 페이지 진입 시 서버 장바구니 동기화
   useEffect(() => {
-    if (page === 'cart' && localStorage.getItem('token')) {
+    if (page === 'cart' && sessionStorage.getItem('token')) {
       fetchCart();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -315,7 +318,7 @@ export default function App() {
     if (!productId) return;
 
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: 'POST',
         headers: {
@@ -349,7 +352,7 @@ export default function App() {
   // 장바구니 수량 변경: 절대 수량으로 갱신 (cart_update, 최소 1)
   const updateCartQuantity = async (productId, quantity) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: 'POST',
         headers: {
@@ -383,7 +386,7 @@ export default function App() {
   // 장바구니 삭제 (cart_remove)
   const removeFromCart = async (productId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: 'POST',
         headers: {
@@ -437,8 +440,9 @@ export default function App() {
   };
 
   const restartApp = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("role");
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("role");
+    sessionStorage.removeItem("username");
 
     // 클라이언트 상태만 초기화 (서버 장바구니는 계정에 유지됨)
     setCart([]);
@@ -473,7 +477,8 @@ export default function App() {
       onGoSignup={() => setPage('signup')}
       onLogout={handleLogout}
       isLoggedIn={isLoggedIn()}
-      role={localStorage.getItem('role') || ''}
+      role={sessionStorage.getItem('role') || ''}
+      username={sessionStorage.getItem('username') || ''}
       cartCount={cartCount}
     />
   );
@@ -497,7 +502,8 @@ export default function App() {
         onGoProfile={() => goWithLoginCheck('profile')}
         isLoading={isLoadingProducts}
         isLoggedIn={isLoggedIn()}
-        userRole={localStorage.getItem('role') || ''}
+        userRole={sessionStorage.getItem('role') || ''}
+        username={sessionStorage.getItem('username') || ''}
       />
     );
   }
@@ -635,7 +641,7 @@ export default function App() {
             setBuyNowItem(null);
             // 선택 항목만 주문한 경우: 주문한 항목을 장바구니에서 제거
             if (Array.isArray(checkoutItems) && checkoutItems.length) {
-              const token = localStorage.getItem('token');
+              const token = sessionStorage.getItem('token');
               for (const it of checkoutItems) {
                 try {
                   await fetch(`${API_BASE}/api/user-actions`, {

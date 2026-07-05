@@ -6,7 +6,7 @@ import AddressSearch from "../components/AddressSearch";
  * - 주문 소스: buyNowItem(바로구매)이 있으면 해당 상품 1건, 없으면 서버 장바구니(GET /api/user-actions?type=cart)
  * - 배송지 입력(이름/휴대폰/주소 필수, 메모 선택) + 필드별 in-DOM 에러
  * - 쿠폰 적용: POST /api/coupons { code, orderAmount } → 할인 반영 / 에러 메시지 그대로 표시
- * - 결제수단 라디오: 신용카드만 실제 결제 동작(무통장/카카오는 '준비중' 안내)
+ * - 결제수단 라디오: 신용카드(모의 PG)/무통장입금(이니시스 테스트 가상계좌)/이니시스(실카드 샌드박스) 동작
  * - 결제 플로우(카드): 약관 동의 + 배송지 유효 상태에서 '결제하기' 클릭 시
  *     (1) POST /api/payment { cardNumber, cardExpiry, cardCvc, amount, orderName }
  *         → 진행 중 payment-processing(스피너) 노출, 버튼 disabled
@@ -74,7 +74,7 @@ function loadInicisSdk(url) {
 
 // 이니시스 결제창 열기 → 팝업/iframe relay(postMessage) 결과로 paymentKey resolve
 // registerCancel(fn): 사용자가 결제창을 닫았을 때 수동으로 취소할 수 있는 함수를 등록
-function openInicisPayment(params, registerCancel) {
+function openInicisPayment(params, registerCancel, gopaymethod = "Card") {
   return new Promise((resolve, reject) => {
     const formId = "inicis-payment-form";
     document.getElementById(formId)?.remove();
@@ -96,7 +96,8 @@ function openInicisPayment(params, registerCancel) {
       buyeremail: "test@example.com",
       returnUrl: params.returnUrl,
       closeUrl: params.closeUrl,
-      gopaymethod: "Card",
+      notiUrl: params.notiUrl, // 가상계좌 입금통보 URL (Vbank 규격상 요구)
+      gopaymethod, // "Card"(신용카드) | "Vbank"(가상계좌/무통장입금)
       acceptmethod: "below1000",
     };
     Object.entries(fields).forEach(([k, v]) => {
@@ -232,7 +233,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
       return;
     }
 
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     fetch(`${API_BASE}/api/user-actions?type=cart`, {
       headers: { Authorization: token ? `Bearer ${token}` : "" },
     })
@@ -256,7 +257,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
   // 내 보유 쿠폰(사용가능) 로드 — 드롭다운 선택용
   const fetchMyCoupons = async () => {
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-actions?type=coupons`, {
@@ -277,7 +278,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
   // 내 정보에 저장된 기본 배송지 로드 (내 배송지 불러오기용)
   const fetchDefaultAddress = async () => {
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-actions?type=profile`, {
@@ -336,7 +337,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
     setIsApplyingCoupon(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const authHeaders = {
         "Content-Type": "application/json",
         Authorization: token ? `Bearer ${token}` : "",
@@ -430,7 +431,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     setSubmitError("");
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const body = {
         action: "order",
         shipping: {
@@ -504,10 +505,10 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
   };
 
   // 이니시스 실결제(샌드박스): 준비 → SDK 로드 → 결제창 → (팝업)relay 또는 (리다이렉트)복귀 후 주문
-  const handleInicisPay = async () => {
+  const handleInicisPay = async (gopaymethod = "Card") => {
     setIsPaying(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
 
       // 리다이렉트 방식 대비: 주문 컨텍스트를 sessionStorage에 보존
       // (이니시스가 전체 페이지를 리다이렉트하면 React 상태가 사라지므로 복귀 후 이 값으로 주문 생성)
@@ -543,7 +544,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
       setInicisActive(true);
       const paymentKey = await openInicisPayment(prep.params, (cancel) => {
         inicisCancelRef.current = cancel;
-      }); // 성공 시 paymentKey, 실패/취소 시 throw
+      }, gopaymethod); // 성공 시 paymentKey, 실패/취소 시 throw
       setInicisActive(false);
       setIsPaying(false);
       await submitOrder(paymentKey);
@@ -564,15 +565,15 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     if (!validateShipping()) return;
     if (items.length === 0) return;
 
-    // 이니시스 실결제(샌드박스)
+    // 이니시스 실결제(샌드박스) — 신용카드
     if (paymentMethod === "inicis") {
-      await handleInicisPay();
+      await handleInicisPay("Card");
       return;
     }
 
-    // 무통장입금/카카오페이는 연출용 — 실제 결제는 카드/이니시스만 동작(준비중 안내)
-    if (paymentMethod !== "card") {
-      setPaymentError("선택하신 결제수단은 준비 중입니다. 신용카드 또는 이니시스로 결제해 주세요.");
+    // 무통장입금 — 이니시스 테스트 가상계좌(Vbank) 발급 → 발급 즉시 주문 생성
+    if (paymentMethod === "bank") {
+      await handleInicisPay("Vbank");
       return;
     }
 
@@ -597,7 +598,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     let paymentKey = "";
     setIsPaying(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/payment`, {
         method: "POST",
         headers: {
@@ -1411,21 +1412,23 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                     onChange={() => setPaymentMethod("bank")}
                   />
                   무통장입금
-                </label>
-                <label
-                  className={`payment-option${paymentMethod === "kakao" ? " selected" : ""}`}
-                  htmlFor="payment-kakao"
-                >
-                  <input
-                    type="radio"
-                    id="payment-kakao"
-                    data-testid="payment-kakao"
-                    name="payment-method"
-                    value="kakao"
-                    checked={paymentMethod === "kakao"}
-                    onChange={() => setPaymentMethod("kakao")}
-                  />
-                  카카오페이
+                  <span
+                    className="payment-bank-warn"
+                    data-testid="payment-bank-warn"
+                    style={{
+                      color: "#ffffff",
+                      backgroundColor: "#dc2626",
+                      fontWeight: 800,
+                      fontSize: "0.8rem",
+                      marginLeft: 8,
+                      padding: "3px 8px",
+                      borderRadius: 6,
+                      whiteSpace: "nowrap",
+                      letterSpacing: "0.2px",
+                    }}
+                  >
+                    ⚠ 테스트 계좌 — 절대 실제 입금 금지 (환불 불가)
+                  </span>
                 </label>
                 <label
                   className={`payment-option${paymentMethod === "inicis" ? " selected" : ""}`}
@@ -1444,7 +1447,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                 </label>
               </div>
 
-              {/* 신용카드: 카드 입력 폼 / 이니시스: 결제창 안내 / 무통장·카카오: 준비중 */}
+              {/* 신용카드: 카드 입력 폼 / 이니시스: 결제창 안내 / 무통장입금: 이니시스 가상계좌 안내 */}
               {paymentMethod === "inicis" ? (
                 <div
                   id="inicis-notice"
@@ -1582,10 +1585,14 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                   className="payment-method-notice"
                   data-testid="payment-method-notice"
                   role="status"
+                  style={{ padding: "12px 0", color: "#374151", fontSize: "0.875rem", lineHeight: 1.6 }}
                 >
-                  {paymentMethod === "bank"
-                    ? "무통장입금은 준비 중입니다. 현재는 신용카드 결제만 이용할 수 있습니다."
-                    : "카카오페이는 준비 중입니다. 현재는 신용카드 결제만 이용할 수 있습니다."}
+                  <strong>무통장입금(가상계좌)</strong> — ‘결제하기’를 누르면 <strong>KG이니시스 테스트 결제창</strong>(INIpayTest)이 열립니다.
+                  은행을 선택하면 <strong>테스트용 가상계좌</strong>가 발급되고, 발급 즉시 주문이 생성됩니다.
+                  <br />
+                  <span style={{ color: "#6b7280" }}>
+                    ※ 테스트 계좌이므로 <strong>실제로 입금하지 마세요</strong> (실제 청구·정산 없음). 팝업 차단을 허용해야 하며, 결제창은 이니시스 도메인이라 자동화가 제한됩니다.
+                  </span>
                 </div>
               )}
             </section>

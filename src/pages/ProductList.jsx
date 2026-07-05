@@ -236,7 +236,7 @@ export default function ProductListPage({
 
   // 페이지 진입 시 로그인 상태면 위시리스트 1회 조회하여 하트 상태 초기화
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) return;
 
     let cancelled = false;
@@ -261,7 +261,7 @@ export default function ProductListPage({
 
   // 위시리스트 토글 (하트 클릭)
   const toggleWishlist = async (product) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) {
       if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
         setPage('login');

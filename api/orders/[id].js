@@ -59,7 +59,7 @@ async function handleCancel(req, res, user, orderId, isAdmin) {
     }
     // 결제가 함께 취소되었으면 안내 문구에 반영 (이니시스/카드 공통)
     const paymentNote = canceled.paymentCanceled
-      ? canceled.paymentMethod === 'INICIS'
+      ? String(canceled.paymentMethod || '').startsWith('INICIS')
         ? ' 이니시스 결제도 함께 취소되었습니다.'
         : ' 결제도 함께 취소되었습니다.'
       : '';

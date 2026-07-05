@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import QAGuide from "./QAGuide.jsx";
+import UserMenu from "../components/UserMenu.jsx";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -48,6 +49,8 @@ export default function HomePage({
   onGoProfile = () => {},
   isLoading = false,
   isLoggedIn = false,
+  userRole = "",
+  username = "",
 }) {
   const [searchKeyword, setSearchKeyword] = useState("");
   const [appliedKeyword, setAppliedKeyword] = useState("");
@@ -60,7 +63,7 @@ export default function HomePage({
 
   // 로그인 상태면 위시리스트 1회 조회하여 하트 상태 초기화
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!isLoggedIn || !token) return;
 
     let cancelled = false;
@@ -85,7 +88,7 @@ export default function HomePage({
 
   // 위시리스트 토글 (하트 클릭)
   const handleWishlistToggle = async (product) => {
-    const token = localStorage.getItem('token');
+    const token = sessionStorage.getItem('token');
     if (!token) {
       if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
         onLogin?.();
@@ -244,6 +247,9 @@ export default function HomePage({
           .header-actions {
             flex-wrap: wrap;
             gap: 8px !important;
+            width: 100% !important;
+            margin-left: 0 !important;
+            justify-content: flex-start !important;
           }
           .search-form {
             order: 3;
@@ -387,6 +393,20 @@ export default function HomePage({
                 📘 QA 가이드
               </button>
 
+              {/* 관리자 버튼 - 항상 표시, 클릭 시 권한 체크에서 오류 발생 */}
+              <button
+                type="button"
+                id="home-admin-btn"
+                name="adminButton"
+                className="btn btn-admin admin-button"
+                aria-label="관리자 페이지"
+                onClick={onGoAdmin}
+                style={styles.adminBtn}
+                data-testid="admin-button"
+              >
+                관리자
+              </button>
+
               {/* 장바구니 버튼 - 로그인 유도 포함 */}
               <button
                 type="button"
@@ -412,106 +432,18 @@ export default function HomePage({
                 )}
               </button>
 
-              {/* 배송조회는 메인 헤더에서 제거 → 내정보(마이페이지) 좌측 메뉴로 이동 */}
-
-              {/* 위시리스트 / 주문내역 / 내정보 버튼 - 로그인 시에만 표시 */}
-              {isLoggedIn && (
-                <>
-                  <button
-                    type="button"
-                    id="home-profile-btn"
-                    name="profileButton"
-                    className="btn btn-ghost profile-nav-button"
-                    aria-label="내정보로 이동"
-                    onClick={onGoProfile}
-                    style={styles.logoutBtn}
-                    data-testid="profile-button"
-                  >
-                    내정보
-                  </button>
-                  <button
-                    type="button"
-                    id="home-wishlist-btn"
-                    name="wishlistButton"
-                    className="btn btn-ghost wishlist-nav-button"
-                    aria-label="위시리스트로 이동"
-                    onClick={onGoWishlist}
-                    style={styles.logoutBtn}
-                    data-testid="wishlist-button"
-                  >
-                    위시리스트
-                  </button>
-                  <button
-                    type="button"
-                    id="home-orders-btn"
-                    name="ordersButton"
-                    className="btn btn-ghost orders-nav-button"
-                    aria-label="주문내역으로 이동"
-                    onClick={onGoOrders}
-                    style={styles.logoutBtn}
-                    data-testid="orders-button"
-                  >
-                    주문내역
-                  </button>
-                </>
-              )}
-
-              {/* 관리자 버튼 - 항상 표시, 클릭 시 권한 체크에서 오류 발생 */}
-              <button
-                type="button"
-                id="home-admin-btn"
-                name="adminButton"
-                className="btn btn-admin admin-button"
-                aria-label="관리자 페이지"
-                onClick={onGoAdmin}
-                style={styles.adminBtn}
-                data-testid="admin-button"
-              >
-                관리자
-              </button>
-
-              {/* 로그인 / 로그아웃 토글 */}
-              {isLoggedIn ? (
-                <button
-                  type="button"
-                  id="home-logout"
-                  name="logoutButton"
-                  className="btn btn-ghost logout-button"
-                  aria-label="로그아웃"
-                  onClick={onLogout}
-                  style={styles.logoutBtn}
-                  data-testid="logout-button"
-                >
-                  로그아웃
-                </button>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    id="home-login"
-                    name="loginButton"
-                    className="btn btn-ghost login-button"
-                    aria-label="로그인"
-                    onClick={onLogin}
-                    style={styles.loginBtn}
-                    data-testid="login-button"
-                  >
-                    로그인
-                  </button>
-                  <button
-                    type="button"
-                    id="home-signup-btn"
-                    name="signupButton"
-                    className="btn btn-ghost signup-button"
-                    aria-label="회원가입"
-                    onClick={onGoSignup}
-                    style={styles.loginBtn}
-                    data-testid="signup-button"
-                  >
-                    회원가입
-                  </button>
-                </>
-              )}
+              {/* 계정 메뉴 (로그인/회원가입 또는 내정보/위시리스트/주문내역/로그아웃) */}
+              <UserMenu
+                isLoggedIn={isLoggedIn}
+                role={userRole}
+                username={username}
+                onGoLogin={onLogin}
+                onGoSignup={onGoSignup}
+                onGoProfile={onGoProfile}
+                onGoWishlist={onGoWishlist}
+                onGoOrders={onGoOrders}
+                onLogout={onLogout}
+              />
             </div>
           </div>
         </header>

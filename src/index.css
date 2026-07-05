@@ -12,3 +12,34 @@ body {
   min-height: 100vh;
   width: 100%;
 }
+
+/* ============================================
+   공통 서브페이지 헤더(SiteHeader) 반응형
+   - 좁은 화면(디바이스 모드)에서는 nav 버튼들이 세로로
+     한 줄씩 쌓이지 않고, 로고 줄 아래에 가로로 흐르며
+     감싸지도록(wrap) 처리한다.
+   - SiteHeader는 인라인 스타일을 사용하므로 !important 필요.
+   ============================================ */
+@media (max-width: 768px) {
+  .site-header {
+    padding: 12px 16px !important;
+  }
+  /* 로고 줄과 nav 줄을 세로로 분리 */
+  .site-header-inner {
+    flex-wrap: wrap !important;
+    gap: 12px !important;
+  }
+  /* nav를 로고 아래 전체 폭 줄로 내리고, 버튼은 가로로 흐르게 */
+  .site-header-actions {
+    width: 100% !important;
+    margin-left: 0 !important;
+    justify-content: flex-start !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .site-header-actions .btn {
+    padding: 8px 12px !important;
+    font-size: 13px !important;
+  }
+}

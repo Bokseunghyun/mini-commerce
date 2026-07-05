@@ -25,6 +25,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     name: "",
     category: "전자기기",
     originalPrice: "",
+    discountMode: "none", // "none"(할인 없음) | "rate"(할인율) | "price"(할인가)
     discountedPrice: "",
     discountRate: "",
     stock: "",
@@ -40,7 +41,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
   // 권한 검증
   useEffect(() => {
     const checkAdminAccess = async () => {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       
       try {
         const res = await fetch(`${API_BASE}/api/admin`, {
@@ -131,7 +132,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
     // API 호출
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "PUT",
         headers: {
@@ -193,7 +194,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
   // ============================================
   const handleToggleActive = async (productId) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = sessionStorage.getItem('token');
       const product = products.find(p => p.id === productId);
       
       if (!product) return;
@@ -243,12 +244,18 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     if (!addForm.name.trim()) return "상품명을 입력해주세요.";
     if (!addForm.originalPrice || Number(addForm.originalPrice) <= 0)
       return "정가를 올바르게 입력해주세요.";
-    if (!addForm.discountedPrice || Number(addForm.discountedPrice) <= 0)
-      return "할인가를 올바르게 입력해주세요.";
-    if (Number(addForm.discountedPrice) > Number(addForm.originalPrice))
-      return "할인가는 정가보다 작아야 합니다.";
-    if (addForm.discountRate !== "" && Number(addForm.discountRate) < 0)
-      return "할인율은 0 이상이어야 합니다.";
+    // 할인은 선택 사항 — 선택한 방식(할인율/할인가)만 검증한다.
+    if (addForm.discountMode === "rate") {
+      const r = Number(addForm.discountRate);
+      if (addForm.discountRate === "" || !Number.isFinite(r) || r <= 0 || r >= 100)
+        return "할인율(%)을 1~99 사이로 입력해주세요.";
+    } else if (addForm.discountMode === "price") {
+      const p = Number(addForm.discountedPrice);
+      if (addForm.discountedPrice === "" || !Number.isFinite(p) || p <= 0)
+        return "할인가를 올바르게 입력해주세요.";
+      if (p >= Number(addForm.originalPrice))
+        return "할인가는 정가보다 작아야 합니다.";
+    }
     if (
       addForm.stock !== "" &&
       (!Number.isInteger(Number(addForm.stock)) || Number(addForm.stock) < 0)
@@ -266,23 +273,33 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     setAddError("");
 
     const orig = Number(addForm.originalPrice);
-    const disc = Number(addForm.discountedPrice);
-    // 할인율 미입력 시 가격으로 자동 계산 (필수 아님)
-    const autoRate = orig > 0 ? Math.max(0, Math.round((1 - disc / orig) * 100)) : 0;
+    // 할인 방식(discountMode)에 따라 할인가/할인율을 산출한다.
+    //  - none : 할인 없음 → 할인가=정가, 할인율=0
+    //  - rate : 할인율 입력 → 할인가 = round(정가 * (1 - 율/100))
+    //  - price: 할인가 입력 → 할인율 = round((1 - 할인가/정가) * 100)
+    let disc = orig;
+    let rate = 0;
+    if (addForm.discountMode === "rate") {
+      rate = Number(addForm.discountRate);
+      disc = Math.round(orig * (1 - rate / 100));
+    } else if (addForm.discountMode === "price") {
+      disc = Number(addForm.discountedPrice);
+      rate = orig > 0 ? Math.max(0, Math.round((1 - disc / orig) * 100)) : 0;
+    }
     const imageUrl = getRandomImage();
     const newProduct = {
       name: addForm.name.trim(),
       category: addForm.category,
       originalPrice: orig,
       discountedPrice: disc,
-      discountRate: addForm.discountRate !== "" ? Number(addForm.discountRate) : autoRate,
+      discountRate: rate,
       stock: addForm.stock !== "" ? Number(addForm.stock) : 20, // 선택 · 미입력 시 기본 20
       imageUrl, // 홈/목록 썸네일에 반영되도록 서버로 전송
       images: [imageUrl],
     };
 
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "POST",
         headers: {
@@ -327,8 +344,10 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
         name: "",
         category: "전자기기",
         originalPrice: "",
+        discountMode: "none",
         discountedPrice: "",
         discountRate: "",
+        stock: "",
       });
       alert("상품이 추가되었습니다.");
     } catch {
@@ -342,6 +361,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       name: "",
       category: "전자기기",
       originalPrice: "",
+      discountMode: "none",
       discountedPrice: "",
       discountRate: "",
       stock: "",
@@ -356,7 +376,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     if (!confirm("이 상품을 삭제하시겠습니까?")) return;
 
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "DELETE",
         headers: {
@@ -401,7 +421,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     }
     setIsResetting(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/reset`, {
         method: "POST",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
@@ -420,6 +440,10 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       setIsResetting(false);
     }
   };
+
+  // 목록 표시는 ID 내림차순 (최신·높은 ID 상위) — 새로 추가한 상품이 곧바로 맨 위에 쌓인다.
+  // 원본 products 배열은 정렬하지 않는다(find/최대 ID 계산 등 로직은 그대로 사용).
+  const sortedProducts = [...products].sort((a, b) => b.id - a.id);
 
   return (
     <>
@@ -909,35 +933,61 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
                 <div className="form-group">
                   <label className="form-label">
-                    할인가 (원) <span className="required">*</span>
+                    할인 <span style={{ color: "#9ca3af", fontWeight: 400 }}>(선택 · 할인율 또는 할인가 중 하나)</span>
                   </label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="0"
-                    value={addForm.discountedPrice}
+                  <select
+                    className="form-select"
+                    data-testid="admin-add-discount-mode"
+                    value={addForm.discountMode}
                     onChange={(e) => {
                       setAddForm({
                         ...addForm,
-                        discountedPrice: e.target.value,
+                        discountMode: e.target.value,
+                        discountedPrice: "",
+                        discountRate: "",
                       });
                       setAddError("");
                     }}
-                  />
+                  >
+                    <option value="none">할인 없음</option>
+                    <option value="rate">할인율(%)로 입력</option>
+                    <option value="price">할인가(원)로 입력</option>
+                  </select>
                 </div>
 
-                <div className="form-group">
-                  <label className="form-label">할인율 (%) <span style={{ color: "#9ca3af", fontWeight: 400 }}>(선택 · 미입력 시 자동 계산)</span></label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    placeholder="미입력 시 정가·할인가로 자동 계산"
-                    value={addForm.discountRate}
-                    onChange={(e) =>
-                      setAddForm({ ...addForm, discountRate: e.target.value })
-                    }
-                  />
-                </div>
+                {addForm.discountMode === "rate" && (
+                  <div className="form-group">
+                    <label className="form-label">할인율 (%)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      data-testid="admin-add-discount-rate"
+                      placeholder="예: 10 (1~99)"
+                      value={addForm.discountRate}
+                      onChange={(e) => {
+                        setAddForm({ ...addForm, discountRate: e.target.value });
+                        setAddError("");
+                      }}
+                    />
+                  </div>
+                )}
+
+                {addForm.discountMode === "price" && (
+                  <div className="form-group">
+                    <label className="form-label">할인가 (원)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      data-testid="admin-add-discount-price"
+                      placeholder="정가보다 작은 금액"
+                      value={addForm.discountedPrice}
+                      onChange={(e) => {
+                        setAddForm({ ...addForm, discountedPrice: e.target.value });
+                        setAddError("");
+                      }}
+                    />
+                  </div>
+                )}
 
                 <div className="form-group">
                   <label className="form-label" htmlFor="admin-add-stock">
@@ -995,7 +1045,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
                       </td>
                     </tr>
                   ) : (
-                    products.map((product) => (
+                    sortedProducts.map((product) => (
                       <tr
                         key={product.id}
                         data-testid={`admin-row-${product.id}`}
@@ -1188,7 +1238,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
                   상품이 없습니다. 상단의 상품 추가 버튼을 사용하세요.
                 </div>
               ) : (
-                products.map((product) => (
+                sortedProducts.map((product) => (
                   <div
                     key={product.id}
                     className={`product-card-mobile${
@@ -1411,7 +1461,7 @@ function CouponAdminSection({ apiBase }) {
   const [creating, setCreating] = useState(false);
 
   const fetchCoupons = async () => {
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     try {
       const res = await fetch(`${API_BASE}/api/admin/coupons`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" },
@@ -1435,7 +1485,7 @@ function CouponAdminSection({ apiBase }) {
     setMessage(null);
     setCreating(true);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const body = {
         code: form.code.trim().toUpperCase(),
         type: form.type,

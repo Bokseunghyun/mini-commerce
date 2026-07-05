@@ -84,7 +84,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
   const [advancingId, setAdvancingId] = useState(null);
 
   const fetchOrders = useCallback(async () => {
-    const token = localStorage.getItem("token");
+    const token = sessionStorage.getItem("token");
     if (!token) {
       setIsLoggedIn(false);
       setIsLoading(false);
@@ -129,7 +129,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
 
     if (!details[orderId]) {
       setDetails((prev) => ({ ...prev, [orderId]: { loading: true } }));
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       fetch(`${API_BASE}/api/orders/${orderId}`, {
         headers: { Authorization: `Bearer ${token || ""}` },
       })
@@ -157,7 +157,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
     setCancelMessage(null);
     setCancelingId(orderId);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/orders/${orderId}`, {
         method: "PATCH",
         headers: {
@@ -212,7 +212,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
   const handleTrack = async (orderId) => {
     setTracking((prev) => ({ ...prev, [orderId]: { loading: true } }));
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/tracking?orderId=${encodeURIComponent(orderId)}`, {
         headers: { Authorization: `Bearer ${token || ""}` },
       });
@@ -241,7 +241,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
     setAdvanceMessage(null);
     setAdvancingId(orderId);
     try {
-      const token = localStorage.getItem("token");
+      const token = sessionStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/orders/${orderId}`, {
         method: "PATCH",
         headers: {
