@@ -821,6 +821,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
       .payment-option {
         display: flex;
         align-items: center;
+        flex-wrap: wrap;
         gap: 10px;
         padding: 12px 14px;
         border: 1px solid #e5e5e5;
@@ -834,7 +835,9 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
         background-color: #f8fafc;
         font-weight: 600;
       }
-      .payment-option input { width: 18px; height: 18px; cursor: pointer; accent-color: #1a1a1a; }
+      /* 라벨 텍스트가 한 글자씩 세로로 줄바꿈되지 않도록 고정 */
+      .payment-option-label { white-space: nowrap; }
+      .payment-option input { width: 18px; height: 18px; flex-shrink: 0; cursor: pointer; accent-color: #1a1a1a; }
       .card-form {
         margin-top: 16px;
         padding-top: 16px;
@@ -1409,7 +1412,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                     checked={paymentMethod === "card"}
                     onChange={() => setPaymentMethod("card")}
                   />
-                  신용카드
+                  <span className="payment-option-label">신용카드</span>
                 </label>
                 <label
                   className={`payment-option${paymentMethod === "bank" ? " selected" : ""}`}
@@ -1424,7 +1427,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                     checked={paymentMethod === "bank"}
                     onChange={() => setPaymentMethod("bank")}
                   />
-                  무통장입금
+                  <span className="payment-option-label">무통장입금</span>
                   <span
                     className="payment-bank-warn"
                     data-testid="payment-bank-warn"
@@ -1433,10 +1436,8 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                       backgroundColor: "#dc2626",
                       fontWeight: 800,
                       fontSize: "0.8rem",
-                      marginLeft: 8,
                       padding: "3px 8px",
                       borderRadius: 6,
-                      whiteSpace: "nowrap",
                       letterSpacing: "0.2px",
                     }}
                   >
@@ -1456,7 +1457,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                     checked={paymentMethod === "inicis"}
                     onChange={() => setPaymentMethod("inicis")}
                   />
-                  이니시스 실결제(샌드박스)
+                  <span className="payment-option-label">이니시스 실결제(샌드박스)</span>
                 </label>
               </div>
 

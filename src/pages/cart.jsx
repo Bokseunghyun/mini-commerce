@@ -670,7 +670,7 @@ export default function CartPage({
   .continue-shopping-link:hover { background-color: #333333; }
 
   .order-summary-section {
-    width: 350px;
+    width: 100%;
     flex-shrink: 0;
     background-color: #ffffff;
     border-radius: 12px;

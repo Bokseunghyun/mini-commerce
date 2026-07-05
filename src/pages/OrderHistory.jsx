@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Modal from "../components/Modal.jsx";
 import { toast } from "../lib/toast.js";
 
@@ -344,7 +344,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
     }
   };
 
-  // 자동 진행: autoAdvanceId 설정 시, 진행 가능한 동안 3초 간격으로 다음 단계로 진행.
+  // 자동 진행: autoAdvanceId 설정 시, 진행 가능한 동안 5초 간격으로 다음 단계로 진행.
   // 종료 상태(배송완료/취소) 도달 시 자동 정지. (자동화 관찰·폴링 연습용; 테스트는 advance API 직접 호출도 가능)
   useEffect(() => {
     if (!autoAdvanceId) return undefined;
@@ -355,7 +355,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
     }
     const t = setTimeout(() => {
       handleAdvance(autoAdvanceId);
-    }, 3000);
+    }, 5000);
     return () => clearTimeout(t);
     // handleAdvance 는 매 렌더 재생성되므로 deps 제외 (포함 시 매 렌더 타이머 리셋)
     // eslint-disable-next-line react-hooks/exhaustive-deps

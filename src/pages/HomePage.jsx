@@ -8,6 +8,53 @@ import { toast } from "../lib/toast.js";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
 // ============================================
+// 메인 배너 슬라이드 데이터 (자동 전환 캐러셀용)
+// 링크는 QA 연습용 외부 링크(새 탭)로 연결됩니다.
+// ============================================
+const BANNER_SLIDES = [
+  {
+    id: "winter-sale",
+    title: "겨울 시즌 특가 세일",
+    subtitle: "최대 50% 할인된 가격으로 만나보세요",
+    href: "https://www.naver.com",
+    linkLabel: "네이버 바로가기",
+    background: "linear-gradient(135deg, #1a1a1a 0%, #374151 100%)",
+  },
+  {
+    id: "realtime-news",
+    title: "지금 뜨는 실시간 뉴스",
+    subtitle: "가장 핫한 소식을 한눈에 확인하세요",
+    href: "https://news.naver.com",
+    linkLabel: "네이버 뉴스 보기",
+    background: "linear-gradient(135deg, #047857 0%, #10b981 100%)",
+  },
+  {
+    id: "search-everything",
+    title: "무엇이든 검색해보세요",
+    subtitle: "원하는 정보를 가장 빠르게 찾아드립니다",
+    href: "https://www.google.com",
+    linkLabel: "구글에서 검색",
+    background: "linear-gradient(135deg, #1d4ed8 0%, #3b82f6 100%)",
+  },
+  {
+    id: "trending-video",
+    title: "인기 급상승 동영상",
+    subtitle: "지금 가장 많이 보는 영상을 만나보세요",
+    href: "https://www.youtube.com",
+    linkLabel: "유튜브 바로가기",
+    background: "linear-gradient(135deg, #b91c1c 0%, #ef4444 100%)",
+  },
+  {
+    id: "todays-pick",
+    title: "오늘의 추천 콘텐츠",
+    subtitle: "엄선된 소식과 이슈를 모아드립니다",
+    href: "https://www.daum.net",
+    linkLabel: "다음 바로가기",
+    background: "linear-gradient(135deg, #6d28d9 0%, #a855f7 100%)",
+  },
+];
+
+// ============================================
 // 로딩 스피너 컴포넌트
 // ============================================
 function LoadingSpinner() {
@@ -63,6 +110,9 @@ export default function HomePage({
   const [inStockOnly, setInStockOnly] = useState(false);
   const [showQAGuide, setShowQAGuide] = useState(false);
   const [wishlistIds, setWishlistIds] = useState(() => new Set());
+  // 메인 배너 캐러셀: 현재 슬라이드 인덱스 / 마우스 오버 시 일시정지
+  const [bannerSlide, setBannerSlide] = useState(0);
+  const [bannerPaused, setBannerPaused] = useState(false);
 
   const categories = ["전체", "전자기기", "액세서리", "생활"];
 
@@ -143,6 +193,21 @@ export default function HomePage({
       sessionStorage.setItem('homePageScrollPosition', window.scrollY.toString());
     };
   }, []);
+
+  // 메인 배너 자동 전환: 4초 간격으로 다음 슬라이드로 이동.
+  // bannerSlide 가 바뀔 때마다 타이머를 재설정하므로 수동 조작(화살표/도트) 후에도 간격이 리셋된다.
+  // 마우스 오버(bannerPaused) 시에는 정지.
+  useEffect(() => {
+    if (bannerPaused || BANNER_SLIDES.length <= 1) return undefined;
+    const t = setTimeout(() => {
+      setBannerSlide((s) => (s + 1) % BANNER_SLIDES.length);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [bannerSlide, bannerPaused]);
+
+  // 배너 이전/다음 이동 헬퍼 (음수 방지 위해 + length 후 나머지 연산)
+  const goToBanner = (idx) =>
+    setBannerSlide((idx + BANNER_SLIDES.length) % BANNER_SLIDES.length);
 
   // ============================================
   // 검색 필터링 (appliedKeyword 기준 - 검색 버튼 클릭 후 적용)
@@ -245,6 +310,23 @@ export default function HomePage({
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @keyframes bannerFade {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .banner-slide {
+          animation: bannerFade 0.5s ease;
+        }
+        .banner-arrow:hover {
+          background: rgba(255, 255, 255, 0.35) !important;
+        }
+        .banner-cta {
+          transition: background-color 0.2s, transform 0.2s;
+        }
+        .banner-content:hover .banner-cta {
+          background: rgba(255, 255, 255, 0.28);
+          transform: translateX(4px);
+        }
         .cart-btn-br {
           display: none;
         }
@@ -288,6 +370,17 @@ export default function HomePage({
           }
           .banner-subtitle {
             font-size: 14px !important;
+          }
+          .banner-arrow {
+            width: 36px !important;
+            height: 36px !important;
+            font-size: 24px !important;
+          }
+          .banner-arrow-prev {
+            left: 6px !important;
+          }
+          .banner-arrow-next {
+            right: 6px !important;
           }
           .control-inner {
             flex-wrap: nowrap !important;
@@ -472,11 +565,81 @@ export default function HomePage({
           </div>
         </header>
 
-        {/* Main Banner */}
-        <section className="main-banner banner" style={styles.banner} data-testid="main-banner">
-          <div style={styles.bannerContent} className="banner-content">
-            <h1 style={styles.bannerTitle} className="banner-title">겨울 시즌 특가 세일</h1>
-            <p style={styles.bannerSubtitle} className="banner-subtitle">최대 50% 할인된 가격으로 만나보세요</p>
+        {/* Main Banner (자동 전환 캐러셀) */}
+        <section
+          className="main-banner banner"
+          style={{ ...styles.banner, background: BANNER_SLIDES[bannerSlide].background }}
+          data-testid="main-banner"
+          data-banner-index={bannerSlide}
+          onMouseEnter={() => setBannerPaused(true)}
+          onMouseLeave={() => setBannerPaused(false)}
+          aria-roledescription="carousel"
+          aria-label="프로모션 배너"
+        >
+          <a
+            key={bannerSlide}
+            href={BANNER_SLIDES[bannerSlide].href}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={styles.bannerContent}
+            className="banner-content banner-slide"
+            data-testid="banner-slide"
+            data-slide-id={BANNER_SLIDES[bannerSlide].id}
+            aria-label={`${BANNER_SLIDES[bannerSlide].title} - ${BANNER_SLIDES[bannerSlide].linkLabel} (새 탭)`}
+          >
+            <h1 style={styles.bannerTitle} className="banner-title" data-testid="banner-title">
+              {BANNER_SLIDES[bannerSlide].title}
+            </h1>
+            <p style={styles.bannerSubtitle} className="banner-subtitle" data-testid="banner-subtitle">
+              {BANNER_SLIDES[bannerSlide].subtitle}
+            </p>
+            <span style={styles.bannerCta} className="banner-cta">
+              {BANNER_SLIDES[bannerSlide].linkLabel} →
+            </span>
+          </a>
+
+          {/* 이전 슬라이드 */}
+          <button
+            type="button"
+            className="banner-arrow banner-arrow-prev"
+            style={{ ...styles.bannerArrow, ...styles.bannerArrowPrev }}
+            onClick={() => goToBanner(bannerSlide - 1)}
+            aria-label="이전 배너"
+            data-testid="banner-prev"
+          >
+            ‹
+          </button>
+
+          {/* 다음 슬라이드 */}
+          <button
+            type="button"
+            className="banner-arrow banner-arrow-next"
+            style={{ ...styles.bannerArrow, ...styles.bannerArrowNext }}
+            onClick={() => goToBanner(bannerSlide + 1)}
+            aria-label="다음 배너"
+            data-testid="banner-next"
+          >
+            ›
+          </button>
+
+          {/* 도트 인디케이터 */}
+          <div style={styles.bannerDots} className="banner-dots" role="tablist" aria-label="배너 선택">
+            {BANNER_SLIDES.map((s, i) => (
+              <button
+                key={s.id}
+                type="button"
+                className={`banner-dot ${i === bannerSlide ? "active" : ""}`}
+                style={{
+                  ...styles.bannerDot,
+                  ...(i === bannerSlide ? styles.bannerDotActive : {}),
+                }}
+                onClick={() => goToBanner(i)}
+                role="tab"
+                aria-selected={i === bannerSlide}
+                aria-label={`${i + 1}번 배너: ${s.title}`}
+                data-testid={`banner-dot-${i}`}
+              />
+            ))}
           </div>
         </section>
 
@@ -929,13 +1092,84 @@ const styles = {
     flexShrink: 0,
   },
   banner: {
+    position: "relative",
+    overflow: "hidden",
     background: "linear-gradient(135deg, #1a1a1a 0%, #374151 100%)",
     padding: "60px 24px",
     textAlign: "center",
+    transition: "background 0.6s ease",
   },
   bannerContent: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: "12px",
     maxWidth: "800px",
     margin: "0 auto",
+    textDecoration: "none",
+    cursor: "pointer",
+  },
+  bannerCta: {
+    display: "inline-flex",
+    alignItems: "center",
+    marginTop: "8px",
+    padding: "10px 22px",
+    fontSize: "15px",
+    fontWeight: "600",
+    color: "#ffffff",
+    background: "rgba(255, 255, 255, 0.16)",
+    border: "1px solid rgba(255, 255, 255, 0.45)",
+    borderRadius: "24px",
+  },
+  bannerArrow: {
+    position: "absolute",
+    top: "50%",
+    transform: "translateY(-50%)",
+    width: "44px",
+    height: "44px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
+    fontSize: "30px",
+    lineHeight: 1,
+    color: "#ffffff",
+    background: "rgba(255, 255, 255, 0.18)",
+    border: "none",
+    borderRadius: "50%",
+    cursor: "pointer",
+    zIndex: 2,
+    transition: "background 0.2s",
+  },
+  bannerArrowPrev: {
+    left: "16px",
+  },
+  bannerArrowNext: {
+    right: "16px",
+  },
+  bannerDots: {
+    position: "absolute",
+    left: "50%",
+    bottom: "16px",
+    transform: "translateX(-50%)",
+    display: "flex",
+    gap: "8px",
+    zIndex: 2,
+  },
+  bannerDot: {
+    width: "10px",
+    height: "10px",
+    padding: 0,
+    borderRadius: "50%",
+    border: "none",
+    background: "rgba(255, 255, 255, 0.45)",
+    cursor: "pointer",
+    transition: "background 0.2s, width 0.2s",
+  },
+  bannerDotActive: {
+    width: "24px",
+    borderRadius: "5px",
+    background: "#ffffff",
   },
   bannerTitle: {
     fontSize: "36px",
