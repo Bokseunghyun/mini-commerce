@@ -10,6 +10,10 @@ import { useCallback, useEffect, useState } from "react";
  * - 삭제 → POST /api/user-actions {action:'wishlist_remove'} → 행 제거
  */
 
+// 상품 옵션 (데모용 표준 옵션 — 상세페이지와 동일한 색상/사이즈 세트)
+const COLOR_OPTIONS = ["블랙", "화이트", "네이비"];
+const SIZE_OPTIONS = ["S", "M", "L", "XL"];
+
 function formatPrice(price) {
   return (Number(price) || 0).toLocaleString("ko-KR");
 }
@@ -33,6 +37,11 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
   // 액션 결과 메시지: { type: 'success' | 'error', text }
   const [message, setMessage] = useState(null);
   const [removingId, setRemovingId] = useState(null);
+  // 위시리스트 항목별 선택 옵션 { [productId]: { color, size } } — 담기 전 필수 선택
+  const [optionSel, setOptionSel] = useState({});
+
+  const setOption = (productId, key, value) =>
+    setOptionSel((prev) => ({ ...prev, [productId]: { ...prev[productId], [key]: value } }));
 
   const fetchWishlist = useCallback(async () => {
     const token = sessionStorage.getItem("token");
@@ -73,11 +82,17 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
   // 장바구니 담기
   const handleAddToCart = (item) => {
     setMessage(null);
+    // 상세페이지와 동일하게 색상/사이즈를 필수로 강제 (옵션 없이 담기 방지)
+    const sel = optionSel[item.productId] || {};
+    if (!sel.color || !sel.size) {
+      setMessage({ type: "error", text: "색상과 사이즈를 선택해주세요." });
+      return;
+    }
     // App의 addToCart는 id 필드를 사용하므로 productId를 id로 매핑해 전달
-    onAddToCart?.({ ...item, id: item.productId }, 1);
+    onAddToCart?.({ ...item, id: item.productId }, 1, { color: sel.color, size: sel.size });
     setMessage({
       type: "success",
-      text: `'${item.name}' 상품을 장바구니에 담았습니다`,
+      text: `'${item.name}' 상품을 장바구니에 담았습니다 (${sel.color} / ${sel.size})`,
     });
   };
 
@@ -288,6 +303,36 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
                     >
                       {formatPrice(item.price)}원
                     </span>
+                    <div
+                      className="wishlist-item-options"
+                      style={styles.optionRow}
+                      data-testid={`wishlist-options-${item.productId}`}
+                    >
+                      <select
+                        aria-label={`${item.name} 색상 선택`}
+                        value={(optionSel[item.productId] || {}).color || ""}
+                        onChange={(e) => setOption(item.productId, "color", e.target.value)}
+                        style={styles.optionSelect}
+                        data-testid={`wishlist-option-color-${item.productId}`}
+                      >
+                        <option value="">색상 선택</option>
+                        {COLOR_OPTIONS.map((c) => (
+                          <option key={c} value={c}>{c}</option>
+                        ))}
+                      </select>
+                      <select
+                        aria-label={`${item.name} 사이즈 선택`}
+                        value={(optionSel[item.productId] || {}).size || ""}
+                        onChange={(e) => setOption(item.productId, "size", e.target.value)}
+                        style={styles.optionSelect}
+                        data-testid={`wishlist-option-size-${item.productId}`}
+                      >
+                        <option value="">사이즈 선택</option>
+                        {SIZE_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
 
                   <div className="wishlist-item-actions" style={styles.itemActions}>
@@ -457,6 +502,21 @@ const styles = {
     fontSize: "16px",
     fontWeight: "700",
     color: "#1a1a1a",
+  },
+  optionRow: {
+    display: "flex",
+    gap: "8px",
+    marginTop: "4px",
+    flexWrap: "wrap",
+  },
+  optionSelect: {
+    padding: "6px 10px",
+    fontSize: "13px",
+    border: "1px solid #d1d5db",
+    borderRadius: "6px",
+    backgroundColor: "#ffffff",
+    cursor: "pointer",
+    outline: "none",
   },
   itemActions: {
     display: "flex",

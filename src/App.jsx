@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import HomePage from './pages/HomePage';
-import ProductListPage from './pages/ProductList';
 import ProductDetailPage from './pages/ProductDetail';
 import CartPage from './pages/cart';
 import LoginPage from './pages/login.jsx';
+// ProductList(/products) 페이지 제거됨 — UI 진입점 없는 고아 라우트라 정리
 import SignupPage from './pages/Signup.jsx';
 import Modal from './components/Modal.jsx';
 import ToastHost from './components/ToastHost.jsx';
@@ -22,7 +22,6 @@ import SiteHeader from './components/SiteHeader.jsx';
 function getPageFromPath(path) {
   if (path === '/login') return 'login';
   if (path === '/signup') return 'signup';
-  if (path === '/products') return 'products';
   if (path.startsWith('/product/')) {
     const productId = parseInt(path.split('/product/')[1]);
     return productId ? 'productDetail' : 'home';
@@ -121,7 +120,6 @@ export default function App() {
 
     if (page === 'login') newPath = '/login';
     else if (page === 'signup') newPath = '/signup';
-    else if (page === 'products') newPath = '/products';
     else if (page === 'productDetail') {
       // 상품 조회가 끝나기 전에는 URL을 덮어쓰지 않음 (딥링크 /product/:id 유지)
       if (!selectedProduct) return;
@@ -242,7 +240,7 @@ export default function App() {
 
   // 상품 목록 조회 (DB가 단일 소스)
   useEffect(() => {
-    if (page === 'products' || page === 'home') {
+    if (page === 'home') {
       setIsLoadingProducts(true);
       const token = sessionStorage.getItem('token');
 
@@ -464,10 +462,6 @@ export default function App() {
     }
   };
 
-  const handleGoToProducts = () => {
-    goWithLoginCheck('products');
-  };
-
   // 로그인/회원가입 모달 열고 닫기 (페이지 이동 없음)
   const openLogin = () => { setLoginError(""); setAuthModal('login'); };
   const openSignup = () => setAuthModal('signup');
@@ -514,7 +508,6 @@ export default function App() {
         onGoSignup={() => openSignup()}
         onGoWishlist={() => goWithLoginCheck('wishlist')}
         onGoOrders={() => goWithLoginCheck('orders')}
-        onGoProducts={handleGoToProducts}
         onGoAdmin={() => setPage('admin')}
         onGoProfile={() => goWithLoginCheck('profile')}
         isLoading={isLoadingProducts}
@@ -522,23 +515,6 @@ export default function App() {
         userRole={sessionStorage.getItem('role') || ''}
         username={sessionStorage.getItem('username') || ''}
       />
-    );
-  }
-
-  if (page === 'products') {
-    return (
-      <>
-        {siteHeader}
-        <ProductListPage
-          products={products}
-          onView={handleView}
-          cartCount={cartCount}
-          setPage={setPage}
-          onAddToCart={(product, qty = 1) => addToCart(product, qty)}
-          isLoading={isLoadingProducts}
-          onBack={() => setPage('home')}
-        />
-      </>
     );
   }
 
@@ -709,7 +685,7 @@ export default function App() {
           apiBase={API_BASE}
           onBack={() => setPage('home')}
           onView={handleView}
-          onAddToCart={(product, qty = 1) => addToCart(product, qty, false)}
+          onAddToCart={(product, qty = 1, options = null) => addToCart(product, qty, false, options)}
         />
       </>
     );
