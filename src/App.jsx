@@ -507,7 +507,6 @@ export default function App() {
         products={products}
         cartCount={cartCount}
         onView={handleView}
-        onAdd={addToCart}
         onGoCart={() => goWithLoginCheck('cart')}
         onGoHome={() => setPage('home')}
         onLogout={handleLogout}

@@ -130,6 +130,8 @@ function mapOrderItem(row) {
     orderId: row.order_id,
     productId: row.product_id,
     name: row.name,
+    originalPrice: row.original_price ?? null,
+    discountRate: row.discount_rate ?? null,
     price: row.price,
     quantity: row.quantity,
     options: row.options ?? null,
@@ -584,8 +586,9 @@ export async function createOrder({
       const quantity = Number(item.quantity) || 1;
 
       // 동시 주문 경합 방지를 위해 행 잠금 후 재고 검증
+      // 정가/할인율도 함께 읽어 주문 시점 값으로 스냅샷한다 (금액 정합성 검증용).
       const { rows } = await client.query(
-        'SELECT id, name, price, stock FROM products WHERE id = $1 FOR UPDATE',
+        'SELECT id, name, price, original_price, discount_rate, stock FROM products WHERE id = $1 FOR UPDATE',
         [productId]
       );
       const product = rows[0];
@@ -611,6 +614,8 @@ export async function createOrder({
       orderItems.push({
         productId,
         name: item.name ?? product.name,
+        originalPrice: product.original_price ?? null,
+        discountRate: product.discount_rate ?? null,
         price: item.price ?? product.price,
         quantity,
         options: item.options ?? null,
@@ -641,10 +646,10 @@ export async function createOrder({
     const insertedItems = [];
     for (const oi of orderItems) {
       const { rows } = await client.query(
-        `INSERT INTO order_items (order_id, product_id, name, price, quantity, options)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO order_items (order_id, product_id, name, price, quantity, options, original_price, discount_rate)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
          RETURNING *`,
-        [orderId, oi.productId, oi.name, oi.price, oi.quantity, oi.options ? JSON.stringify(oi.options) : null]
+        [orderId, oi.productId, oi.name, oi.price, oi.quantity, oi.options ? JSON.stringify(oi.options) : null, oi.originalPrice ?? null, oi.discountRate ?? null]
       );
       insertedItems.push(rows[0]);
     }
@@ -681,6 +686,8 @@ export async function listOrders(username, { all = false } = {}) {
                 json_build_object(
                   'productId', oi.product_id,
                   'name', oi.name,
+                  'originalPrice', oi.original_price,
+                  'discountRate', oi.discount_rate,
                   'price', oi.price,
                   'quantity', oi.quantity,
                   'options', oi.options,

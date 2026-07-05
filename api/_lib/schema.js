@@ -147,6 +147,9 @@ ALTER TABLE carts ADD COLUMN IF NOT EXISTS options JSONB;
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options JSONB;
 -- 주문항목 부분취소 상태 (실제 부분취소: 항목 단위 취소 플래그)
 ALTER TABLE order_items ADD COLUMN IF NOT EXISTS canceled BOOLEAN NOT NULL DEFAULT false;
+-- 주문 시점 정가/할인율 스냅샷 (금액 정합성 자동화 검증용 — 주문 이후 상품 가격이 바뀌어도 불변)
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS original_price INT;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS discount_rate INT;
 
 -- 사용자 보유 쿠폰 (사용자가 등록한 쿠폰 + 사용 여부)
 -- code 는 coupons.code(대문자)를 참조하는 논리적 FK (제약은 걸지 않음 — 비파괴/유연성)

@@ -85,7 +85,6 @@ export default function HomePage({
   products = [],
   cartCount = 0,
   onView,
-  onAdd,
   onGoCart,
   onGoHome,
   onLogout,
@@ -895,35 +894,20 @@ export default function HomePage({
                       </span>
                     </div>
                     <div className="product-actions action-buttons" style={styles.productActions}>
+                      {/* 홈 카드는 상세 페이지로만 이동 — 옵션(색상/사이즈) 선택은 상세에서 강제되므로
+                          카드에서 바로 담기(옵션 미선택 담기)를 없애 데이터 정합성을 맞춘다. */}
                       <button
                         type="button"
                         id={`product-${product.id}-view`}
                         name={`view-${product.id}`}
-                        className="btn btn-secondary view-btn product-view-button"
-                        aria-label="상품 상세"
+                        className="btn btn-primary view-btn product-view-button"
+                        aria-label={`${product.name} 상품 상세`}
                         onClick={() => onView?.(product.id)}
                         style={styles.viewBtn}
                         data-testid={`view-detail-btn-${product.id}`}
                         data-action="view"
                       >
-                        상세
-                      </button>
-                      <button
-                        type="button"
-                        id={`product-${product.id}-add`}
-                        name={`add-${product.id}`}
-                        className="btn btn-primary add-btn product-add-button"
-                        aria-label={soldOut ? `${product.name} 품절` : "장바구니 담기"}
-                        onClick={() => onAdd?.(product)}
-                        disabled={soldOut}
-                        aria-disabled={soldOut}
-                        style={{
-                          ...styles.addBtn,
-                          ...(soldOut ? styles.addBtnDisabled : {}),
-                        }}
-                        data-testid={`add-to-cart-btn-${product.id}`}
-                      >
-                        <span className="cart-btn-text">장바구니<br className="cart-btn-br" />담기</span>
+                        상품 상세
                       </button>
                     </div>
                   </div>
@@ -1429,11 +1413,12 @@ const styles = {
   },
   viewBtn: {
     flex: 1,
-    padding: "10px",
+    width: "100%",
+    padding: "12px",
     fontSize: "14px",
-    fontWeight: "500",
+    fontWeight: "600",
     color: "#ffffff",
-    backgroundColor: "#374151",
+    backgroundColor: "#1a1a1a",
     border: "none",
     borderRadius: "8px",
     cursor: "pointer",

@@ -697,7 +697,27 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                                         </span>
                                       )}
                                     </td>
-                                    <td style={styles.td}>{formatPrice(it.price)}원</td>
+                                    <td style={styles.td}>
+                                      {it.discountRate > 0 && it.originalPrice ? (
+                                        <span style={{ display: "block", fontSize: "0.75rem", marginBottom: 2 }}>
+                                          <span
+                                            data-testid={`order-item-original-price-${order.id}-${it.productId}`}
+                                            style={{ color: "#9ca3af", textDecoration: "line-through", marginRight: 4 }}
+                                          >
+                                            {formatPrice(it.originalPrice)}원
+                                          </span>
+                                          <span
+                                            data-testid={`order-item-discount-rate-${order.id}-${it.productId}`}
+                                            style={{ color: "#dc2626", fontWeight: 700 }}
+                                          >
+                                            {it.discountRate}%
+                                          </span>
+                                        </span>
+                                      ) : null}
+                                      <span data-testid={`order-item-price-${order.id}-${it.productId}`}>
+                                        {formatPrice(it.price)}원
+                                      </span>
+                                    </td>
                                     <td style={styles.td}>{it.quantity}</td>
                                     <td style={styles.td}>
                                       {formatPrice((Number(it.price) || 0) * (Number(it.quantity) || 0))}원
