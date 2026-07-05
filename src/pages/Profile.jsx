@@ -318,8 +318,24 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
             </button>
           </div>
         ) : (
-          <div style={styles.layout}>
-            <nav style={styles.sidePanel} data-testid="mypage-menu" aria-label="마이페이지 메뉴">
+          <div style={styles.layout} className="mypage-layout">
+            <style>{`
+              @media (max-width: 768px) {
+                /* 사이드 패널 → 가로 스크롤 탭바 (세로 200px 컬럼 대신) */
+                .mypage-menu-nav {
+                  flex-direction: row !important;
+                  width: 100% !important;
+                  position: static !important;
+                  top: auto !important;
+                  gap: 6px !important;
+                  overflow-x: auto;
+                  -webkit-overflow-scrolling: touch;
+                }
+                .mypage-menu-nav .mypage-menu-item { flex: 0 0 auto; }
+                .mypage-content { min-width: 0 !important; width: 100%; }
+              }
+            `}</style>
+            <nav style={styles.sidePanel} className="mypage-menu-nav" data-testid="mypage-menu" aria-label="마이페이지 메뉴">
               {MYPAGE_MENU.map((m) => {
                 const isActive = activeMenu === m.key;
                 return (
@@ -351,7 +367,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                 );
               })}
             </nav>
-            <div style={styles.content}>
+            <div style={styles.content} className="mypage-content">
             {loadError && (
               <div
                 id="profile-error"
@@ -605,45 +621,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                 </p>
               )}
 
-              {/* 시드 쿠폰 코드 안내 — 코드를 누르면 위 입력창에 자동 입력된다 */}
-              <div style={styles.couponGuide} data-testid="coupon-guide" aria-label="사용 가능한 쿠폰 코드 안내">
-                <p style={styles.couponGuideTitle}>사용 가능한 쿠폰 코드</p>
-                <p style={styles.couponGuideDesc}>
-                  코드를 누르면 위 입력창에 채워집니다. 등록 후 결제 페이지에서 적용해 케이스별 동작을 확인하세요.
-                </p>
-                <ul style={styles.couponGuideList}>
-                  {COUPON_GUIDE.map((g) => (
-                    <li key={g.code} style={styles.couponGuideItem} data-testid={`coupon-guide-${g.code}`}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setCouponCode(g.code);
-                          setCouponMessage(null);
-                        }}
-                        style={{ ...styles.couponGuideCode, ...(g.fail ? styles.couponGuideCodeFail : {}) }}
-                        aria-label={`${g.code} 코드 입력창에 채우기`}
-                        title="클릭하면 쿠폰 등록 입력창에 채워집니다"
-                      >
-                        {g.code}
-                      </button>
-                      <span style={styles.couponGuideItemDesc}>{g.desc}</span>
-                      <span
-                        style={{
-                          ...styles.couponGuideResult,
-                          ...(g.fail ? styles.couponGuideResultFail : styles.couponGuideResultOk),
-                        }}
-                      >
-                        {g.result}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-                <p style={styles.couponGuideNote}>
-                  ※ 관리자 계정은 <strong>관리자 페이지 &gt; 쿠폰 관리</strong>에서 새 쿠폰 번호를 직접 생성해
-                  추가로 테스트할 수 있습니다. (생성한 코드를 위 입력창에 등록 → 결제 시 적용)
-                </p>
-              </div>
-
+              {/* 보유 쿠폰 목록 */}
               {coupons.length === 0 ? (
                 <p id="coupons-empty" data-testid="coupons-empty" style={styles.couponsEmpty}>
                   보유한 쿠폰이 없습니다.
@@ -681,6 +659,45 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
                   })}
                 </ul>
               )}
+
+              {/* 시드 쿠폰 코드 안내 — 쿠폰 목록 하단. 코드를 누르면 위 입력창에 자동 입력된다 */}
+              <div style={styles.couponGuide} data-testid="coupon-guide" aria-label="사용 가능한 쿠폰 코드 안내">
+                <p style={styles.couponGuideTitle}>사용 가능한 쿠폰 코드</p>
+                <p style={styles.couponGuideDesc}>
+                  코드를 누르면 위 입력창에 채워집니다. 등록 후 결제 페이지에서 적용해 케이스별 동작을 확인하세요.
+                </p>
+                <ul style={styles.couponGuideList}>
+                  {COUPON_GUIDE.map((g) => (
+                    <li key={g.code} style={styles.couponGuideItem} data-testid={`coupon-guide-${g.code}`}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCouponCode(g.code);
+                          setCouponMessage(null);
+                        }}
+                        style={{ ...styles.couponGuideCode, ...(g.fail ? styles.couponGuideCodeFail : {}) }}
+                        aria-label={`${g.code} 코드 입력창에 채우기`}
+                        title="클릭하면 쿠폰 등록 입력창에 채워집니다"
+                      >
+                        {g.code}
+                      </button>
+                      <span style={styles.couponGuideItemDesc}>{g.desc}</span>
+                      <span
+                        style={{
+                          ...styles.couponGuideResult,
+                          ...(g.fail ? styles.couponGuideResultFail : styles.couponGuideResultOk),
+                        }}
+                      >
+                        {g.result}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                <p style={styles.couponGuideNote}>
+                  ※ 관리자 계정은 <strong>관리자 페이지 &gt; 쿠폰 관리</strong>에서 새 쿠폰 번호를 직접 생성해
+                  추가로 테스트할 수 있습니다. (생성한 코드를 위 입력창에 등록 → 결제 시 적용)
+                </p>
+              </div>
             </section>
             </div>
           </div>

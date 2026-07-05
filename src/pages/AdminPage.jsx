@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { toast } from "../lib/toast.js";
 
 // 랜덤 이미지 URL 생성 (picsum.photos 사용)
 function getRandomImage() {
@@ -81,7 +82,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
             errorMessage += data.message || '알 수 없는 오류가 발생했습니다.';
           }
           
-          alert(errorMessage);
+          toast.error(errorMessage);
           if (onAccessDenied) onAccessDenied();
           return;
         }
@@ -95,7 +96,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
         setIsAuthorized(true);
       } catch (e) {
         // 네트워크 오류
-        alert(`🌐 네트워크 오류\n\n${e.message}\n\n서버에 연결할 수 없습니다.`);
+        toast.error(`🌐 네트워크 오류\n\n${e.message}\n\n서버에 연결할 수 없습니다.`);
         if (onAccessDenied) onAccessDenied();
       } finally {
         setIsChecking(false);
@@ -144,11 +145,11 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.message || `수정 실패 (${res.status})`);
+        toast.error(data.message || `수정 실패 (${res.status})`);
         return;
       }
     } catch {
-      alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
+      toast.error("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
 
     // 클라이언트 상태 업데이트
@@ -175,7 +176,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       discountRate: 0,
       stock: 0,
     });
-    alert("상품 정보가 수정되었습니다.");
+    toast.success("상품 정보가 수정되었습니다.");
   };
 
   const handleCancel = () => {
@@ -217,7 +218,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       const data = await res.json();
       
       if (!res.ok) {
-        alert(`활성 상태 변경 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        toast.error(`활성 상태 변경 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
         return;
       }
       
@@ -233,7 +234,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       onUpdateProducts?.(updatedProducts);
       
     } catch (err) {
-      alert('활성 상태 변경 중 오류 발생: ' + err.message);
+      toast.error('활성 상태 변경 중 오류 발생: ' + err.message);
     }
   };
 
@@ -311,7 +312,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.message || `추가 실패 (${res.status})`);
+        toast.error(data.message || `추가 실패 (${res.status})`);
         return;
       }
 
@@ -349,9 +350,9 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
         discountRate: "",
         stock: "",
       });
-      alert("상품이 추가되었습니다.");
+      toast.success("상품이 추가되었습니다.");
     } catch {
-      alert("API 호출 중 오류 발생");
+      toast.error("API 호출 중 오류 발생");
     }
   };
 
@@ -388,11 +389,11 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.message || `삭제 실패 (${res.status})`);
+        toast.error(data.message || `삭제 실패 (${res.status})`);
         return;
       }
     } catch {
-      alert("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
+      toast.error("API 호출 중 오류 발생. 클라이언트 상태만 업데이트됩니다.");
     }
 
     const updatedProducts = products.filter((p) => p.id !== productId);
@@ -402,7 +403,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     
     setProducts(updatedProducts);
     onUpdateProducts?.(updatedProducts);
-    alert("상품이 삭제되었습니다.");
+    toast.error("상품이 삭제되었습니다.");
   };
 
   // ============================================
@@ -428,14 +429,14 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(data.message || `초기화 실패 (${res.status})`);
+        toast.error(data.message || `초기화 실패 (${res.status})`);
         return;
       }
-      alert(data.message || "모든 데이터가 초기화되었습니다.");
+      toast.success(data.message || "모든 데이터가 초기화되었습니다.");
       // 상품·쿠폰 등 전 상태가 시드로 바뀌었으므로 페이지를 새로고침해 깨끗하게 반영
       window.location.reload();
     } catch (e) {
-      alert("초기화 중 오류가 발생했습니다: " + e.message);
+      toast.error("초기화 중 오류가 발생했습니다: " + e.message);
     } finally {
       setIsResetting(false);
     }

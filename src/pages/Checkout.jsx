@@ -212,6 +212,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
           price: Number(buyNowItem.price) || 0,
           imageUrl: buyNowItem.imageUrl || "",
           quantity: Math.max(1, Number(buyNowItem.quantity) || 1),
+          options: buyNowItem.options ?? null,
         },
       ]);
       setIsLoading(false);
@@ -227,6 +228,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
           price: Number(it.price) || 0,
           imageUrl: it.imageUrl || "",
           quantity: Math.max(1, Number(it.quantity) || 1),
+          options: it.options ?? null,
         }))
       );
       setIsLoading(false);
@@ -449,12 +451,14 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
           {
             id: Number(buyNowItem.id),
             quantity: Math.max(1, Number(buyNowItem.quantity) || 1),
+            options: buyNowItem.options ?? null,
           },
         ];
       } else if (Array.isArray(selectedItems) && selectedItems.length) {
         body.items = items.map((it) => ({
           id: Number(it.productId),
           quantity: Math.max(1, Number(it.quantity) || 1),
+          options: it.options ?? null,
         }));
       }
       if (appliedCoupon) {
@@ -496,10 +500,10 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
   // 결제에 사용할 주문 items 계산 (바로구매/선택항목/전체 장바구니)
   const orderItemsPayload = () => {
     if (buyNowItem) {
-      return [{ id: Number(buyNowItem.id), quantity: Math.max(1, Number(buyNowItem.quantity) || 1) }];
+      return [{ id: Number(buyNowItem.id), quantity: Math.max(1, Number(buyNowItem.quantity) || 1), options: buyNowItem.options ?? null }];
     }
     if (Array.isArray(selectedItems) && selectedItems.length) {
-      return items.map((it) => ({ id: Number(it.productId), quantity: Math.max(1, Number(it.quantity) || 1) }));
+      return items.map((it) => ({ id: Number(it.productId), quantity: Math.max(1, Number(it.quantity) || 1), options: it.options ?? null }));
     }
     return null; // null = 서버 장바구니 전체
   };
@@ -1108,6 +1112,15 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
                   />
                   <div className="checkout-item-info">
                     <p className="checkout-item-name">{item.name}</p>
+                    {item.options && (item.options.color || item.options.size) && (
+                      <p
+                        className="checkout-item-options"
+                        data-testid={`checkout-item-options-${item.productId}`}
+                        style={{ margin: "2px 0 0", fontSize: "0.8125rem", color: "#6b7280" }}
+                      >
+                        옵션: {item.options.color || "-"} / {item.options.size || "-"}
+                      </p>
+                    )}
                     <p className="checkout-item-meta">
                       {formatPrice(item.price)}원 · {Number(item.quantity) || 1}개
                     </p>

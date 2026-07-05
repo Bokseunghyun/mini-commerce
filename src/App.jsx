@@ -5,6 +5,9 @@ import ProductDetailPage from './pages/ProductDetail';
 import CartPage from './pages/cart';
 import LoginPage from './pages/login.jsx';
 import SignupPage from './pages/Signup.jsx';
+import Modal from './components/Modal.jsx';
+import ToastHost from './components/ToastHost.jsx';
+import { toast } from './lib/toast.js';
 import CheckoutPage from './pages/Checkout.jsx';
 import OrderCompletePage from "./pages/OrderComplete.jsx";
 import OrderHistoryPage from './pages/OrderHistory.jsx';
@@ -39,6 +42,8 @@ function getPageFromPath(path) {
 export default function App() {
   // URL 기반 라우팅: 초기 진입 URL에 맞는 페이지로 시작 (딥링크 지원)
   const [page, setPage] = useState(() => getPageFromPath(window.location.pathname));
+  // 로그인/회원가입은 페이지 이동 없이 모달로 띄운다 (null | 'login' | 'signup')
+  const [authModal, setAuthModal] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [products, setProducts] = useState([]);
   // 서버 장바구니 (GET /api/user-actions?type=cart 의 items:
@@ -80,7 +85,7 @@ export default function App() {
         setPage('home');
       }
     } else {
-      setPage(getPageFromPath(path));
+      applyPage(getPageFromPath(path));
     }
     // 최초 마운트 시 1회만 실행 (viewProduct는 의존성에서 의도적으로 제외)
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -101,7 +106,7 @@ export default function App() {
           }
         }
       } else {
-        setPage(getPageFromPath(path));
+        applyPage(getPageFromPath(path));
       }
     };
 
@@ -145,8 +150,8 @@ export default function App() {
   // 로그인 필요 페이지 이동 (미로그인 시 로그인 페이지 이동 confirm)
   const goWithLoginCheck = (targetPage) => {
     if (!isLoggedIn()) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-        setPage('login');
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
+        openLogin();
       }
       return;
     }
@@ -206,9 +211,9 @@ export default function App() {
       sessionStorage.setItem("token", result.data.token || "");
       sessionStorage.setItem("role", result.data.user?.role || "");
       sessionStorage.setItem("username", result.data.user?.username || "");
-      // 로그인 성공 시 서버 장바구니 동기화
+      // 로그인 성공 시 서버 장바구니 동기화 후 모달만 닫는다 (현재 페이지 유지)
       fetchCart();
-      setPage("home");
+      setAuthModal(null);
     } catch {
       setLoginError("로그인 중 오류 발생");
     } finally {
@@ -284,7 +289,7 @@ export default function App() {
       if (!res.ok) {
         const msg = data.message || '상품 조회 실패';
         const code = data.code ? ` (${data.code})` : '';
-        alert(`${res.status}${code}\n${msg}`);
+        toast.error(`${res.status}${code}\n${msg}`);
 
         setSelectedProduct(null);
         return;
@@ -294,7 +299,7 @@ export default function App() {
       setSelectedProduct(product);
       setPage('productDetail');
     } catch (e) {
-      alert(e?.message || '알 수 없는 오류');
+      toast.error(e?.message || '알 수 없는 오류');
       setSelectedProduct(null);
     }
   };
@@ -304,10 +309,10 @@ export default function App() {
   };
 
   // 장바구니 담기: 서버 장바구니에 수량 누적 (cart_add)
-  const addToCart = async (product, qty = 1, showAlert = true) => {
+  const addToCart = async (product, qty = 1, showAlert = true, options = null) => {
     if (!isLoggedIn()) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-        setPage('login');
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
+        openLogin();
       }
       return;
     }
@@ -325,13 +330,13 @@ export default function App() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token || ''}`,
         },
-        body: JSON.stringify({ action: 'cart_add', productId, quantity }),
+        body: JSON.stringify({ action: 'cart_add', productId, quantity, ...(options ? { options } : {}) }),
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.message || `장바구니 추가 실패 (status=${res.status})`);
+        toast.error(data.message || `장바구니 추가 실패 (status=${res.status})`);
         return;
       }
 
@@ -342,10 +347,10 @@ export default function App() {
       }
 
       if (showAlert) {
-        alert('장바구니에 상품이 추가되었습니다.');
+        toast.success('장바구니에 상품이 추가되었습니다.');
       }
     } catch {
-      alert('장바구니 추가 중 오류 발생');
+      toast.error('장바구니 추가 중 오류 발생');
     }
   };
 
@@ -369,7 +374,7 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.message || `수량 변경 실패 (status=${res.status})`);
+        toast.error(data.message || `수량 변경 실패 (status=${res.status})`);
         return;
       }
 
@@ -379,7 +384,7 @@ export default function App() {
         await fetchCart();
       }
     } catch {
-      alert('수량 변경 중 오류 발생');
+      toast.error('수량 변경 중 오류 발생');
     }
   };
 
@@ -399,7 +404,7 @@ export default function App() {
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        alert(data.message || `삭제 실패 (status=${res.status})`);
+        toast.error(data.message || `삭제 실패 (status=${res.status})`);
         // 서버에 이미 없는 항목(404)이면 재조회로 동기화
         if (res.status === 404) await fetchCart();
         return;
@@ -411,17 +416,17 @@ export default function App() {
         await fetchCart();
       }
     } catch {
-      alert('삭제 중 오류 발생');
+      toast.error('삭제 중 오류 발생');
     }
   };
 
   const cartCount = cart.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
 
   // 바로구매: 결제 페이지로 이동 (실제 주문 생성은 결제 페이지에서 수행)
-  const buyNow = (product, quantity = 1) => {
+  const buyNow = (product, quantity = 1, options = null) => {
     if (!isLoggedIn()) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
-        setPage('login');
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
+        openLogin();
       }
       return;
     }
@@ -435,6 +440,7 @@ export default function App() {
       price: p.price,
       imageUrl: p.imageUrl || (Array.isArray(p.images) ? p.images[0] : '') || '',
       quantity: Math.max(1, Number(quantity) || 1),
+      options: options || null,
     });
     setPage('checkout');
   };
@@ -462,6 +468,17 @@ export default function App() {
     goWithLoginCheck('products');
   };
 
+  // 로그인/회원가입 모달 열고 닫기 (페이지 이동 없음)
+  const openLogin = () => { setLoginError(""); setAuthModal('login'); };
+  const openSignup = () => setAuthModal('signup');
+  const closeAuth = () => setAuthModal(null);
+
+  // getPageFromPath 결과 반영 — 단, login/signup 은 페이지가 아니라 모달로 연다
+  const applyPage = (p) => {
+    if (p === 'login' || p === 'signup') { setPage('home'); setAuthModal(p); }
+    else setPage(p);
+  };
+
   // 서브 페이지 전역 공통 헤더 (홈/로그인/회원가입 제외한 모든 페이지 상단에 렌더)
   const siteHeader = (
     <SiteHeader
@@ -473,8 +490,8 @@ export default function App() {
       onGoProfile={() => goWithLoginCheck('profile')}
       onGoTracking={() => setPage('tracking')}
       onGoAdmin={() => setPage('admin')}
-      onGoLogin={() => setPage('login')}
-      onGoSignup={() => setPage('signup')}
+      onGoLogin={() => openLogin()}
+      onGoSignup={() => openSignup()}
       onLogout={handleLogout}
       isLoggedIn={isLoggedIn()}
       role={sessionStorage.getItem('role') || ''}
@@ -483,6 +500,7 @@ export default function App() {
     />
   );
 
+  const renderPage = () => {
   if (page === 'home') {
     return (
       <HomePage
@@ -493,8 +511,8 @@ export default function App() {
         onGoCart={() => goWithLoginCheck('cart')}
         onGoHome={() => setPage('home')}
         onLogout={handleLogout}
-        onLogin={() => setPage('login')}
-        onGoSignup={() => setPage('signup')}
+        onLogin={() => openLogin()}
+        onGoSignup={() => openSignup()}
         onGoWishlist={() => goWithLoginCheck('wishlist')}
         onGoOrders={() => goWithLoginCheck('orders')}
         onGoProducts={handleGoToProducts}
@@ -504,27 +522,6 @@ export default function App() {
         isLoggedIn={isLoggedIn()}
         userRole={sessionStorage.getItem('role') || ''}
         username={sessionStorage.getItem('username') || ''}
-      />
-    );
-  }
-
-  if (page === "login") {
-    return (
-      <LoginPage
-        onLogin={handleLogin}
-        isLoading={isLoading}
-        errorMessage={loginError}
-        onBack={() => setPage('home')}
-      />
-    );
-  }
-
-  if (page === 'signup') {
-    return (
-      <SignupPage
-        apiBase={API_BASE}
-        onSignupSuccess={() => setPage('login')}
-        onBack={() => setPage('home')}
       />
     );
   }
@@ -591,10 +588,10 @@ export default function App() {
           cartCount={cartCount}
           onBack={() => setPage("home")}
           onGoCart={() => goWithLoginCheck('cart')}
-          onAddToCart={(qty) => {
-            addToCart(selectedProduct, qty);
+          onAddToCart={(qty, options) => {
+            addToCart(selectedProduct, qty, true, options);
           }}
-          onBuyNow={(qty) => buyNow(selectedProduct, qty)}
+          onBuyNow={(qty, options) => buyNow(selectedProduct, qty, options)}
           isLoggedIn={isLoggedIn()}
         />
       </>
@@ -609,7 +606,15 @@ export default function App() {
           cartItems={cart}
           onIncrease={(productId) => {
             const item = cart.find((x) => Number(x.productId) === Number(productId));
-            if (item) updateCartQuantity(productId, (Number(item.quantity) || 1) + 1);
+            if (!item) return;
+            const stock = Number(item.stock);
+            const current = Number(item.quantity) || 1;
+            // 재고 상한까지만 증가 (재고 정보가 있을 때)
+            if (Number.isFinite(stock) && stock > 0 && current >= stock) {
+              toast.error(`재고가 ${stock}개까지만 담을 수 있습니다.`);
+              return;
+            }
+            updateCartQuantity(productId, current + 1);
           }}
           onDecrease={(productId) => {
             const item = cart.find((x) => Number(x.productId) === Number(productId));
@@ -771,4 +776,73 @@ export default function App() {
   // 알 수 없는 page 상태 방어: 홈으로 리다이렉트 (undefined 렌더 방지)
   setPage('home');
   return null;
+  }; // end renderPage
+
+  return (
+    <>
+      {renderPage()}
+
+      <ToastHost />
+
+      {authModal === 'login' && (
+        <Modal open onClose={closeAuth} title="로그인" testid="login-modal">
+          <LoginPage
+            embedded
+            onLogin={handleLogin}
+            isLoading={isLoading}
+            errorMessage={loginError}
+          />
+          <div style={authSwitchStyle}>
+            계정이 없으신가요?{' '}
+            <button
+              type="button"
+              onClick={openSignup}
+              data-testid="switch-to-signup"
+              style={authSwitchBtnStyle}
+            >
+              회원가입
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {authModal === 'signup' && (
+        <Modal open onClose={closeAuth} title="회원가입" testid="signup-modal">
+          <SignupPage
+            embedded
+            apiBase={API_BASE}
+            onSignupSuccess={openLogin}
+          />
+          <div style={authSwitchStyle}>
+            이미 계정이 있으신가요?{' '}
+            <button
+              type="button"
+              onClick={openLogin}
+              data-testid="switch-to-login"
+              style={authSwitchBtnStyle}
+            >
+              로그인
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
 }
+
+// 모달 하단 로그인 ↔ 회원가입 전환 링크 스타일
+const authSwitchStyle = {
+  textAlign: 'center',
+  marginTop: '16px',
+  fontSize: '14px',
+  color: '#6b7280',
+};
+const authSwitchBtnStyle = {
+  background: 'none',
+  border: 'none',
+  color: '#2563eb',
+  fontWeight: 600,
+  cursor: 'pointer',
+  padding: 0,
+  fontSize: '14px',
+};

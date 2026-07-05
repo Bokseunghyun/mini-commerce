@@ -142,6 +142,12 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TIMESTAMPTZ DEFAULT now()
 );
 
+-- 상품 옵션(색상/사이즈 등) 영속화 — 장바구니/주문항목에 선택 옵션 저장 (데이터 정합성 테스트용)
+ALTER TABLE carts ADD COLUMN IF NOT EXISTS options JSONB;
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS options JSONB;
+-- 주문항목 부분취소 상태 (실제 부분취소: 항목 단위 취소 플래그)
+ALTER TABLE order_items ADD COLUMN IF NOT EXISTS canceled BOOLEAN NOT NULL DEFAULT false;
+
 -- 사용자 보유 쿠폰 (사용자가 등록한 쿠폰 + 사용 여부)
 -- code 는 coupons.code(대문자)를 참조하는 논리적 FK (제약은 걸지 않음 — 비파괴/유연성)
 CREATE TABLE IF NOT EXISTS user_coupons (

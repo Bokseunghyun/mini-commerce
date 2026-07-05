@@ -123,6 +123,15 @@ function CartItem({ item, onIncrease, onDecrease, onRemove, isSelected, onSelect
 
       <div className="cart-item-info">
         <h3 className="cart-item-name">{item.name}</h3>
+        {item.options && (item.options.color || item.options.size) && (
+          <p
+            className="cart-item-options"
+            data-testid={`cart-item-options-${item.productId}`}
+            style={{ margin: "2px 0", fontSize: "0.8125rem", color: "#6b7280" }}
+          >
+            옵션: {item.options.color || "-"} / {item.options.size || "-"}
+          </p>
+        )}
         <p className="cart-item-price">{formatPrice(price)}원</p>
         {isSoldOut && (
           <p

@@ -110,9 +110,16 @@ async function handleCartAdd(req, res, user) {
     });
   }
 
+  // 선택 옵션(색상/사이즈 등) — 객체면 저장, 아니면 미지정(기존 옵션 유지)
+  const rawOptions = body.options;
+  const options =
+    rawOptions && typeof rawOptions === 'object' && !Array.isArray(rawOptions)
+      ? rawOptions
+      : undefined;
+
   const current = await getCart(user.username);
   const existing = current.find((it) => it.productId === pid);
-  await upsertCartItem(user.username, pid, (existing?.quantity ?? 0) + quantity);
+  await upsertCartItem(user.username, pid, (existing?.quantity ?? 0) + quantity, options);
 
   return res.status(200).json({
     message: '장바구니에 추가되었습니다',
@@ -257,11 +264,14 @@ async function handleOrder(req, res, user) {
           code: 'INVALID_QUANTITY',
         });
       }
-      requested.push({ id, quantity });
+      const rawOpts = raw?.options;
+      const options =
+        rawOpts && typeof rawOpts === 'object' && !Array.isArray(rawOpts) ? rawOpts : null;
+      requested.push({ id, quantity, options });
     }
   } else {
     const cart = await getCart(user.username);
-    requested = cart.map((it) => ({ id: it.productId, quantity: it.quantity }));
+    requested = cart.map((it) => ({ id: it.productId, quantity: it.quantity, options: it.options ?? null }));
   }
 
   if (requested.length === 0) {
@@ -286,6 +296,7 @@ async function handleOrder(req, res, user) {
       name: product.name,
       price: product.price,
       quantity: it.quantity,
+      options: it.options ?? null,
     });
   }
 

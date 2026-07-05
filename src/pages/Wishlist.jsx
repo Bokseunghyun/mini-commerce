@@ -129,7 +129,14 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
       style={styles.page}
       data-testid="wishlist-page"
     >
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* 모바일: 카드 내 액션 버튼을 전체폭 2등분으로 (우측 여백 채움) */
+        @media (max-width: 640px) {
+          .wishlist-item-actions { width: 100%; gap: 8px; }
+          .wishlist-item-actions .btn { flex: 1; }
+        }
+      `}</style>
 
       <main style={styles.container} className="wishlist-container">
         {isLoading ? (

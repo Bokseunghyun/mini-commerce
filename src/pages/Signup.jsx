@@ -39,7 +39,7 @@ function validateEmail(value) {
   return "";
 }
 
-export default function SignupPage({ apiBase, onSignupSuccess, onBack }) {
+export default function SignupPage({ apiBase, onSignupSuccess, onBack, embedded = false }) {
   const API_BASE = apiBase || "";
 
   const [username, setUsername] = useState("");
@@ -175,15 +175,19 @@ export default function SignupPage({ apiBase, onSignupSuccess, onBack }) {
       : styles.checkResultBad;
 
   return (
-    <div id="signup-page" className="signup-page" style={styles.page} data-testid="signup-page">
+    <div id="signup-page" className="signup-page" style={embedded ? styles.pageEmbedded : styles.page} data-testid="signup-page">
       <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-      <div className="signup-card" style={styles.card} data-testid="signup-card">
-        <h1 id="signup-title" className="signup-title" style={styles.title} data-testid="signup-title">
-          회원가입
-        </h1>
-        <p style={styles.subtitle} className="signup-subtitle">
-          ShopDemo 회원이 되어 다양한 혜택을 만나보세요
-        </p>
+      <div className="signup-card" style={embedded ? styles.cardEmbedded : styles.card} data-testid="signup-card">
+        {!embedded && (
+          <h1 id="signup-title" className="signup-title" style={styles.title} data-testid="signup-title">
+            회원가입
+          </h1>
+        )}
+        {!embedded && (
+          <p style={styles.subtitle} className="signup-subtitle">
+            ShopDemo 회원이 되어 다양한 혜택을 만나보세요
+          </p>
+        )}
 
         <form
           id="signup-form"
@@ -428,17 +432,19 @@ export default function SignupPage({ apiBase, onSignupSuccess, onBack }) {
             )}
           </button>
 
-          <button
-            type="button"
-            id="signup-back"
-            className="btn btn-secondary signup-back-button"
-            aria-label="뒤로 가기"
-            onClick={onBack}
-            style={styles.backButton}
-            data-testid="signup-back"
-          >
-            뒤로
-          </button>
+          {!embedded && (
+            <button
+              type="button"
+              id="signup-back"
+              className="btn btn-secondary signup-back-button"
+              aria-label="뒤로 가기"
+              onClick={onBack}
+              style={styles.backButton}
+              data-testid="signup-back"
+            >
+              뒤로
+            </button>
+          )}
         </form>
       </div>
     </div>
@@ -463,6 +469,9 @@ const styles = {
     maxWidth: "560px",
     minWidth: "320px",
   },
+  // 모달(embedded) 모드: 페이지/카드 크롬 제거 — Modal 패널이 카드 역할
+  pageEmbedded: { display: "block", padding: 0, minHeight: 0, backgroundColor: "transparent" },
+  cardEmbedded: { backgroundColor: "transparent", boxShadow: "none", borderRadius: 0, padding: 0, width: "100%", maxWidth: "100%", minWidth: 0 },
   title: {
     fontSize: "28px",
     fontWeight: "700",

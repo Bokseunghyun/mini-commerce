@@ -99,6 +99,7 @@ function mapCartItem(row) {
     price: row.price ?? undefined,
     imageUrl: row.image_url ?? undefined,
     stock: row.stock ?? undefined,
+    options: row.options ?? null,
     updatedAt: toIso(row.updated_at),
   };
 }
@@ -131,6 +132,8 @@ function mapOrderItem(row) {
     name: row.name,
     price: row.price,
     quantity: row.quantity,
+    options: row.options ?? null,
+    canceled: row.canceled ?? false,
   };
 }
 
@@ -484,7 +487,7 @@ export async function removeWish(username, productId) {
 
 export async function getCart(username) {
   const { rows } = await query(
-    `SELECT c.username, c.product_id, c.quantity, c.updated_at,
+    `SELECT c.username, c.product_id, c.quantity, c.options, c.updated_at,
             p.name, p.price, p.image_url, p.stock
        FROM carts c
        LEFT JOIN products p ON p.id = c.product_id
@@ -496,7 +499,8 @@ export async function getCart(username) {
 }
 
 // 수량 절대값 설정 (기존 항목이 있으면 덮어씀). quantity <= 0 이면 항목 삭제.
-export async function upsertCartItem(username, productId, quantity) {
+// options(색상/사이즈 등)를 넘기면 저장한다. undefined면 기존 옵션 유지(COALESCE).
+export async function upsertCartItem(username, productId, quantity, options) {
   const qty = Number(quantity);
   if (!Number.isFinite(qty) || qty <= 0) {
     await query(
@@ -505,13 +509,16 @@ export async function upsertCartItem(username, productId, quantity) {
     );
     return null;
   }
+  const opts = options === undefined || options === null ? null : JSON.stringify(options);
   const { rows } = await query(
-    `INSERT INTO carts (username, product_id, quantity, updated_at)
-     VALUES ($1, $2, $3, now())
+    `INSERT INTO carts (username, product_id, quantity, options, updated_at)
+     VALUES ($1, $2, $3, $4, now())
      ON CONFLICT (username, product_id)
-     DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = now()
+     DO UPDATE SET quantity = EXCLUDED.quantity,
+                   options = COALESCE(EXCLUDED.options, carts.options),
+                   updated_at = now()
      RETURNING *`,
-    [username, productId, qty]
+    [username, productId, qty, opts]
   );
   return mapCartItem(rows[0]);
 }
@@ -606,6 +613,7 @@ export async function createOrder({
         name: item.name ?? product.name,
         price: item.price ?? product.price,
         quantity,
+        options: item.options ?? null,
       });
     }
 
@@ -633,10 +641,10 @@ export async function createOrder({
     const insertedItems = [];
     for (const oi of orderItems) {
       const { rows } = await client.query(
-        `INSERT INTO order_items (order_id, product_id, name, price, quantity)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO order_items (order_id, product_id, name, price, quantity, options)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING *`,
-        [orderId, oi.productId, oi.name, oi.price, oi.quantity]
+        [orderId, oi.productId, oi.name, oi.price, oi.quantity, oi.options ? JSON.stringify(oi.options) : null]
       );
       insertedItems.push(rows[0]);
     }
@@ -674,7 +682,9 @@ export async function listOrders(username, { all = false } = {}) {
                   'productId', oi.product_id,
                   'name', oi.name,
                   'price', oi.price,
-                  'quantity', oi.quantity
+                  'quantity', oi.quantity,
+                  'options', oi.options,
+                  'canceled', oi.canceled
                 )
               ) FILTER (WHERE oi.order_id IS NOT NULL),
               '[]'
@@ -784,6 +794,126 @@ export async function cancelOrder(orderId, username, { isAdmin = false } = {}) {
 
     await client.query('COMMIT');
     return { ...mapOrder(updated.rows[0]), paymentCanceled };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * 주문 부분취소 — 선택 항목만 취소 (단일 트랜잭션):
+ *  - 본인 주문만(관리자 예외). PAID/PREPARING 만 가능.
+ *  - 선택한 (아직 취소되지 않은) 항목을 canceled=true 로 표시 + 재고 원복.
+ *  - 환불 결제 기록 생성(method 'REFUND-PARTIAL'|'REFUND-FULL', amount 음수, status DONE).
+ *  - 모든 항목이 취소되면 주문 상태 CANCELED + 원결제 CANCELED.
+ * 반환: { order, items, refundedAmount, allCanceled } | null(없음/타인)
+ */
+export async function cancelOrderItems(orderId, username, productIds, { isAdmin = false } = {}) {
+  const client = await getClient();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: orderRows } = await client.query(
+      'SELECT * FROM orders WHERE id = $1 FOR UPDATE',
+      [orderId]
+    );
+    const order = orderRows[0];
+    if (!order || (!isAdmin && order.username !== username)) {
+      await client.query('ROLLBACK');
+      return null;
+    }
+    if (order.status === 'CANCELED') {
+      const err = new Error('이미 취소된 주문입니다');
+      err.code = 'ALREADY_CANCELED';
+      throw err;
+    }
+    if (order.status !== 'PAID' && order.status !== 'PREPARING') {
+      const err = new Error('취소할 수 없는 주문 상태입니다 (배송 준비 이후에는 부분취소 불가)');
+      err.code = 'CANCEL_NOT_ALLOWED';
+      throw err;
+    }
+
+    const { rows: allItems } = await client.query(
+      'SELECT * FROM order_items WHERE order_id = $1',
+      [orderId]
+    );
+    const idSet = new Set((Array.isArray(productIds) ? productIds : []).map(Number));
+    const toCancel = allItems.filter(
+      (it) => idSet.has(Number(it.product_id)) && !it.canceled
+    );
+    if (toCancel.length === 0) {
+      const err = new Error('취소할 항목이 없습니다');
+      err.code = 'NO_ITEMS_TO_CANCEL';
+      throw err;
+    }
+
+    // 항목 취소 + 재고 원복
+    let refundedAmount = 0;
+    for (const it of toCancel) {
+      await client.query(
+        'UPDATE order_items SET canceled = true WHERE order_id = $1 AND product_id = $2',
+        [orderId, it.product_id]
+      );
+      await client.query(
+        'UPDATE products SET stock = stock + $1 WHERE id = $2',
+        [it.quantity, it.product_id]
+      );
+      refundedAmount += (Number(it.price) || 0) * (Number(it.quantity) || 0);
+    }
+
+    // 남은(취소 안 된) 항목 개수 → 전체 취소 여부
+    const { rows: remainRows } = await client.query(
+      'SELECT COUNT(*)::int AS n FROM order_items WHERE order_id = $1 AND canceled = false',
+      [orderId]
+    );
+    const allCanceled = (remainRows[0]?.n ?? 0) === 0;
+
+    // 환불 결제 기록 (음수 금액 = 환불). 실 PG 환불 API 대신 레코드로 시뮬레이션.
+    const refundId = `REFUND-${orderId}-${Date.now()}`;
+    await client.query(
+      `INSERT INTO payments (id, order_id, username, method, card_last4, amount, status, fault)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        refundId,
+        orderId,
+        order.username,
+        allCanceled ? 'REFUND-FULL' : 'REFUND-PARTIAL',
+        '',
+        -refundedAmount,
+        'DONE',
+        null,
+      ]
+    );
+
+    // 전체 취소면 주문 상태 CANCELED + 원결제 취소
+    if (allCanceled) {
+      await client.query(`UPDATE orders SET status = 'CANCELED' WHERE id = $1`, [orderId]);
+      if (order.payment_key) {
+        await client.query(
+          `UPDATE payments SET status = 'CANCELED' WHERE id = $1 AND status <> 'CANCELED'`,
+          [order.payment_key]
+        );
+      }
+    }
+
+    const { rows: updatedOrderRows } = await client.query(
+      'SELECT * FROM orders WHERE id = $1',
+      [orderId]
+    );
+    const { rows: updatedItems } = await client.query(
+      'SELECT * FROM order_items WHERE order_id = $1',
+      [orderId]
+    );
+
+    await client.query('COMMIT');
+    return {
+      order: mapOrder(updatedOrderRows[0]),
+      items: updatedItems.map(mapOrderItem),
+      refundedAmount,
+      allCanceled,
+    };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;

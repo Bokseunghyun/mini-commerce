@@ -2,8 +2,13 @@
 
 import React, { useMemo, useState } from "react";
 import ImageUpload from "../components/ImageUpload";
+import { toast } from "../lib/toast.js";
 
 const MAX_REVIEW_IMAGES = 3;
+
+// 상품 옵션 (데모용 표준 옵션 — 담기/구매 전 필수 선택)
+const COLOR_OPTIONS = ["블랙", "화이트", "네이비"];
+const SIZE_OPTIONS = ["S", "M", "L", "XL"];
 
 // ============================================
 // 가격 포맷
@@ -99,6 +104,9 @@ export default function ProductDetailPage({
   isLoggedIn = false,
 }) {
   const [quantity, setQuantity] = useState(1);
+  // 상품 옵션 선택 (색상/사이즈) — 담기/구매 전 필수
+  const [selectedColor, setSelectedColor] = useState("");
+  const [selectedSize, setSelectedSize] = useState("");
   const [stockInfo, setStockInfo] = useState(null);
   const [loadingStock, setLoadingStock] = useState(true);
 
@@ -238,6 +246,8 @@ export default function ProductDetailPage({
     : stockState === "low"
       ? `품절임박 · 재고 ${stockCount}개`
       : "재고 충분";
+  // 수량 최대치 = 재고 (live 재고 우선, 없으면 product.stock). 최소 1.
+  const maxQty = Math.max(1, Number(stockInfo?.stock ?? stockCount) || 1);
 
   // 스펙 / 태그 / 상세 (없어도 크래시 X)
   const specEntries = useMemo(() => Object.entries(safeProduct.specs || {}), [safeProduct]);
@@ -261,17 +271,28 @@ export default function ProductDetailPage({
     setQuantity((q) => Math.max(1, (Number(q) || 1) - 1));
   };
   const handleQuantityIncrease = () => {
-    setQuantity((q) => Math.min(99, (Number(q) || 1) + 1));
+    setQuantity((q) => Math.min(maxQty, (Number(q) || 1) + 1));
+  };
+
+  // 옵션 선택 검증 (색상/사이즈 필수). 미선택 시 토스트 후 중단.
+  const validateOptions = () => {
+    if (!selectedColor || !selectedSize) {
+      toast.error("색상과 사이즈를 선택해주세요.");
+      return false;
+    }
+    return true;
   };
 
   const handleAddToCart = () => {
+    if (!validateOptions()) return;
     const qty = Math.max(1, Number(quantity) || 1);
-    onAddToCart?.(qty); // 여기서 페이지 이동 안함
+    onAddToCart?.(qty, { color: selectedColor, size: selectedSize }); // 여기서 페이지 이동 안함
   };
 
   const handleBuyNow = () => {
+    if (!validateOptions()) return;
     const qty = Math.max(1, Number(quantity) || 1);
-    onBuyNow?.(qty);
+    onBuyNow?.(qty, { color: selectedColor, size: selectedSize });
   };
 
   // 리뷰 이미지 업로드 성공 시 url 누적 (최대 3장)
@@ -337,7 +358,7 @@ export default function ProductDetailPage({
   // 리뷰 수정 제출
   const handleUpdateReview = async () => {
     if (editReviewComment.trim().length < 10) {
-      alert('리뷰는 최소 10자 이상 작성해주세요.');
+      toast.error('리뷰는 최소 10자 이상 작성해주세요.');
       return;
     }
 
@@ -359,17 +380,17 @@ export default function ProductDetailPage({
       const data = await res.json();
 
       if (!res.ok) {
-        alert(`리뷰 수정 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        toast.error(`리뷰 수정 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
         return;
       }
 
-      alert('리뷰가 수정되었습니다.');
+      toast.success('리뷰가 수정되었습니다.');
       setEditingReviewId(null);
       setEditReviewRating(5);
       setEditReviewComment('');
       setReviewsVersion((v) => v + 1);
     } catch (err) {
-      alert('리뷰 수정 중 오류가 발생했습니다: ' + err.message);
+      toast.error('리뷰 수정 중 오류가 발생했습니다: ' + err.message);
     }
   };
 
@@ -391,14 +412,14 @@ export default function ProductDetailPage({
       const data = await res.json();
 
       if (!res.ok) {
-        alert(`리뷰 삭제 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
+        toast.error(`리뷰 삭제 실패\n상태 코드: ${res.status}\n메시지: ${data.message || '알 수 없는 오류'}`);
         return;
       }
 
-      alert('리뷰가 삭제되었습니다.');
+      toast.success('리뷰가 삭제되었습니다.');
       setReviewsVersion((v) => v + 1);
     } catch (err) {
-      alert('리뷰 삭제 중 오류가 발생했습니다: ' + err.message);
+      toast.error('리뷰 삭제 중 오류가 발생했습니다: ' + err.message);
     }
   };
 
@@ -939,6 +960,57 @@ export default function ProductDetailPage({
                 )}
               </div>
 
+              {/* 옵션 선택 (색상/사이즈) — 담기/구매 전 필수 */}
+              <div
+                className="option-section"
+                data-testid="product-options"
+                role="group"
+                aria-label="옵션 선택"
+                style={{ display: "flex", flexDirection: "column", gap: "12px", padding: "16px 0" }}
+              >
+                {[
+                  { key: "color", label: "색상", opts: COLOR_OPTIONS, sel: selectedColor, set: setSelectedColor },
+                  { key: "size", label: "사이즈", opts: SIZE_OPTIONS, sel: selectedSize, set: setSelectedSize },
+                ].map((grp) => (
+                  <div key={grp.key} style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "#374151", minWidth: "48px" }}>
+                      {grp.label} <span style={{ color: "#dc2626" }}>*</span>
+                    </span>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      {grp.opts.map((o) => {
+                        const active = grp.sel === o;
+                        return (
+                          <button
+                            key={o}
+                            type="button"
+                            data-testid={`option-${grp.key}-${o}`}
+                            aria-pressed={active}
+                            onClick={() => grp.set(o)}
+                            style={{
+                              padding: "8px 14px",
+                              fontSize: "0.875rem",
+                              borderRadius: "8px",
+                              cursor: "pointer",
+                              border: active ? "1px solid #1a1a1a" : "1px solid #d1d5db",
+                              backgroundColor: active ? "#1a1a1a" : "#ffffff",
+                              color: active ? "#ffffff" : "#374151",
+                              fontWeight: active ? 700 : 500,
+                            }}
+                          >
+                            {o}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+                {(selectedColor || selectedSize) && (
+                  <p data-testid="option-selected" style={{ margin: 0, fontSize: "0.8125rem", color: "#6b7280" }}>
+                    선택: {selectedColor || "—"} / {selectedSize || "—"}
+                  </p>
+                )}
+              </div>
+
               <div className="quantity-section" role="group" aria-label="수량 선택">
                 <span className="quantity-label">수량</span>
                 <div className="quantity-controls">
@@ -946,7 +1018,7 @@ export default function ProductDetailPage({
                     <MinusIcon className="quantity-btn-icon" />
                   </button>
                   <span className="quantity-value" aria-live="polite" aria-atomic="true">{quantity}</span>
-                  <button className="quantity-btn" onClick={handleQuantityIncrease} disabled={quantity >= 99} aria-label="수량 증가">
+                  <button className="quantity-btn" onClick={handleQuantityIncrease} disabled={quantity >= maxQty || isSoldOut} aria-label="수량 증가">
                     <PlusIcon className="quantity-btn-icon" />
                   </button>
                 </div>

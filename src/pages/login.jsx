@@ -9,7 +9,7 @@ import { useState } from "react";
  * - 더 많은 validation 케이스
  * - 접근성 개선
  */
-export default function LoginPage({ onLogin, onBack, isLoading = false, errorMessage = "" }) {
+export default function LoginPage({ onLogin, onBack, isLoading = false, errorMessage = "", embedded = false }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState("");
@@ -111,11 +111,13 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
     !!passwordError;
 
   return (
-    <div className="login-page" style={styles.page} data-testid="login-page">
-      <div className="login-card" style={styles.card} data-testid="login-card">
-        <h1 className="login-title" style={styles.title} data-testid="login-title">
-          로그인
-        </h1>
+    <div className="login-page" style={embedded ? styles.pageEmbedded : styles.page} data-testid="login-page">
+      <div className="login-card" style={embedded ? styles.cardEmbedded : styles.card} data-testid="login-card">
+        {!embedded && (
+          <h1 className="login-title" style={styles.title} data-testid="login-title">
+            로그인
+          </h1>
+        )}
 
         <form
           className="login-form"
@@ -235,8 +237,8 @@ export default function LoginPage({ onLogin, onBack, isLoading = false, errorMes
             )}
           </button>
 
-          {/* 홈으로 돌아가기 버튼 */}
-          {onBack && (
+          {/* 홈으로 돌아가기 버튼 (모달 embedded 모드에서는 숨김 — 모달 닫기 사용) */}
+          {onBack && !embedded && (
             <button
               type="button"
               id="back-to-home"
@@ -294,6 +296,9 @@ const styles = {
     maxWidth: "640px",
     minWidth: "320px",
   },
+  // 모달(embedded) 모드: 페이지/카드 크롬 제거 — Modal 패널이 카드 역할을 한다
+  pageEmbedded: { display: "block", padding: 0, minHeight: 0, backgroundColor: "transparent" },
+  cardEmbedded: { backgroundColor: "transparent", boxShadow: "none", borderRadius: 0, padding: 0, width: "100%", maxWidth: "100%", minWidth: 0 },
   title: {
     fontSize: "28px",
     fontWeight: "700",

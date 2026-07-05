@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import QAGuide from "./QAGuide.jsx";
 import UserMenu from "../components/UserMenu.jsx";
+import { toast } from "../lib/toast.js";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -56,6 +57,10 @@ export default function HomePage({
   const [appliedKeyword, setAppliedKeyword] = useState("");
   const [activeCategory, setActiveCategory] = useState("전체");
   const [sortBy, setSortBy] = useState("default");
+  // 추가 필터: 최대가격 슬라이더 / 할인상품만 / 재고있음만
+  const [maxPrice, setMaxPrice] = useState(null); // null = 제한 없음
+  const [onSaleOnly, setOnSaleOnly] = useState(false);
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [showQAGuide, setShowQAGuide] = useState(false);
   const [wishlistIds, setWishlistIds] = useState(() => new Set());
 
@@ -90,7 +95,7 @@ export default function HomePage({
   const handleWishlistToggle = async (product) => {
     const token = sessionStorage.getItem('token');
     if (!token) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
         onLogin?.();
       }
       return;
@@ -124,11 +129,11 @@ export default function HomePage({
           return next;
         });
       } else {
-        alert(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
+        toast.error(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
       }
     } catch (err) {
       console.error('Wishlist toggle error:', err);
-      alert('위시리스트 처리 중 오류가 발생했습니다.');
+      toast.error('위시리스트 처리 중 오류가 발생했습니다.');
     }
   };
 
@@ -164,9 +169,24 @@ export default function HomePage({
   });
 
   // ============================================
+  // 가격/할인/재고 필터
+  // ============================================
+  const priceCeiling = filteredBySearch.reduce(
+    (m, p) => Math.max(m, Number(p.price) || 0),
+    0
+  );
+  const effectiveMax = maxPrice == null ? priceCeiling : maxPrice;
+  const filteredByOptions = filteredByCategory.filter((product) => {
+    if (priceCeiling > 0 && (Number(product.price) || 0) > effectiveMax) return false;
+    if (onSaleOnly && !((Number(product.discountRate) || 0) > 0)) return false;
+    if (inStockOnly && !((Number(product.stock) || 0) > 0)) return false;
+    return true;
+  });
+
+  // ============================================
   // 정렬
   // ============================================
-  const sortedProducts = [...filteredByCategory].sort((a, b) => {
+  const sortedProducts = [...filteredByOptions].sort((a, b) => {
     switch (sortBy) {
       case "price-asc":
         return (a.price || 0) - (b.price || 0);
@@ -198,10 +218,10 @@ export default function HomePage({
         const res = await fetch(`${API_BASE}/api/search?q=`);
         const data = await res.json();
         if (!res.ok) {
-          alert(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '검색 실패'}\n코드: ${data.code || ''}`);
+          toast.error(`API 오류 발생!\n상태 코드: ${res.status}\n메시지: ${data.message || '검색 실패'}\n코드: ${data.code || ''}`);
         }
       } catch (err) {
-        alert('네트워크 오류: ' + err.message);
+        toast.error('네트워크 오류: ' + err.message);
       }
       return;
     }
@@ -211,7 +231,7 @@ export default function HomePage({
   // 장바구니 버튼 클릭 핸들러 (로그인 유도)
   const handleCartClick = () => {
     if (!isLoggedIn) {
-      if (confirm('로그인이 필요한 서비스입니다.\n로그인 페이지로 이동하시겠습니까?')) {
+      if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
         onLogin?.();
       }
       return;
@@ -250,6 +270,10 @@ export default function HomePage({
             width: 100% !important;
             margin-left: 0 !important;
             justify-content: flex-start !important;
+          }
+          /* 모바일: 계정 메뉴 아이콘만 우측 끝으로 밀어 붙인다 */
+          .header-actions .user-menu {
+            margin-left: auto;
           }
           .search-form {
             order: 3;
@@ -512,6 +536,62 @@ export default function HomePage({
               </select>
             </div>
           </div>
+
+          {/* 추가 필터: 최대가격 슬라이더 / 할인상품만 / 재고있음만 */}
+          <div style={styles.filterRow} className="filter-row" data-testid="product-filters">
+            <div style={styles.filterGroup}>
+              <label htmlFor="filter-price" style={styles.filterLabel}>
+                최대 가격 <strong data-testid="filter-price-value">{effectiveMax.toLocaleString()}원</strong>
+              </label>
+              <input
+                type="range"
+                id="filter-price"
+                data-testid="filter-price-range"
+                min="0"
+                max={priceCeiling || 0}
+                step="1000"
+                value={effectiveMax}
+                onChange={(e) => setMaxPrice(Number(e.target.value))}
+                disabled={!priceCeiling}
+                style={styles.priceSlider}
+                aria-label="최대 가격 필터"
+              />
+            </div>
+            <label style={styles.filterCheck} htmlFor="filter-onsale">
+              <input
+                type="checkbox"
+                id="filter-onsale"
+                data-testid="filter-onsale"
+                checked={onSaleOnly}
+                onChange={(e) => setOnSaleOnly(e.target.checked)}
+              />
+              할인 상품만
+            </label>
+            <label style={styles.filterCheck} htmlFor="filter-instock">
+              <input
+                type="checkbox"
+                id="filter-instock"
+                data-testid="filter-instock"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+              />
+              재고 있음만
+            </label>
+            {(maxPrice != null || onSaleOnly || inStockOnly) && (
+              <button
+                type="button"
+                data-testid="filter-reset"
+                onClick={() => {
+                  setMaxPrice(null);
+                  setOnSaleOnly(false);
+                  setInStockOnly(false);
+                }}
+                style={styles.filterReset}
+              >
+                필터 초기화
+              </button>
+            )}
+          </div>
         </section>
 
         {/* Search Results Info */}
@@ -552,8 +632,18 @@ export default function HomePage({
                 >
                   <div
                     className="product-image product-thumbnail"
-                    style={styles.productImage}
+                    style={{ ...styles.productImage, cursor: "pointer" }}
                     data-testid={`product-image-${product.id}`}
+                    onClick={() => onView?.(product.id)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onView?.(product.id);
+                      }
+                    }}
+                    aria-label={`${product.name} 상세 보기`}
                   >
                     {product.imageUrl || product.image ? (
                       <img
@@ -596,7 +686,10 @@ export default function HomePage({
                         ...styles.wishlistToggle,
                         ...(isWished ? styles.wishlistToggleActive : {}),
                       }}
-                      onClick={() => handleWishlistToggle(product)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleWishlistToggle(product);
+                      }}
                       aria-pressed={isWished}
                       aria-label={
                         isWished
@@ -869,6 +962,52 @@ const styles = {
     alignItems: "center",
     gap: "16px",
     flexWrap: "wrap",
+  },
+  filterRow: {
+    maxWidth: "1200px",
+    margin: "12px auto 0",
+    display: "flex",
+    alignItems: "center",
+    gap: "20px",
+    flexWrap: "wrap",
+    paddingTop: "12px",
+    borderTop: "1px solid #f1f5f9",
+  },
+  filterGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    minWidth: "240px",
+  },
+  filterLabel: {
+    fontSize: "13px",
+    color: "#374151",
+    whiteSpace: "nowrap",
+  },
+  priceSlider: {
+    flex: 1,
+    minWidth: "120px",
+    cursor: "pointer",
+    accentColor: "#1a1a1a",
+  },
+  filterCheck: {
+    display: "flex",
+    alignItems: "center",
+    gap: "6px",
+    fontSize: "13px",
+    color: "#374151",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+  },
+  filterReset: {
+    padding: "6px 12px",
+    fontSize: "13px",
+    color: "#6b7280",
+    backgroundColor: "transparent",
+    border: "1px solid #d1d5db",
+    borderRadius: "8px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
   },
   categoryWrapper: {
     display: "flex",

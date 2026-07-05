@@ -1,6 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import Modal from "../components/Modal.jsx";
+import { toast } from "../lib/toast.js";
+
+// 주문취소 사유 (실제 커머스 취소 플로우 연출)
+const CANCEL_REASONS = [
+  "단순 변심",
+  "상품이 마음에 들지 않음",
+  "배송이 너무 느림",
+  "다른 상품을 주문하고 싶음",
+  "주문 실수",
+  "기타",
+];
 
 /**
  * 주문 내역 페이지
@@ -82,6 +94,15 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
   // 상태 진행 결과 메시지: { type: 'success' | 'error', text }
   const [advanceMessage, setAdvanceMessage] = useState(null);
   const [advancingId, setAdvancingId] = useState(null);
+  // 커스텀 주문취소 모달: 대상 주문 + 선택 사유
+  const [cancelTarget, setCancelTarget] = useState(null);
+  const [cancelReason, setCancelReason] = useState("");
+  // 자동 진행(테스트 편의): 이 주문을 일정 간격으로 다음 단계 진행
+  const [autoAdvanceId, setAutoAdvanceId] = useState(null);
+  // 부분취소: 펼친 주문의 선택 항목 {productId:true} + 확인 대상 주문
+  const [itemSel, setItemSel] = useState({});
+  const [partialTarget, setPartialTarget] = useState(null);
+  const [partialProcessing, setPartialProcessing] = useState(false);
 
   const fetchOrders = useCallback(async () => {
     const token = sessionStorage.getItem("token");
@@ -121,6 +142,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
 
   // 행 클릭: 상세 펼침/접기 + 상세(배송 정보 포함) 조회
   const handleToggleDetail = (orderId) => {
+    setItemSel({}); // 다른 주문을 펼치면 부분취소 선택 초기화
     if (expandedId === orderId) {
       setExpandedId(null);
       return;
@@ -150,10 +172,26 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
     }
   };
 
-  // 주문 취소
-  const handleCancel = async (orderId) => {
-    if (!confirm("주문을 취소하시겠습니까?")) return;
+  // 주문취소 모달 열기 (실제 커머스 취소 플로우: 사유 선택 후 확인)
+  const openCancelModal = (orderId) => {
+    setCancelReason("");
+    setCancelMessage(null);
+    setCancelTarget(orderId);
+  };
 
+  // 모달에서 '취소 요청' 확인 → 실제 취소 실행
+  const confirmCancel = async () => {
+    if (!cancelReason) {
+      toast.error("취소 사유를 선택해주세요.");
+      return;
+    }
+    const orderId = cancelTarget;
+    setCancelTarget(null);
+    await runCancel(orderId, cancelReason);
+  };
+
+  // 주문 취소 실행 (사유는 안내/토스트용 — 서버 취소 API 호출)
+  const runCancel = async (orderId, reason) => {
     setCancelMessage(null);
     setCancelingId(orderId);
     try {
@@ -199,7 +237,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
       });
       setCancelMessage({
         type: "success",
-        text: data.message || "주문이 취소되었습니다",
+        text: `${data.message || "주문이 취소되었습니다"}${reason ? ` (사유: ${reason})` : ""}`,
       });
     } catch (e) {
       setCancelMessage({ type: "error", text: `네트워크 오류: ${e.message}` });
@@ -303,6 +341,89 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
       setAdvanceMessage({ type: "error", text: `네트워크 오류: ${e.message}` });
     } finally {
       setAdvancingId(null);
+    }
+  };
+
+  // 자동 진행: autoAdvanceId 설정 시, 진행 가능한 동안 3초 간격으로 다음 단계로 진행.
+  // 종료 상태(배송완료/취소) 도달 시 자동 정지. (자동화 관찰·폴링 연습용; 테스트는 advance API 직접 호출도 가능)
+  useEffect(() => {
+    if (!autoAdvanceId) return undefined;
+    const order = orders.find((o) => o.id === autoAdvanceId);
+    if (!order || !isAdvanceable(order.status)) {
+      setAutoAdvanceId(null);
+      return undefined;
+    }
+    const t = setTimeout(() => {
+      handleAdvance(autoAdvanceId);
+    }, 3000);
+    return () => clearTimeout(t);
+    // handleAdvance 는 매 렌더 재생성되므로 deps 제외 (포함 시 매 렌더 타이머 리셋)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAdvanceId, orders]);
+
+  // 부분취소: 항목 체크 토글
+  const toggleItemSel = (pid) =>
+    setItemSel((prev) => ({ ...prev, [pid]: !prev[pid] }));
+
+  // 부분취소: 선택 항목이 있으면 확인 모달 열기
+  const openPartialCancel = (orderId) => {
+    const selected = Object.keys(itemSel).filter((k) => itemSel[k]);
+    if (selected.length === 0) {
+      toast.error("취소/반품할 상품을 선택해주세요.");
+      return;
+    }
+    setPartialTarget(orderId);
+  };
+
+  // 부분취소 확정 → PATCH cancel_items
+  const confirmPartialCancel = async () => {
+    const orderId = partialTarget;
+    const productIds = Object.keys(itemSel)
+      .filter((k) => itemSel[k])
+      .map(Number);
+    setPartialTarget(null);
+    setPartialProcessing(true);
+    try {
+      const token = sessionStorage.getItem("token");
+      const res = await fetch(`${API_BASE}/api/orders/${orderId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token || ""}`,
+        },
+        body: JSON.stringify({ action: "cancel_items", productIds }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(data.message || `부분취소 실패 (status=${res.status})`);
+        return;
+      }
+      toast.success(data.message || "취소되었습니다.");
+      // 목록 상태 + 상세(항목 canceled 플래그) 갱신
+      if (data.order) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: data.order.status } : o))
+        );
+        setDetails((prev) => {
+          if (!prev[orderId]?.order) return prev;
+          return {
+            ...prev,
+            [orderId]: {
+              ...prev[orderId],
+              order: {
+                ...prev[orderId].order,
+                status: data.order.status,
+                items: data.items || prev[orderId].order.items,
+              },
+            },
+          };
+        });
+      }
+      setItemSel({});
+    } catch (e) {
+      toast.error(`네트워크 오류: ${e.message}`);
+    } finally {
+      setPartialProcessing(false);
     }
   };
 
@@ -528,6 +649,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                             >
                               <thead>
                                 <tr>
+                                  {isCancelable(status) && <th style={styles.th}>선택</th>}
                                   <th style={{ ...styles.th, textAlign: "left" }}>상품명</th>
                                   <th style={styles.th}>가격</th>
                                   <th style={styles.th}>수량</th>
@@ -541,7 +663,40 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                                     className="order-detail-item"
                                     data-testid={`order-detail-item-${order.id}-${it.productId}`}
                                   >
-                                    <td style={{ ...styles.td, textAlign: "left" }}>{it.name}</td>
+                                    {isCancelable(status) && (
+                                      <td style={styles.td}>
+                                        {it.canceled ? (
+                                          <span style={{ color: "#9ca3af" }}>-</span>
+                                        ) : (
+                                          <input
+                                            type="checkbox"
+                                            checked={!!itemSel[it.productId]}
+                                            onChange={() => toggleItemSel(it.productId)}
+                                            aria-label={`${it.name} 취소 선택`}
+                                            data-testid={`order-item-select-${order.id}-${it.productId}`}
+                                          />
+                                        )}
+                                      </td>
+                                    )}
+                                    <td style={{ ...styles.td, textAlign: "left" }}>
+                                      {it.name}
+                                      {it.options && (it.options.color || it.options.size) && (
+                                        <span
+                                          data-testid={`order-item-options-${order.id}-${it.productId}`}
+                                          style={{ display: "block", fontSize: "0.75rem", color: "#6b7280", marginTop: 2 }}
+                                        >
+                                          옵션: {it.options.color || "-"} / {it.options.size || "-"}
+                                        </span>
+                                      )}
+                                      {it.canceled && (
+                                        <span
+                                          data-testid={`order-item-canceled-${order.id}-${it.productId}`}
+                                          style={{ display: "block", fontSize: "0.75rem", color: "#dc2626", fontWeight: 700, marginTop: 2 }}
+                                        >
+                                          취소됨
+                                        </span>
+                                      )}
+                                    </td>
                                     <td style={styles.td}>{formatPrice(it.price)}원</td>
                                     <td style={styles.td}>{it.quantity}</td>
                                     <td style={styles.td}>
@@ -728,24 +883,44 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                             {(isAdvanceable(status) || isCancelable(status)) && (
                               <div style={styles.actionRow}>
                                 {isAdvanceable(status) && (
-                                  <button
-                                    type="button"
-                                    id={`order-advance-btn-${order.id}`}
-                                    className="btn btn-primary order-advance-button"
-                                    aria-label={`주문 ${order.id} 상태 진행`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleAdvance(order.id);
-                                    }}
-                                    disabled={advancingId === order.id}
-                                    style={{
-                                      ...styles.advanceBtn,
-                                      ...(advancingId === order.id ? styles.cancelBtnDisabled : {}),
-                                    }}
-                                    data-testid={`order-advance-btn-${order.id}`}
-                                  >
-                                    {advancingId === order.id ? "진행 중..." : "주문 상태 진행"}
-                                  </button>
+                                  <>
+                                    <button
+                                      type="button"
+                                      id={`order-advance-btn-${order.id}`}
+                                      className="btn btn-primary order-advance-button"
+                                      aria-label={`주문 ${order.id} 상태 진행`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleAdvance(order.id);
+                                      }}
+                                      disabled={advancingId === order.id}
+                                      style={{
+                                        ...styles.advanceBtn,
+                                        ...(advancingId === order.id ? styles.cancelBtnDisabled : {}),
+                                      }}
+                                      data-testid={`order-advance-btn-${order.id}`}
+                                    >
+                                      {advancingId === order.id ? "진행 중..." : "주문 상태 진행"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      id={`order-auto-advance-btn-${order.id}`}
+                                      className="btn order-auto-advance-button"
+                                      aria-pressed={autoAdvanceId === order.id}
+                                      aria-label={`주문 ${order.id} 자동 진행 토글`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAutoAdvanceId((prev) => (prev === order.id ? null : order.id));
+                                      }}
+                                      style={{
+                                        ...styles.advanceBtn,
+                                        backgroundColor: autoAdvanceId === order.id ? "#dc2626" : "#059669",
+                                      }}
+                                      data-testid={`order-auto-advance-btn-${order.id}`}
+                                    >
+                                      {autoAdvanceId === order.id ? "⏹ 자동 진행 중지" : "▶ 자동 진행"}
+                                    </button>
+                                  </>
                                 )}
                                 {isCancelable(status) && (
                                   <button
@@ -755,7 +930,7 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                                     aria-label={`주문 ${order.id} 취소`}
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleCancel(order.id);
+                                      openCancelModal(order.id);
                                     }}
                                     disabled={cancelingId === order.id}
                                     style={{
@@ -767,6 +942,28 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
                                     data-testid={`order-cancel-${order.id}`}
                                   >
                                     {cancelingId === order.id ? "취소 처리 중..." : "주문취소"}
+                                  </button>
+                                )}
+                                {isCancelable(status) && (
+                                  <button
+                                    type="button"
+                                    id={`order-partial-cancel-${order.id}`}
+                                    className="btn order-partial-cancel-button"
+                                    aria-label={`주문 ${order.id} 선택 항목 취소/반품`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openPartialCancel(order.id);
+                                    }}
+                                    disabled={partialProcessing}
+                                    style={{
+                                      ...styles.cancelBtn,
+                                      backgroundColor: "#ffffff",
+                                      color: "#b45309",
+                                      border: "1px solid #fcd34d",
+                                    }}
+                                    data-testid={`order-partial-cancel-${order.id}`}
+                                  >
+                                    선택 항목 취소/반품
                                   </button>
                                 )}
                               </div>
@@ -782,6 +979,128 @@ export default function OrderHistoryPage({ apiBase, onGoHome }) {
           </>
         )}
       </main>
+
+      {/* 커스텀 주문취소 확인 모달 (실제 커머스 취소 플로우: 사유 선택 → 확인) */}
+      <Modal
+        open={cancelTarget != null}
+        onClose={() => setCancelTarget(null)}
+        title="주문 취소"
+        testid="cancel-modal"
+      >
+        <p style={{ margin: "0 0 14px", fontSize: 14, color: "#374151", lineHeight: 1.6 }}>
+          정말 이 주문을 취소하시겠어요?<br />
+          취소 후에는 되돌릴 수 없습니다.
+        </p>
+        <label
+          htmlFor="cancel-reason"
+          style={{ display: "block", fontSize: 13, fontWeight: 600, color: "#374151", marginBottom: 6 }}
+        >
+          취소 사유 <span style={{ color: "#dc2626" }}>*</span>
+        </label>
+        <select
+          id="cancel-reason"
+          data-testid="cancel-reason-select"
+          value={cancelReason}
+          onChange={(e) => setCancelReason(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            fontSize: 14,
+            border: "1px solid #d1d5db",
+            borderRadius: 8,
+            marginBottom: 18,
+            backgroundColor: "#fff",
+          }}
+        >
+          <option value="">사유를 선택해주세요</option>
+          {CANCEL_REASONS.map((r) => (
+            <option key={r} value={r}>{r}</option>
+          ))}
+        </select>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            data-testid="cancel-modal-dismiss"
+            onClick={() => setCancelTarget(null)}
+            style={{
+              padding: "10px 16px",
+              fontSize: 14,
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#374151",
+              cursor: "pointer",
+            }}
+          >
+            돌아가기
+          </button>
+          <button
+            type="button"
+            data-testid="cancel-modal-confirm"
+            onClick={confirmCancel}
+            style={{
+              padding: "10px 16px",
+              fontSize: 14,
+              border: "none",
+              borderRadius: 8,
+              background: "#dc2626",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            주문 취소하기
+          </button>
+        </div>
+      </Modal>
+
+      {/* 부분취소/반품 확인 모달 */}
+      <Modal
+        open={partialTarget != null}
+        onClose={() => setPartialTarget(null)}
+        title="선택 항목 취소/반품"
+        testid="partial-cancel-modal"
+      >
+        <p style={{ margin: "0 0 14px", fontSize: 14, color: "#374151", lineHeight: 1.6 }}>
+          선택한 <strong>{Object.values(itemSel).filter(Boolean).length}개</strong> 상품을 취소/반품할까요?<br />
+          해당 상품 재고가 복원되고 환불 내역이 기록됩니다. 모든 상품을 취소하면 주문 전체가 취소됩니다.
+        </p>
+        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button
+            type="button"
+            data-testid="partial-cancel-dismiss"
+            onClick={() => setPartialTarget(null)}
+            style={{
+              padding: "10px 16px",
+              fontSize: 14,
+              border: "1px solid #d1d5db",
+              borderRadius: 8,
+              background: "#fff",
+              color: "#374151",
+              cursor: "pointer",
+            }}
+          >
+            돌아가기
+          </button>
+          <button
+            type="button"
+            data-testid="partial-cancel-confirm"
+            onClick={confirmPartialCancel}
+            style={{
+              padding: "10px 16px",
+              fontSize: 14,
+              border: "none",
+              borderRadius: 8,
+              background: "#b45309",
+              color: "#fff",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            취소/반품 요청
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -22,11 +22,12 @@ import { isConfigured, respondDbNotConfigured } from '../_lib/db.js';
 import {
   getOrder,
   cancelOrder,
+  cancelOrderItems,
   advanceOrderStatus,
   setOrderStatus,
 } from '../_lib/store.js';
 
-const AVAILABLE_ACTIONS = ['cancel', 'advance', 'set_status'];
+const AVAILABLE_ACTIONS = ['cancel', 'cancel_items', 'advance', 'set_status'];
 
 function respondNotFound(res) {
   return res.status(404).json({
@@ -58,9 +59,13 @@ async function handleCancel(req, res, user, orderId, isAdmin) {
       return respondNotFound(res);
     }
     // 결제가 함께 취소되었으면 안내 문구에 반영 (이니시스/카드 공통)
+    // 결제 취소 안내:
+    //  - 이니시스(실결제 샌드박스): 실제 환불 API를 호출하지 않는다. 결제 레코드만 CANCELED로
+    //    바꾸고, 실 승인분은 INIpayTest 정책상 자정에 자동 취소된다 → 오해 없도록 명시한다.
+    //  - 그 외(모의 카드): 결제가 우리 시스템 안에서만 이뤄져 레코드 취소로 종료된다.
     const paymentNote = canceled.paymentCanceled
       ? String(canceled.paymentMethod || '').startsWith('INICIS')
-        ? ' 이니시스 결제도 함께 취소되었습니다.'
+        ? ' 이니시스 테스트 결제는 실제 환불 API 없이 자정에 자동 취소됩니다.'
         : ' 결제도 함께 취소되었습니다.'
       : '';
     return res.status(200).json({
@@ -145,6 +150,43 @@ async function handleSetStatus(req, res, user, orderId, isAdmin) {
   }
 }
 
+// PATCH { action: 'cancel_items', productIds: [...] } - 부분취소 (선택 항목 취소 + 재고복원 + 환불기록)
+async function handleCancelItems(req, res, user, orderId, isAdmin) {
+  const productIds = (req.body || {}).productIds;
+  if (!Array.isArray(productIds) || productIds.length === 0) {
+    return res.status(400).json({
+      message: '취소할 상품을 선택해주세요',
+      code: 'NO_ITEMS_SELECTED',
+    });
+  }
+  try {
+    const result = await cancelOrderItems(orderId, user.username, productIds, { isAdmin });
+    if (!result) {
+      return respondNotFound(res);
+    }
+    return res.status(200).json({
+      message: result.allCanceled
+        ? `주문이 전체 취소되었습니다. (환불 ${result.refundedAmount.toLocaleString()}원)`
+        : `선택 상품이 부분취소되었습니다. (환불 ${result.refundedAmount.toLocaleString()}원, 재고 복원 완료)`,
+      order: result.order,
+      items: result.items,
+      refundedAmount: result.refundedAmount,
+      allCanceled: result.allCanceled,
+    });
+  } catch (err) {
+    if (err.code === 'ALREADY_CANCELED') {
+      return res.status(409).json({ message: '이미 취소된 주문입니다', code: 'ALREADY_CANCELED' });
+    }
+    if (err.code === 'CANCEL_NOT_ALLOWED') {
+      return res.status(409).json({ message: err.message, code: 'CANCEL_NOT_ALLOWED' });
+    }
+    if (err.code === 'NO_ITEMS_TO_CANCEL') {
+      return res.status(409).json({ message: '취소할 항목이 없습니다', code: 'NO_ITEMS_TO_CANCEL' });
+    }
+    throw err;
+  }
+}
+
 // PATCH 디스패처 - action 별 분기
 async function handlePatch(req, res, user, orderId, isAdmin) {
   const { action } = req.body || {};
@@ -152,6 +194,8 @@ async function handlePatch(req, res, user, orderId, isAdmin) {
   switch (action) {
     case 'cancel':
       return handleCancel(req, res, user, orderId, isAdmin);
+    case 'cancel_items':
+      return handleCancelItems(req, res, user, orderId, isAdmin);
     case 'advance':
       return handleAdvance(req, res, user, orderId, isAdmin);
     case 'set_status':

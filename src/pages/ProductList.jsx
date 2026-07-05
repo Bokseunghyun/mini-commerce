@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect } from 'react';
+import { toast } from '../lib/toast.js';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
@@ -297,11 +298,11 @@ export default function ProductListPage({
           return next;
         });
       } else {
-        alert(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
+        toast.error(data.message || '위시리스트 처리 중 오류가 발생했습니다.');
       }
     } catch (error) {
       console.error('Wishlist toggle error:', error);
-      alert('위시리스트 처리 중 오류가 발생했습니다.');
+      toast.error('위시리스트 처리 중 오류가 발생했습니다.');
     }
   };
 
