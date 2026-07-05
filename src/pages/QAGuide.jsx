@@ -112,7 +112,7 @@ await page.waitForLoadState('networkidle');
 
 \`\`\`typescript
 // ✅ 사용: 페이지 이동 직후
-await page.goto('/products');
+await page.goto('/');
 await page.waitForLoadState('load');  // 페이지 로딩 완료 대기
 await page.click('.product-card');
 
@@ -130,7 +130,7 @@ await page.click('button');
 
 \`\`\`typescript
 test('상품 목록 페이지 로딩', async ({ page }) => {
-  await page.goto('/products');
+  await page.goto('/');
   
   // 1. 페이지 로딩 완료 대기
   await page.waitForLoadState('load');
@@ -306,10 +306,10 @@ await page.waitForURL('/dashboard');
 \`\`\`typescript
 // 1. 문자열 포함 (가장 많이 사용)
 await page.waitForURL('/dashboard');
-await page.waitForURL('**/products/**');
+await page.waitForURL('**/product/**');
 
 // 2. 정규식
-await page.waitForURL(/\\/products\\/\\d+/);
+await page.waitForURL(/\\/product\\/\\d+/);
 
 // 3. 함수
 await page.waitForURL((url) => url.searchParams.get('page') === '2');
@@ -327,8 +327,8 @@ await page.click('#login-submit');
 await page.waitForURL('/dashboard');
 
 // ✅ 사용: SPA 라우팅 대기
-await page.click('nav a:has-text("상품")');
-await page.waitForURL('**/products');
+await page.click('.product-card');
+await page.waitForURL('**/product/**');
 
 // ❌ 불필요: expect와 중복
 await page.waitForURL('/dashboard');
@@ -391,7 +391,7 @@ await page.waitForFunction(() => document.querySelector('button'));
 
 \`\`\`typescript
 test('무한 스크롤 로딩', async ({ page }) => {
-  await page.goto('/products');
+  await page.goto('/');
   
   // 스크롤
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -768,7 +768,7 @@ await expect(page).toHaveURL('https://example.com/dashboard');
 await expect(page).toHaveURL(/\\/dashboard/);
 
 // 3. 패턴 매칭
-await expect(page).toHaveURL('**/products/**');
+await expect(page).toHaveURL('**/product/**');
 \`\`\`
 
 ---
@@ -814,8 +814,8 @@ await page.click('button');
 
 \`\`\`typescript
 // 패턴 1: URL 변경 대기
-await page.click('a[href="/products"]');
-await page.waitForURL('/products');
+await page.click('.product-card');
+await page.waitForURL('**/product/**');
 
 // 패턴 2: 로딩 완료 대기
 await page.goto('/');
@@ -968,8 +968,8 @@ await page.waitForLoadState('load');
 await page.locator('.loading').waitFor({ state: 'hidden' });
 
 // ✅ URL 변경 대기
-await page.click('a[href="/products"]');
-await page.waitForURL('/products');
+await page.click('.product-card');
+await page.waitForURL('**/product/**');
 
 // ✅ 모달 완전히 닫힘 대기
 await page.click('.modal-close');
