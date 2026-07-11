@@ -1,5 +1,7 @@
 # API 테스트 컬렉션
 
+> **Playwright 자동화 시:** 이 컬렉션의 요청들은 `page.request` 또는 `request.newContext({ baseURL: 'http://localhost:5173' })`로 그대로 옮길 수 있습니다. 테스트 `baseURL`은 `http://localhost:5173`, 요청은 상대경로 `/api/...`로 보냅니다 — baseURL(5173)이 붙고 vite가 Express(3000)로 프록시합니다. 인증 토큰은 `POST /api/login` 응답 바디 `{ token, user }`에서 얻어 `Authorization: Bearer <token>` 헤더로 보냅니다. 브라우저 컨텍스트에서는 이 토큰이 **localStorage**에 저장되므로 `storageState`로 로그인 세션을 재사용할 수 있습니다. 자세한 패턴은 README_QA.md 참조.
+
 ## 환경 변수 설정
 ```
 baseUrl=http://localhost:5173
@@ -224,7 +226,8 @@ GET {{baseUrl}}/api/inventory?productId=1
 HEAD {{baseUrl}}/api/inventory?productId=1
 ```
 
-### 5.3 재고 없는 상품 조회
+### 5.3 다른 상품 재고 조회
+> 씨드 재고는 상품마다 5~30 범위입니다. `X-Stock-Status`/`status` 필드가 `IN_STOCK`(≥5) / `LOW_STOCK`(<5) / `OUT_OF_STOCK`(0)로 갈립니다. `OUT_OF_STOCK`을 보려면 관리자 `PUT /api/admin`으로 재고를 0으로 낮춘 뒤 조회하세요.
 ```http
 GET {{baseUrl}}/api/inventory?productId=3
 ```
@@ -238,7 +241,7 @@ GET {{baseUrl}}/api/inventory?productId=abc
 
 ## 6. 위시리스트 API (통합 엔드포인트 /api/user-actions)
 
-> 과거 `/api/wishlist` 는 삭제(404)되었고 `/api/user-actions` 로 통합되었습니다.
+> 위시리스트는 통합 엔드포인트 `/api/user-actions` 로 처리합니다.
 
 ### 6.1 위시리스트 조회
 ```http
@@ -413,7 +416,7 @@ Authorization: Bearer {{token}}
 
 ## 9. 장바구니 API (통합 엔드포인트 /api/user-actions)
 
-> 과거 `/api/cart` 는 삭제(404)되었습니다. 장바구니는 이제 **서버(DB)가 사용자별로 관리**합니다 — 과거의 클라이언트 배열(`cart` + `index`) 계약은 폐기되었고, `productId` 기준의 `cart_add` / `cart_update` / `cart_remove` 액션을 사용합니다. (모두 인증 필요)
+> 장바구니는 **서버(DB)가 사용자별로 관리**합니다. `productId` 기준의 `cart_add` / `cart_update` / `cart_remove` 액션을 사용합니다. (모두 인증 필요)
 
 ### 9.1 장바구니 담기 (수량 누적)
 ```http
@@ -480,7 +483,7 @@ Authorization: Bearer {{token}}
 
 ## 10. 주문 API (통합 엔드포인트 /api/user-actions)
 
-> 과거 `/api/order` 는 삭제(404)되었고 `action: "order"` 로 통합되었습니다.
+> 주문은 통합 엔드포인트 `/api/user-actions` 의 `action: "order"` 로 처리합니다.
 > 가격/상품명은 항상 **서버(DB)가 결정**합니다 — items에는 `{ "id", "quantity" }`만 보내면 되고, 클라이언트가 보낸 가격은 무시됩니다.
 
 ### 10.1 주문 생성 (바로구매 - items 지정)
@@ -543,7 +546,8 @@ Content-Type: application/json
 }
 ```
 
-### 10.5 주문 생성 - 재고 부족 (409, 의도적 픽스처: 상품 18은 항상 재고 0)
+### 10.5 주문 생성 - 재고 부족 (409)
+> 씨드 재고는 상품마다 5~30 범위입니다. 409를 재현하려면 재고를 동적으로 초과합니다: (a) `GET /api/inventory?productId=<id>`로 현재 재고를 조회한 뒤 `stock + 1` 수량으로 주문하거나, (b) 관리자 `PUT /api/admin`으로 해당 상품 재고를 0으로 낮춘 뒤 주문합니다.
 ```http
 POST {{baseUrl}}/api/user-actions
 Authorization: Bearer {{token}}
@@ -552,11 +556,11 @@ Content-Type: application/json
 {
   "action": "order",
   "items": [
-    { "id": 18, "quantity": 1 }
+    { "id": 1, "quantity": 99999 }
   ]
 }
 ```
-응답: `409 { "code": "INSUFFICIENT_STOCK", "productId": 18, "requestedQuantity": 1, "availableStock": 0, ... }`
+응답: `409 { "code": "INSUFFICIENT_STOCK", "productId": 1, "requestedQuantity": 99999, "availableStock": <현재 재고>, ... }`
 
 ### 10.6 주문 생성 - 주문 차단 상품 (422, 의도적 오류: 상품 3, 4)
 ```http
@@ -571,7 +575,7 @@ Content-Type: application/json
   ]
 }
 ```
-응답: `422 { "code": "ORDER_BLOCKED_PRODUCT", ... }` (차단 판정이 재고 검증보다 먼저 수행되므로 재고 0인 3번도 422)
+응답: `422 { "code": "ORDER_BLOCKED_PRODUCT", ... }` (상품 3·4는 주문 차단 픽스처 — 차단 판정이 재고 검증보다 먼저 수행됨)
 
 ---
 
@@ -584,7 +588,7 @@ Content-Type: application/json
 ```http
 POST {{baseUrl}}/api/reset
 ```
-응답: `200 { "message": "모든 데이터가 초기화되었습니다", "reset": ["products", "users", "reviews", "wishlists", "carts", "orders", "coupons"] }`
+응답: `200 { "message": "모든 데이터가 초기화되었습니다", "reset": [...] }` — `reset` 배열은 9개(`products, users, reviews, wishlists, carts, orders, coupons, payments, user_coupons`)입니다. 배열 원소/순서를 `toEqual`로 강하게 단언하기보다 `status 200` + `message` 위주로 검증하세요.
 
 ---
 
@@ -793,7 +797,7 @@ Content-Type: application/json
 
 ## 15. 결제 API (payment)
 
-> 모의 PG(이니시스 스타일). 인증 필요. 결과는 **카드번호 뒤 4자리** 또는 `?simulate=` 쿼리로 결정론적(랜덤 아님). `paymentKey`(`PAY-<uuid>`)는 값 자체를 단언하지 말 것 — 결과는 카드/simulate 로만 정해짐. **외부 API 목킹 연습**: 9999 카드/`?simulate=`로 결제서버 장애를 재현하고 클라이언트 실패 처리를 검증.
+> 모의 PG(이니시스 스타일). 인증 필요. 결과는 **카드번호 뒤 4자리** 또는 `?simulate=` 쿼리로 결정론적으로 정해집니다. `paymentKey`는 `PAY-<uuid>` 형태이며, 결과는 카드/simulate로만 정해지므로 `status`/`code`로 검증합니다. **외부 API 목킹 연습**: 9999 카드/`?simulate=`로 결제서버 장애를 재현하고 클라이언트 실패 처리를 검증.
 
 ### 15.1 결제 승인 (뒤 4자리 0000 → 201)
 ```http
@@ -910,7 +914,7 @@ Content-Type: application/json
   "paymentKey": "PAY-xxxxxxxx"
 }
 ```
-응답: `201` — 결제 **상태 DONE + 금액 일치 + 미사용** 검증 후 주문에 `paymentKey/paymentMethod/cardLast4` 저장. 위반 시: 결제 없음 `402 PAYMENT_REQUIRED`, 미승인/금액불일치/중복사용 `402 PAYMENT_INVALID`. `paymentKey` 생략 시 기존처럼 결제 없이 주문 성공(하위호환).
+응답: `201` — 결제 **상태 DONE + 금액 일치 + 미사용** 검증 후 주문에 `paymentKey/paymentMethod/cardLast4` 저장. 위반 시: 결제 없음 `402 PAYMENT_REQUIRED`, 미승인/금액불일치/중복사용 `402 PAYMENT_INVALID`. `paymentKey` 생략 시 결제 없이 주문 성공.
 
 ---
 
@@ -981,7 +985,7 @@ Content-Type: application/json
   "image": "data:image/png;base64,iVBORw0KGgoAAA..."
 }
 ```
-응답: `200 { "message": "프로필 이미지가 변경되었습니다", "avatarUrl": "data:image/png;base64,..." }` (조회: `GET /api/user-actions?type=profile` → `{ "profile": { "username", "role", "email", "avatarUrl" } }`)
+응답: `200 { "message": "프로필 이미지가 변경되었습니다", "avatarUrl": "data:image/png;base64,..." }` (조회: `GET /api/user-actions?type=profile` → `{ "username", "role", "email", "avatarUrl", "defaultAddress" }`)
 
 ### 16.6 리뷰 이미지 첨부 (images[])
 ```http
@@ -1107,11 +1111,11 @@ GET {{baseUrl}}/api/tracking
 6. 중복 생성 시도
 
 ### 시나리오 4: HTTP 메서드 검증
-1. GET - 조회 (멱등성, 안전)
-2. POST - 생성 (비멱등성)
-3. PATCH - 부분 수정 (멱등성)
-4. DELETE - 삭제 (멱등성)
-5. HEAD - 메타데이터만 (멱등성, 안전)
+1. GET - 조회 (안전·멱등)
+2. POST - 생성 (비멱등)
+3. PATCH - 부분 수정 (이 앱에선 상태 전이/취소라 재호출 시 409가 날 수 있으므로 각 호출의 상태 코드를 개별로 검증)
+4. DELETE - 삭제 (재삭제 시 404)
+5. HEAD - 메타데이터만 (안전·멱등)
 
 ### 시나리오 5: 상태 코드 검증
 1. 2xx - 성공

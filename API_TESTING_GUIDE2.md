@@ -65,6 +65,43 @@ await expect(page.locator('.success-message')).toBeVisible();
 
 ---
 
+### 1.3 API를 확인하는 두 가지 도구 (먼저 이걸 구분하자)
+
+이 가이드의 3~9장은 주로 `page.waitForResponse(...)`를 씁니다. 하지만 그게 **기본 도구는 아닙니다.** 상황에 따라 도구가 갈립니다. 딱 한 줄로 외우세요:
+
+> **순수 API 검증 = `page.request` / `request` 픽스처. UI 동작이 유발한 호출 검증 = `page.waitForResponse`.**
+
+**비유:** `request`는 브라우저 화면 없이 서버에 **직접 전화를 거는 것**이고, `waitForResponse`는 사용자가 버튼을 누를 때 **오가는 통화를 옆에서 엿듣는 것(스파이)**입니다.
+
+```typescript
+// ✅ 순수 API 검증 (화면 없이 서버만 때린다 — 빠르고 안정적, 기본 도구)
+import { test, expect } from '@playwright/test';
+
+test('상품 목록 API', async ({ request }) => {
+  const res = await request.get('/api/products');  // baseURL=5173, /api는 3000으로 프록시
+  expect(res).toBeOK();                             // 200~299면 통과
+  const { products } = await res.json();
+  expect(products.length).toBeGreaterThan(0);
+});
+```
+
+```typescript
+// ✅ UI 유발 호출 검증 (버튼 클릭이 만든 네트워크 호출을 엿듣는다)
+const [res] = await Promise.all([
+  page.waitForResponse((r) => r.url().includes('/api/login')),
+  page.getByTestId('login-submit-button').click(),
+]);
+expect(res.status()).toBe(200);
+```
+
+**언제 무엇을?**
+- 서버 계약(상태코드/응답구조/에러코드)만 검증 → **`request`** (화면 안 띄움 → 훨씬 빠름)
+- "이 버튼을 누르면 서버로 올바른 요청이 나가나?"까지 검증 → **`waitForResponse` + Promise.all**
+
+> `request`는 `baseURL`(`http://localhost:5173`)이 자동 적용되므로 항상 상대경로 `/api/...`만 씁니다(`/api`는 vite가 백엔드로 프록시). 인증이 필요한 요청은 로그인 API로 받은 `token`을 헤더로 실어 보냅니다(→ [6장](#6-실전-연습-프로젝트), 인증 세부는 [README_QA](README_QA.md)).
+
+---
+
 ## 2. 왜 API 검증이 필요한가?
 
 ### 2.1 실무 사례로 이해하기
@@ -72,9 +109,11 @@ await expect(page.locator('.success-message')).toBeVisible();
 #### 🐛 사례 1: UI는 성공인데 실제론 실패
 ```typescript
 // 로그인 버튼 클릭
-await page.click('#login-submit');
+await page.getByTestId('login-submit-button').click();
 
-// UI 검증만 함
+// UI 검증만 함 (아래 .success / '/dashboard'는 개념 설명용 일반 예시.
+//  이 앱은 로그인 성공 시 로그인 모달이 닫히므로, 성공 검증은
+//  await expect(page.getByTestId('login-modal')).toBeHidden() 로 한다.)
 await expect(page.locator('.success')).toBeVisible();
 await expect(page).toHaveURL('/dashboard');
 // ✅ 테스트 통과!
@@ -96,7 +135,7 @@ await expect(page).toHaveURL('/dashboard');
 ```typescript
 const [response] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
-  page.click('#login-submit')
+  page.getByTestId('login-submit-button').click()
 ]);
 
 // 상태 코드 확인
@@ -124,11 +163,11 @@ await expect(page).toHaveURL('/order-complete');
 
 // 실제 API 응답 (409):
 {
-  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 5개\n사용 가능 재고: 0개",
+  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 99개\n사용 가능 재고: 12개",
   "code": "INSUFFICIENT_STOCK",
-  "productId": 18,
-  "requestedQuantity": 5,
-  "availableStock": 0
+  "productId": 1,
+  "requestedQuantity": 99,
+  "availableStock": 12
 }
 
 // 문제:
@@ -145,7 +184,8 @@ const [orderResponse] = await Promise.all([
     res.url().includes('/api/user-actions') &&
     res.request().method() === 'POST'
   ),
-  page.click('#place-order-btn')  // 체크아웃(/checkout) 페이지의 결제하기 버튼
+  // 체크아웃 페이지의 결제하기 버튼 클릭. 실제 셀렉터는 셀렉터 사전(README_QA) 확인 후 getByTestId로.
+  page.getByRole('button', { name: /결제하기|주문하기/ }).click()
 ]);
 
 // 재고 있을 때 (주문 성공은 201 Created)
@@ -157,16 +197,16 @@ if (orderResponse.status() === 201) {
   expect(data.order.status).toBe('PAID');
 }
 
-// 재고 없을 때
+// 재고 부족일 때
 if (orderResponse.status() === 409) {  // Conflict
   const error = await orderResponse.json();
   expect(error.code).toBe('INSUFFICIENT_STOCK');
   // UI에 에러 메시지 떠야 함
-  await expect(page.locator('text=재고 부족')).toBeVisible();
+  await expect(page.getByText('재고 부족')).toBeVisible();
 }
 ```
 
-> 💡 본 사이트에서 상품 id 18은 **의도적으로 항상 재고 0**입니다 (재고 부족 네거티브 테스트용 고정 픽스처).
+> 💡 **재고 사실:** 본 사이트 씨드 재고는 상품마다 5~30개 범위이며 모든 상품이 구매 가능한 상태로 시작합니다. `409 INSUFFICIENT_STOCK`을 재현하려면 (a) 현재 재고를 조회한 뒤 `stock+1` 이상 수량으로 주문하거나, (b) 관리자 `PUT /api/admin`으로 재고를 0으로 낮춘 뒤 주문하세요. 자세한 재고 사실은 [README_QA](README_QA.md)를 참고하세요.
 
 ---
 
@@ -423,12 +463,11 @@ expect(response.status()).toBe(200);
 // 예시 1: 응답만 필요 (99% 케이스)
 const [loginResponse] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
-  page.click('#login-submit')
+  page.getByTestId('login-submit-button').click()
 ]);
 expect(loginResponse.status()).toBe(200);
 
-// 예시 2: 여러 API 동시에 받기
-// 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
+// 예시 2: 여러 API 동시에 받기 (개념 설명용 일반 예시 — 엔드포인트명은 자유)
 const [productsRes, categoriesRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -454,8 +493,7 @@ const [productsRes, categoriesRes, userRes] = await Promise.all([
 **1️⃣ 여러 API를 동시에 기다릴 때**
 
 ```typescript
-// 사례: 페이지 로드 시 3개 API 동시 호출
-// 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
+// 사례: 페이지 로드 시 3개 API 동시 호출 (개념 설명용 일반 예시 — 엔드포인트명은 자유)
 const [productsRes, categoriesRes, userRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -472,23 +510,24 @@ expect(userRes.status()).toBe(200);
 **2️⃣ API 응답 + UI 변화를 동시에 기다릴 때**
 
 ```typescript
-// 사례: 로그인 시 API 응답 + 페이지 이동 동시 발생
+// 사례: 로그인 시 API 응답 + UI 변화(모달 닫힘) 동시 발생
+// 💡 이 앱의 로그인은 성공하면 로그인 "모달이 닫히고" 현재 페이지가 유지된다.
+//    따라서 성공 검증은 "로그인 모달이 닫혔는지"로 한다.
 const [loginRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/login')),
-  page.waitForURL('/dashboard'),  // URL 변경 대기
-  page.click('#login-submit')
+  page.getByTestId('login-submit-button').click()
 ]);
 
 // API와 UI 모두 검증
 expect(loginRes.status()).toBe(200);
-await expect(page).toHaveURL('/dashboard');
+await expect(page.getByTestId('login-modal')).toBeHidden();  // 모달 닫힘으로 검증
 ```
 
 **3️⃣ 여러 요소가 나타나길 기다릴 때**
 
 ```typescript
 // 사례: 검색 결과가 로딩되면서 여러 요소 나타남
-// 일반 예시 (본 사이트 셀렉터와 다름 — 검색 버튼은 data-testid="search-button")
+// (개념 설명용 일반 예시 — 실제 검색 버튼은 getByTestId('search-button'))
 const [searchRes] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/search')),
   page.locator('.search-result').first().waitFor(),  // 첫 결과 대기
@@ -524,8 +563,7 @@ expect(listRes.status()).toBe(200);  // 목록 조회 성공
 #### 주의사항
 
 ```typescript
-// ⚠️ 순서 주의!
-// 일반 예시 (본 사이트에는 /api/user 엔드포인트가 없음)
+// ⚠️ 순서 주의! (개념 설명용 일반 예시 — 엔드포인트명은 자유)
 const [res1, res2] = await Promise.all([
   page.waitForResponse((res) => res.url().includes('/api/products')),
   page.waitForResponse((res) => res.url().includes('/api/user')),
@@ -563,16 +601,16 @@ const [productsRes, userRes] = await Promise.all([
 const status: number = response.status();
 
 // 성공
-200  // OK - 조회/수정 성공
-201  // Created - 생성 성공
-204  // No Content - 삭제 성공
+200  // OK - 조회/수정/삭제 성공 (이 앱은 삭제 성공도 200으로 응답한다)
+201  // Created - 생성 성공 (회원가입, 주문, 리뷰, 결제, 업로드 등)
+204  // No Content - 본문 없는 성공 (일반적인 코드. 이 앱의 삭제는 200으로 응답한다)
 
 // 클라이언트 에러
 400  // Bad Request - 잘못된 요청
-401  // Unauthorized - 인증 필요 (토큰 없음)
+401  // Unauthorized - 인증 필요 (토큰 없음/만료)
 403  // Forbidden - 권한 없음
 404  // Not Found - 못 찾음
-409  // Conflict - 충돌 (중복, 재고 부족)
+409  // Conflict - 충돌 (재고 부족 INSUFFICIENT_STOCK, 주문 재취소 ALREADY_CANCELED 등)
 
 // 서버 에러
 500  // Internal Server Error - 서버 에러
@@ -688,7 +726,7 @@ console.log(url);  // "https://api.example.com/login"
 test('로그인', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   // ✅ response만으로 충분 (명확함)
@@ -783,7 +821,7 @@ expect(data.필드명).toBe(기대값);
 test('잘못된 비밀번호 로그인', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   // 에러 상태 코드
@@ -797,7 +835,7 @@ test('잘못된 비밀번호 로그인', async ({ page }) => {
 
 #### 패턴 2: 여러 API 순차 검증
 
-> ⚠️ UI 셀렉터는 일반 예시 (본 사이트 셀렉터와 다름). 실제 관리자 페이지는 `data-testid`로 `admin-edit-btn-{id}`, `admin-save-btn-{id}`, `admin-delete-btn-{id}`를 사용합니다. API 계약(/api/admin POST 201, PUT 200, DELETE 200)은 본 사이트와 동일합니다.
+> 💡 아래 UI 셀렉터는 개념 설명용 일반 예시입니다. 실제 관리자 페이지는 `data-testid`로 `admin-edit-btn-{id}`, `admin-save-btn-{id}`, `admin-delete-btn-{id}`를 사용하고, API 계약은 `/api/admin` POST 201 · PUT 200 · DELETE 200입니다.
 
 ```typescript
 test('상품 추가 → 수정 → 삭제', async ({ page }) => {
@@ -846,58 +884,57 @@ test('상품 추가 → 수정 → 삭제', async ({ page }) => {
 
 ```typescript
 test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
-  // 1. 로그인
+  page.on('dialog', (d) => d.accept());  // 주문/취소 alert 자동 수락 (없으면 흐름이 끊김)
+
+  // 1. 로그인 — 이 앱은 계정 드롭다운을 열고 모달에서 로그인한다 (실제 셀렉터, §3)
   await page.goto('/');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  
+  await page.getByTestId('user-menu-trigger').click();  // 계정 드롭다운 열기
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+
   const [loginResponse] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click(),
   ]);
-  
+
   expect(loginResponse.status()).toBe(200);
   const { token } = await loginResponse.json();
   expect(token).toBeTruthy();
-  
-  // 2. 상품 조회
+  // 💡 로그인 성공은 "로그인 모달이 닫혔는지"로 검증한다 (§ 인증&세션, README_QA 참고).
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
+  // 2. 상품 조회 (홈 진입 시 호출됨)
   const [productsResponse] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/products')),
-    page.goto('/')
+    page.goto('/'),
   ]);
-  
+
   expect(productsResponse.status()).toBe(200);
   const { products } = await productsResponse.json();
   expect(products.length).toBeGreaterThan(0);
-  
-  // 3. 재고 확인
-  const inventoryResponse = await page.waitForResponse(
-    (res) => res.url().includes('/api/inventory')
-  );
-  
-  const inventory = await inventoryResponse.json();
-  
-  // 4. 주문
-  await page.click('#home-cart-btn');   // 장바구니 페이지로 이동
-  await page.click('#checkout-btn');    // 체크아웃(/checkout) 페이지로 이동
-  await page.fill('#checkout-name', '홍길동');           // 배송지 필수 입력
-  await page.fill('#checkout-phone', '010-1234-5678');
-  await page.fill('#checkout-address', '서울시 강남구');
-  await page.check('#agree-terms');     // 약관 동의 (체크 전에는 결제 버튼 비활성)
-  
+
+  // 3. 주문할 상품의 현재 재고를 API로 동적으로 확인한다
+  const target = products[0];
+  const availableStock = target.stock;  // 씨드 재고는 상품마다 5~30 범위
+
+  // 4. 주문 — 장바구니 → 체크아웃. 아래 버튼 셀렉터는 실제 testid 확인 후 사용할 것.
+  //    (배송지/약관 입력 필드 셀렉터는 UI_AUTOMATION_GUIDE / README_QA의 셀렉터 사전 참고)
+  const orderQty = 1;  // availableStock 이내 → 성공(201) 기대
   const [orderResponse] = await Promise.all([
-    page.waitForResponse((res) => 
-      res.url().includes('/api/user-actions') && 
+    page.waitForResponse((res) =>
+      res.url().includes('/api/user-actions') &&
       res.request().method() === 'POST'
     ),
-    page.click('#place-order-btn')  // 결제하기 버튼
+    page.getByTestId('site-nav-cart').click(),  // 예: 장바구니로 이동 후 체크아웃 진행
   ]);
-  
-  // 재고에 따른 분기 처리 (주문 성공은 201 Created)
-  if (inventory.stock > 0) {
+
+  // 재고에 따른 분기 (주문 성공은 201 Created)
+  if (orderQty <= availableStock) {
     expect(orderResponse.status()).toBe(201);
-    await expect(page.locator('text=주문 완료')).toBeVisible();
+    const data = await orderResponse.json();
+    expect(data.message).toBe('주문 완료');
+    expect(data.order.status).toBe('PAID');
   } else {
     expect(orderResponse.status()).toBe(409);
     const error = await orderResponse.json();
@@ -917,7 +954,7 @@ test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
 test('API 응답 구조 파악', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   // 1. 상태 코드
@@ -939,7 +976,7 @@ test('API 응답 구조 파악', async ({ page }) => {
 **출력 예시:**
 ```
 Status: 200
-URL: http://localhost:3000/api/login
+URL: http://localhost:5173/api/login
 Response Data: {
   "token": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
@@ -948,10 +985,11 @@ Response Data: {
   }
 }
 Headers: {
-  'content-type': 'application/json',
-  'set-cookie': 'session=abc123...'
+  'content-type': 'application/json'
 }
 ```
+
+> 💡 **인증은 JWT 토큰 방식입니다.** 이 서버는 JWT를 응답 바디 `{ token, user }`로 돌려줍니다. 인증이 필요한 요청은 이 `token`을 `Authorization: Bearer <token>` 헤더로 직접 실어 보냅니다(§ 6장). URL origin은 항상 `http://localhost:5173`이고, `/api`는 vite dev 서버가 백엔드로 프록시하므로 테스트에서는 상대경로 `/api/...`만 씁니다.
 
 ---
 
@@ -1006,8 +1044,7 @@ Request Body: {
 test('API 응답 비교', async ({ page }) => {
   await page.goto('/');
   
-  // 여러 API 동시 호출
-  // 일반 예시 (본 사이트에는 /api/categories, /api/user 엔드포인트가 없음)
+  // 여러 API 동시 호출 (개념 설명용 일반 예시 — 엔드포인트명은 자유)
   const [productsRes, categoriesRes, userRes] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/products')),
     page.waitForResponse((res) => res.url().includes('/api/categories')),
@@ -1058,7 +1095,8 @@ test('에러 상황 디버깅', async ({ page }) => {
       res.url().includes('/api/user-actions') &&
       res.request().method() === 'POST'
     ),
-    page.click('#place-order-btn')
+    // 결제하기 버튼 (실제 셀렉터는 셀렉터 사전 확인 후 getByTestId 권장)
+    page.getByRole('button', { name: /결제하기|주문하기/ }).click()
   ]);
   
   console.log('=== API 응답 디버깅 ===');
@@ -1095,19 +1133,19 @@ OK: false
 ⚠️ 에러 발생!
 Error Code: INSUFFICIENT_STOCK
 Error Message: 재고 부족: 발마사지기 무선 온열 기능
-요청 수량: 5개
-사용 가능 재고: 0개
+요청 수량: 99개
+사용 가능 재고: 12개
 Full Error: {
   "code": "INSUFFICIENT_STOCK",
-  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 5개\n사용 가능 재고: 0개",
-  "productId": 18,
+  "message": "재고 부족: 발마사지기 무선 온열 기능\n요청 수량: 99개\n사용 가능 재고: 12개",
+  "productId": 1,
   "productName": "발마사지기 무선 온열 기능",
-  "requestedQuantity": 5,
-  "availableStock": 0
+  "requestedQuantity": 99,
+  "availableStock": 12
 }
 Request Method: POST
-Request URL: http://localhost:3000/api/user-actions
-Request Body: {"action":"order","items":[{"id":18,"quantity":5}]}
+Request URL: http://localhost:5173/api/user-actions
+Request Body: {"action":"order","items":[{"id":1,"quantity":99}]}
 ```
 
 > 💡 items에는 `{ id, quantity }`만 보내면 됩니다. 가격/상품명은 서버가 DB에서 조회해 결정하며, 클라이언트가 보낸 가격은 무시됩니다.
@@ -1130,7 +1168,7 @@ test('API 성능 측정', async ({ page }) => {
   let start = Date.now();
   const [loginRes] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   performanceData.push({
     api: 'Login',
@@ -1184,7 +1222,7 @@ const DEBUG = process.env.DEBUG === 'true';
 test('조건부 로깅', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   // DEBUG 모드일 때만 로깅
@@ -1238,7 +1276,7 @@ import { logApiResponse } from './helpers/debug';
 test('헬퍼로 간단하게 로깅', async ({ page }) => {
   const [loginRes] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   await logApiResponse(loginRes, '로그인 API');
@@ -1260,7 +1298,7 @@ test('헬퍼로 간단하게 로깅', async ({ page }) => {
 test('완벽한 API 디버깅', async ({ page }) => {
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   // ✅ 체크리스트
@@ -1305,6 +1343,43 @@ test('완벽한 API 디버깅', async ({ page }) => {
 
 ## 6. 실전 연습 프로젝트
 
+### 💡 인증 토큰(`token`)은 어디서 나오나?
+
+아래 프로젝트 3·4의 예제는 `Authorization: Bearer <token>` 헤더를 씁니다. 이 `token`은 **로그인 API를 먼저 호출해서** 받습니다. 이 서버는 JWT를 응답 바디 `{ token, user }`로 주므로, 받은 문자열을 그대로 헤더에 실어 보내면 됩니다.
+
+```typescript
+// 토큰 획득 (모든 인증 필요 테스트의 공통 준비 단계)
+const login = await request.post('/api/login', {
+  data: { username: 'test', password: '1234' },   // 관리자 API 연습은 'admin' 계정 사용
+});
+expect(login.status()).toBe(200);
+const { token } = await login.json();  // 이 token을 이후 요청 헤더에 넣는다
+```
+
+매 테스트에서 UI 로그인을 반복하지 않으려면 **한 번 로그인한 세션을 재사용**하세요. 이 앱은 인증정보(`token`/`role`/`username`)를 `localStorage`에 저장하므로, Playwright `storageState`(localStorage 포함)로 세션을 저장했다가 프로젝트 의존성으로 재사용하거나, API로 받은 토큰을 `context.addInitScript`로 주입할 수 있습니다. 표준 setup-project 패턴과 스니펫은 [README_QA](README_QA.md)의 인증 & 세션 섹션을 참고하세요.
+
+보일러플레이트를 줄이려면 인증된 `request` 컨텍스트를 fixture로 뽑아두면 편합니다:
+
+```typescript
+// fixtures.ts — authedRequest fixture (baseURL 5173 + Bearer 자동)
+import { test as base, expect, APIRequestContext } from '@playwright/test';
+
+export const test = base.extend<{ authedRequest: APIRequestContext }>({
+  authedRequest: async ({ playwright }, use) => {
+    const anon = await playwright.request.newContext({ baseURL: 'http://localhost:5173' });
+    const { token } = await (await anon.post('/api/login',
+      { data: { username: 'test', password: '1234' } })).json();
+    const ctx = await playwright.request.newContext({
+      baseURL: 'http://localhost:5173',
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+    });
+    await use(ctx);
+    await ctx.dispose();
+  },
+});
+export { expect };
+```
+
 ### 💡 반복 실행 전 데이터 초기화 (POST /api/reset)
 
 연습 테스트를 반복 실행하면 관리자 CRUD, 회원가입 계정, 장바구니, 주문, 리뷰, 위시리스트, 재고 변경이 DB에 그대로 남아 결과가 달라질 수 있습니다.
@@ -1315,9 +1390,12 @@ test.beforeEach(async ({ request }) => {
   const res = await request.post('/api/reset');
   expect(res.status()).toBe(200);
   // 응답: { "message": "모든 데이터가 초기화되었습니다",
-  //         "reset": ["products", "users", "reviews", "wishlists", "carts", "orders", "coupons"] }
+  //         "reset": ["products", "users", "reviews", "wishlists", "carts",
+  //                   "orders", "coupons", "payments", "user_coupons"] }  // 9개
 });
 ```
+
+> 💡 `reset` 배열은 원소 9개입니다. 순서/전체 원소를 `toEqual`로 강하게 못박기보다 `status 200`과 `message` 위주로 검증하세요(시드 구조가 바뀌어도 테스트가 덜 깨집니다).
 
 ### 프로젝트 1: 로그인 완전 정복 (1일)
 
@@ -1493,17 +1571,7 @@ test('상태 전진과 배송 추적', async ({ request }) => {
 
 ## 7. 체화 훈련
 
-**Day 1-2: 기본 패턴 20번 반복**
-```typescript
-const [response] = await Promise.all([
-  page.waitForResponse((res) => res.url().includes('/api/엔드포인트')),
-  page.click('button')
-]);
-
-expect(response.status()).toBe(200);
-const data = await response.json();
-expect(data.필드).toBe(값);
-```
+**Day 1-2: 기본 패턴 20번 반복.** 손가락이 기억할 때까지 [2단계의 필수 암기 패턴](#-2단계-첫-api-검증-코드-작성-1주)과 아래 [최종 정리 3줄](#-최종-정리)을 반복하세요. (같은 스니펫을 여기 또 붙이지 않습니다 — 위 두 곳을 그대로 쓰면 됩니다.)
 
 ---
 
@@ -1515,7 +1583,7 @@ test('API 응답 시간', async ({ page }) => {
   
   const [response] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   const responseTime = Date.now() - startTime;
@@ -1552,6 +1620,73 @@ const data = await response.json();
 expect(data.token).toBeTruthy();
 ```
 
+### 실수 3: 고정 시간 대기(`waitForTimeout`)로 버팀
+```typescript
+// ❌ 잘못된 코드 — 느리면 실패, 빠르면 시간 낭비 (플래키의 주범)
+await page.click('button');
+await page.waitForTimeout(3000);      // "3초면 되겠지" → 환경 따라 깨짐
+expect(await page.locator('.result').count()).toBe(1);
+
+// ✅ 올바른 코드 — 조건 충족까지 자동 재시도하는 web-first assertion
+await page.getByTestId('submit').click();
+await expect(page.getByTestId('result')).toBeVisible();  // 뜰 때까지 자동 대기
+// 요소가 사라지길 기다릴 때: await page.getByTestId('login-modal').waitFor({ state: 'hidden' });
+```
+`waitForLoadState('networkidle')`도 같은 이유로 지양하세요. "무언가 나타났다/사라졌다/특정 값이 됐다"를 assert하면 Playwright가 알아서 기다립니다.
+
+### 실수 4: 순수 API인데 굳이 UI를 띄움
+```typescript
+// ❌ 서버 계약만 볼 건데 page(브라우저) 띄우고 클릭까지... 느리고 불안정
+test('상품 목록', async ({ page }) => {
+  const [res] = await Promise.all([
+    page.waitForResponse((r) => r.url().includes('/api/products')),
+    page.goto('/'),
+  ]);
+  expect(res.status()).toBe(200);
+});
+
+// ✅ 순수 API는 request로 직접 (화면 없음 → 훨씬 빠름) — 1.3 참고
+test('상품 목록', async ({ request }) => {
+  const res = await request.get('/api/products');
+  expect(res).toBeOK();
+});
+```
+
+### 실수 5: CSS 문자열/`#id` 셀렉터 남용
+```typescript
+// ❌ 깨지기 쉬운 셀렉터 (구조/클래스명 바뀌면 바로 실패)
+await page.locator('[data-testid="login-submit-button"]').click();
+await page.locator('.header > div:nth-child(2) button').click();
+
+// ✅ 이 앱은 data-testid가 389개로 촘촘하다 → getByTestId / getByRole를 1급으로
+await page.getByTestId('login-submit-button').click();
+```
+셀렉터 사전(실재하는 id/testid 목록)은 [README_QA](README_QA.md)를 정본으로 참고하세요.
+
+---
+
+### 참고: 별도 테스트 레포의 `playwright.config.ts`
+
+이 레포는 **테스트 대상(SUT)**이라 Playwright 코드를 두지 않습니다. 자동화는 별도 테스트 레포에서 작성하며, 아래 config가 `baseURL`(5173) · 재시도 · trace/video · 앱 서버 자동 기동을 잡아줍니다.
+
+```typescript
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  use: {
+    baseURL: 'http://localhost:5173',   // 상대경로 /api/... 가 여기로 붙는다
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  retries: process.env.CI ? 2 : 0,
+  webServer: [
+    { command: 'npm run start-api', port: 3000, reuseExistingServer: !process.env.CI },
+    { command: 'npm run dev',       port: 5173, reuseExistingServer: !process.env.CI },
+  ],
+});
+```
+
 ---
 
 ## 🎯 최종 정리
@@ -1574,3 +1709,5 @@ expect(data.필드).toBe(값);
 ```
 
 **이 3줄만 손에 익으면 90% 끝!** 🎉
+
+> ✅ 마지막 체크: **순수 API 검증이면 `request`로 직접** 때리는 게 더 빠르고 안정적입니다(→ [1.3](#13-api를-확인하는-두-가지-도구-먼저-이걸-구분하자)). 위 `waitForResponse` 패턴은 "버튼 클릭이 유발한 호출"을 검증할 때 쓰세요. 셀렉터·인증·픽스처의 정본은 [README_QA](README_QA.md)입니다.

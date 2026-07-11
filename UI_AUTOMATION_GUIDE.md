@@ -7,20 +7,25 @@
 
 | 항목 | 값 |
 |---|---|
-| 테스트 계정 | `test` / `1234` (일반), `admin` / `1234` (관리자), `test2` / `1234` (차단 계정 → 로그인 403, 의도적). 회원가입으로 만든 계정도 로그인 가능(USER) |
-| 라우트 (전부 딥링크 가능) | `/`, `/login`, `/signup`, `/products`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin` |
-| 로그인 페이지 셀렉터 | `#login-username`, `#login-password`, `#login-submit` (data-testid: `login-submit-button`) |
-| 홈 헤더 셀렉터 | `#home-login`·`#home-signup-btn`(비로그인 시), `#home-logout`·`#home-wishlist-btn`·`#home-orders-btn`·`#home-profile-btn`(로그인 시), `#home-tracking-btn`(항상 표시, 공개 배송조회), `#home-admin-btn`(항상 표시, 권한 체크는 클릭 후), `#home-cart-btn` |
+| 앱 origin (테스트 baseURL) | `http://localhost:5173` (vite dev). `/api/*`는 vite가 `http://localhost:3000`(Express)로 프록시. 테스트는 `baseURL: 'http://localhost:5173'` + 상대경로 `/api/...`를 사용합니다. |
+| 테스트 계정 | `test` / `1234` (일반), `admin` / `1234` (관리자), `test2` / `1234` (차단 계정 → 로그인 403). 회원가입으로 만든 계정도 로그인 가능(USER) |
+| 라우트 | `/`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin`. 로그인·회원가입은 홈(`/`)+모달로 동작합니다(§인증). 목록/정렬/검색은 홈(`/`)에서 수행합니다 |
+| 로그인 (계정 드롭다운 경유) | 헤더의 계정 드롭다운을 `user-menu-trigger`로 연 뒤 `usermenu-login` → 로그인 모달(`login-modal`)의 `username-input`, `password-input`, `login-submit-button` |
+| 홈 헤더 id | `#home-admin-btn`(관리자), `#home-cart-btn`(장바구니). 로그인/로그아웃/위시리스트/주문/프로필/배송조회는 계정 드롭다운(`usermenu-*`) 또는 서브페이지 헤더(`site-nav-*`)의 data-testid를 사용합니다 |
 | 상품 버튼 (data-testid) | `view-detail-btn-{id}`(상세 보기), `add-to-cart-btn-{id}`(장바구니 담기), `wishlist-toggle-{id}`(하트, `aria-pressed`) |
-| 딥링크 | 위 라우트 전부 `page.goto()` 직접 진입 가능 — 단 REQ-1 때문에 딥링크 직후엔 항상 **비로그인** 상태 |
+| 딥링크 | 위 라우트 전부 `page.goto()` 직접 진입 가능. 로그인은 **localStorage에 저장되어 새로고침·재시작·탭 간 공유되므로**, `storageState` 재사용으로 로그인 상태를 이어받을 수 있습니다(§인증) |
+
+**계정 드롭다운 항목 (data-testid):** 드롭다운 열기 `user-menu-trigger`, 항목 `usermenu-login`, `usermenu-signup`, `usermenu-logout`, `usermenu-wishlist`, `usermenu-orders`, `usermenu-profile`. 서브페이지 공통 헤더에는 공개 배송조회 `site-nav-tracking`, 장바구니 이동 `site-nav-cart`. 로그인/계정 동작은 `user-menu-trigger`→`usermenu-*`, 로그인 폼은 `login-modal`/`username-input`/`password-input`/`login-submit-button`을 사용합니다.
 
 **주요 data-testid (코드에서 확인된 이름):**
-`login-submit-button`, `loading-spinner`, `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn`), `admin-row-{id}`, `soldout-badge-{id}`, `search-result-count`
+`login-submit-button`, `loading-spinner`, `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn`), `admin-row-{id}`, `search-result-count`
 — 신규 페이지(회원가입/체크아웃/주문내역/위시리스트/상세 탭·리뷰)의 셀렉터 전체 목록은 [8장](#8-본-사이트-신규-기능-연습-시나리오) 참고.
 
-**의도적 제약 (REQ-1):** 앱 진입 시 항상 로그아웃 상태로 초기화됩니다(진입 시 localStorage 토큰 제거). 따라서 Playwright `storageState` 재사용으로 로그인 상태를 유지할 수 없고, 각 테스트에서 UI 로그인을 수행해야 합니다. `/checkout`, `/orders` 같은 딥링크로 진입해도 마찬가지로 비로그인 상태에서 시작합니다(주문내역은 `orders-login-required`, 위시리스트는 `wishlist-login-required` 표시). 버그가 아니라 연습용 의도적 설계입니다.
+**로케이터 전략 — `getByTestId`를 1급(우선) 셀렉터로:** 이 앱은 `data-testid`가 389개로 촘촘히 박혀 있습니다. **이 사이트에서는 `getByTestId`/`getByRole`를 안심하고 1급으로 쓰세요.** 접근성 의미가 뚜렷한 요소(버튼·링크·입력)는 `getByRole`을, 그 외에는 `getByTestId`를 우선합니다.
 
-**서버 장바구니(계정 영속):** 장바구니는 클라이언트 상태가 아니라 **서버(DB)에 계정 단위로 저장**됩니다(`GET /api/user-actions?type=cart`). 같은 계정으로 다른 브라우저/시크릿 창에서 로그인해도 장바구니가 그대로 유지됩니다. → `storageState`로 장바구니를 "이어받는" 대신, **로그인 후 서버 상태를 검증**하는 연습을 하세요. 테스트 간 격리가 필요하면 `POST /api/reset`(전체 시드 복원) 또는 `cart_update` 수량 0으로 비워야 합니다. localStorage 클리어로는 초기화되지 않습니다.
+**로그인 & 세션:** 로그인 인증정보(`token`/`role`/`username`)는 **localStorage**에 저장됩니다. 따라서 로그인은 **새로고침·탭 닫기·브라우저 재시작 후에도 유지**되고 **탭 간 공유**되며, Playwright `storageState` 재사용이 **정상 동작**합니다. JWT는 **1시간 후 만료**되어 이후 인증요청은 서버가 401로 거절합니다. 명시적 토큰 제거는 로그아웃/주문완료(`restartApp`)에서 일어납니다. 로그인은 페이지 리다이렉트 없이 **모달만 닫히므로**, **`login-modal`이 사라짐** 또는 **`usermenu-logout` 노출**로 검증합니다. 자세한 setup+storageState 패턴은 [7.3 인증 재사용](#73-인증-재사용-storagestate) 참고.
+
+**서버 장바구니(계정 영속):** 장바구니는 클라이언트 상태가 아니라 **서버(DB)에 계정 단위로 저장**됩니다(`GET /api/user-actions?type=cart`). 같은 계정으로 다른 브라우저/시크릿 창에서 로그인해도 장바구니가 그대로 유지됩니다. 테스트 간 격리가 필요하면 `POST /api/reset`(전체 시드 복원) 또는 `cart_update` 수량 0으로 비웁니다.
 
 **다이얼로그 처리 연습 포인트:** 본 사이트는 `alert()` / `confirm()`을 많이 사용합니다(장바구니 담기 alert, 로그인 유도 confirm, 주문 취소 confirm, 로그아웃 confirm 등). Playwright는 리스너가 없으면 다이얼로그를 자동으로 닫아버리므로(dismiss), `page.on('dialog', ...)` 처리를 연습하세요.
 
@@ -135,10 +140,10 @@ await page.waitForLoadState('networkidle');
 #### 언제 써야 하나?
 
 ```typescript
-// ✅ 사용: 페이지 이동 직후
-await page.goto('/products');
+// ✅ 사용: 페이지 이동 직후 (본 사이트 상품 목록은 홈 '/')
+await page.goto('/');
 await page.waitForLoadState('load');  // 페이지 로딩 완료 대기
-await page.click('.product-card');
+await page.click('.product-card');    // .product-card는 일반 예시 클래스
 
 // ✅ 사용: SPA에서 데이터 로딩 대기
 await page.click('a[href="/dashboard"]');
@@ -154,7 +159,7 @@ await page.click('button');
 
 ```typescript
 test('상품 목록 페이지 로딩', async ({ page }) => {
-  await page.goto('/products');
+  await page.goto('/');  // 본 사이트 상품 목록은 홈 '/'
   
   // 1. 페이지 로딩 완료 대기
   await page.waitForLoadState('load');
@@ -344,38 +349,40 @@ await page.waitForURL((url) => url.searchParams.get('page') === '2');
 #### 언제 써야 하나?
 
 ```typescript
-// ✅ 사용: 페이지 이동 후 URL 확인
-await page.click('a[href="/login"]');
-await page.waitForURL('/login');
+// ✅ 사용: 실제로 URL이 바뀌는 이동 (예: 상세 → 체크아웃)
+await page.click('#checkout-btn');
+await page.waitForURL('/checkout');
 
-// ✅ 사용: 로그인 후 리다이렉트 확인 (본 사이트: 로그인 성공 시 홈 '/'으로 이동)
-await page.click('#login-submit');
-await page.waitForURL('/');
-
-// ✅ 사용: SPA 라우팅 대기
-await page.click('nav a:has-text("상품")');
-await page.waitForURL('**/products');
+// ✅ 사용: 주문완료 이동
+await page.waitForURL('/order-complete');
 
 // ❌ 불필요: expect와 중복
-await page.waitForURL('/dashboard');
-await expect(page).toHaveURL('/dashboard');  // 중복!
+await page.waitForURL('/checkout');
+await expect(page).toHaveURL('/checkout');  // 중복!
 ```
 
-#### 실전 예시
+> 💡 **로그인·회원가입은 홈(`/`)+모달로 동작하며 URL을 바꾸지 않습니다.** 로그인 성공 시 리다이렉트 없이 `login-modal`이 닫힙니다. 따라서 로그인·회원가입 검증은 **모달 닫힘** 또는 **로그인 상태 UI**(`usermenu-logout` 노출)로 합니다. `waitForURL`은 실제로 URL이 바뀌는 이동(예: 체크아웃·주문완료)에 사용하세요.
+
+#### 실전 예시 — 로그인 성공은 "모달 닫힘 / usermenu-logout"으로 검증
 
 ```typescript
-test('로그인 후 홈으로 이동', async ({ page }) => {
-  await page.goto('/login');
-  
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
-  // URL 변경 대기 (본 사이트는 로그인 성공 시 홈 '/'으로 이동)
-  await page.waitForURL('/');
-  
-  // 이제 안전하게 검증 (로그인 후 홈 헤더에 로그아웃 버튼 표시)
-  await expect(page.locator('#home-logout')).toBeVisible();
+test('로그인 성공 검증 (리다이렉트 아님)', async ({ page }) => {
+  await page.goto('/');
+
+  // 계정 드롭다운을 열고 로그인 모달을 띄운다
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+
+  // URL 대기가 아니라 모달이 사라짐으로 검증
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
+  // 로그인 상태 UI 확인: 계정 드롭다운에 로그아웃 항목 노출
+  await page.getByTestId('user-menu-trigger').click();
+  await expect(page.getByTestId('usermenu-logout')).toBeVisible();
 });
 ```
 
@@ -417,7 +424,7 @@ await page.waitForFunction(() => document.querySelector('button'));
 
 ```typescript
 test('무한 스크롤 로딩', async ({ page }) => {
-  await page.goto('/products');
+  await page.goto('/');  // (무한 스크롤은 일반 예시 — 본 사이트에는 없음)
   
   // 스크롤
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -453,8 +460,9 @@ page.locator('[data-testid="product-card"]')
 // ✅ 사용: CSS 클래스가 명확할 때
 await page.locator('.btn-primary').click();
 
-// ✅ 사용: ID가 있을 때 (본 사이트 로그인 아이디 입력란)
-await page.locator('#login-username').fill('test');
+// ✅ 사용: ID가 있을 때 (본 사이트 예: 체크아웃 배송지 이름)
+await page.locator('#checkout-name').fill('홍길동');
+// 💡 로그인 입력란은 id가 아니라 testid: page.getByTestId('username-input')
 
 // ✅ 사용: data-testid 사용
 await page.locator('[data-testid="submit-button"]').click();
@@ -522,12 +530,12 @@ await page.getByRole('button', { name: /로그인|Login/ }).click();
 
 #### 실전 예시 — 일반 예시 (본 사이트 셀렉터와 다름)
 
-> 본 사이트의 실제 회원가입 페이지(`/signup`)는 `#signup-username`, `#signup-password`,
-> `#signup-password-confirm`, `#signup-email`, `#signup-submit`을 사용합니다. → [8.1 시나리오](#81-회원가입-플로우-중복확인--검증-에러--가입--로그인) 참고
+> 본 사이트의 실제 회원가입은 **홈+모달**로 동작합니다(계정 드롭다운 `user-menu-trigger` → `usermenu-signup`).
+> 셀렉터는 `#signup-username`, `#signup-password`, `#signup-password-confirm`, `#signup-email`, `#signup-submit`을 사용합니다. → [8.1 시나리오](#81-회원가입-플로우-중복확인--검증-에러--가입--로그인) 참고. 아래 블록은 role 로케이터 문법을 보여주는 **일반 예시**입니다.
 
 ```typescript
-test('회원가입 폼', async ({ page }) => {
-  await page.goto('/signup');
+test('회원가입 폼 (일반 예시)', async ({ page }) => {
+  await page.goto('/signup');  // 일반 예시 — 본 사이트에서는 홈+모달로 변환됨
   
   // role 기반 로케이터 (가장 안정적)
   await page.getByRole('textbox', { name: '이름' }).fill('홍길동');
@@ -643,17 +651,16 @@ page.getByTestId('product-card-1')
 #### 언제 써야 하나?
 
 ```typescript
-// ✅ 사용: 다른 방법으로 못 찾을 때
-await page.getByTestId('complex-component').click();
+// ✅ 사용: 안정적인 테스트 훅
+await page.getByTestId('login-submit-button').click();
 
 // HTML:
-// <div data-testid="complex-component">...</div>
-
-// ⚠️ 주의: 최후의 수단
-// 1순위: getByRole()
-// 2순위: getByLabel(), getByText()
-// 3순위: getByTestId()
+// <button data-testid="login-submit-button">로그인</button>
 ```
+
+> 💡 **본 사이트는 `data-testid`가 389개나 촘촘히 박혀 있어 `getByTestId`를 1급(우선) 셀렉터로 안심하고 써도 됩니다.**
+> 접근성 의미가 뚜렷한 요소(버튼·링크·입력)는 `getByRole`을, 그 외에는 `getByTestId`를 우선하고,
+> 안정적인 로케이터로 `getByRole`/`getByTestId`를 선택하세요.
 
 ---
 
@@ -716,19 +723,18 @@ await expect(page.locator('h1')).toHaveText(/환영|Welcome/);
 **input 값 확인**
 
 ```typescript
-await expect(page.locator('#login-username')).toHaveValue('test');
+await expect(page.getByTestId('username-input')).toHaveValue('test');
 ```
 
 #### 언제 써야 하나?
 
 ```typescript
-// ✅ 사용: input 값 확인
-await page.fill('#login-username', 'test');
-await expect(page.locator('#login-username')).toHaveValue('test');
+// ✅ 사용: input 값 확인 (본 사이트 로그인 아이디 입력란)
+await page.getByTestId('username-input').fill('test');
+await expect(page.getByTestId('username-input')).toHaveValue('test');
 
-// ✅ 사용: 자동 완성 확인
-await page.click('.autofill-suggestion');
-await expect(page.locator('#address')).toHaveValue('서울시 강남구...');
+// ✅ 사용: 자동 완성/주소검색 결과 확인 (본 사이트 예: 프로필 주소)
+await expect(page.getByTestId('profile-address')).toHaveValue(/테헤란로/);
 ```
 
 ---
@@ -747,13 +753,12 @@ await expect(page.locator('button')).toBeDisabled();
 
 ```typescript
 // ✅ 사용: 조건부 버튼 활성화
-// (본 사이트 로그인 버튼은 실제로 입력 전에는 비활성화 상태)
-await expect(page.locator('#login-submit')).toBeDisabled();
+// (본 사이트 체크아웃 결제 버튼은 약관 체크 전에는 비활성화 상태)
+await expect(page.locator('#place-order-btn')).toBeDisabled();
 
-await page.fill('#login-username', 'test');
-await page.fill('#login-password', '1234');
+await page.check('#agree-terms');
 
-await expect(page.locator('#login-submit')).toBeEnabled();
+await expect(page.locator('#place-order-btn')).toBeEnabled();
 ```
 
 ---
@@ -843,9 +848,9 @@ await page.click('button');
 ### 5.2 페이지 이동 패턴
 
 ```typescript
-// 패턴 1: URL 변경 대기
-await page.click('a[href="/products"]');
-await page.waitForURL('/products');
+// 패턴 1: URL 변경 대기 (상품 카드 클릭 → 상세 페이지로 이동)
+await page.getByTestId('view-detail-btn-1').click();
+await page.waitForURL('**/product/**');
 
 // 패턴 2: 로딩 완료 대기
 await page.goto('/');
@@ -957,18 +962,20 @@ await page.getByRole('button', { name: '제출' }).click();
 ### 7.1 우선순위
 
 ```typescript
-// 1순위: getByRole()
+// 1순위: getByRole() — 접근성 의미가 뚜렷한 버튼/링크/입력
 await page.getByRole('button', { name: '로그인' }).click();
 
-// 2순위: getByLabel(), getByText()
+// 1급(본 사이트): getByTestId — testid 389개로 촘촘함, 안심하고 우선 사용
+await page.getByTestId('login-submit-button').click();
+
+// 보조: getByLabel(), getByText()
 await page.getByLabel('이메일').fill('test@example.com');
 
-// 3순위: data-testid
-await page.getByTestId('submit-btn').click();
-
-// 4순위: CSS 선택자
-await page.locator('.btn-primary').click();
+// 지양: CSS 선택자 / 구조 의존 셀렉터
+await page.locator('div > div > .btn-primary').click();  // 취약
 ```
+
+> **본 사이트에서는 testid가 1급 시민입니다**(위 3.6 참고).
 
 ---
 
@@ -997,9 +1004,9 @@ await page.waitForLoadState('load');
 // ✅ 로딩 스피너 사라짐 대기
 await page.locator('.loading').waitFor({ state: 'hidden' });
 
-// ✅ URL 변경 대기
-await page.click('a[href="/products"]');
-await page.waitForURL('/products');
+// ✅ URL 변경 대기 (상품 카드 클릭 → 상세 페이지로 이동)
+await page.getByTestId('view-detail-btn-1').click();
+await page.waitForURL('**/product/**');
 
 // ✅ 모달 완전히 닫힘 대기
 await page.click('.modal-close');
@@ -1017,9 +1024,122 @@ const [response] = await Promise.all([
 // ❌ waitForTimeout() - 안티패턴!
 await page.waitForTimeout(3000);
 
-// ✅ 대신 조건 기반 대기
-await page.locator('.element').waitFor();
+// ✅ 대신 조건 기반 대기 (web-first assertion이 조건 충족까지 자동 재시도)
+await expect(page.getByTestId('checkout-final')).toBeVisible();
+await page.getByTestId('loading-spinner').waitFor({ state: 'hidden' });
 ```
+
+> `waitForLoadState('networkidle')`도 지양하세요. 이 앱은 배너 캐러셀·이미지 등으로 네트워크가 계속 움직여
+> `networkidle`가 늦게 도달하거나 아예 도달하지 못할 수 있습니다. "무엇을 기다리는가"를 명시하는
+> web-first assertion(`toBeVisible`/`toHaveText`/`waitFor({state})`)으로 대체하세요.
+
+---
+
+### 7.3 인증 재사용 (storageState)
+
+인증정보가 **localStorage**에 저장되므로, Playwright `storageState`(쿠키 + localStorage(origins)를 직렬화) 재사용이 정상 동작합니다. 매 테스트에서 UI 로그인을 반복하는 대신, **한 번 로그인해 세션을 파일로 저장**한 뒤 프로젝트 의존성으로 재사용하세요.
+
+```typescript
+// auth.setup.ts — 한 번만 로그인해서 세션을 파일로 저장
+import { test as setup, expect } from '@playwright/test';
+const authFile = '.auth/user.json';
+
+setup('로그인', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();   // 계정 드롭다운 열기
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();  // 리다이렉트 아님, 모달 닫힘으로 검증
+  await page.context().storageState({ path: authFile });        // localStorage 포함 저장 → 재사용
+});
+```
+
+```typescript
+// playwright.config.ts — projects에 setup 의존성 연결
+projects: [
+  { name: 'setup', testMatch: /auth\.setup\.ts/ },
+  { name: 'chromium', dependencies: ['setup'],
+    use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' } },
+]
+```
+
+**대안 — UI 없이 API로 토큰만 받아 주입** (더 빠름, storageState 파일 대신):
+```typescript
+const { token, user } = await (await request.post('/api/login',
+  { data: { username: 'test', password: '1234' } })).json();
+await context.addInitScript(([t, r, u]) => {
+  localStorage.setItem('token', t);
+  localStorage.setItem('role', r);
+  localStorage.setItem('username', u);
+}, [token, user.role, user.username]);
+// 이후 page.goto('/') 하면 로그인 상태로 시작
+```
+
+> JWT는 1시간 후 만료됩니다. 오래 도는 스위트에서 401이 나면 setup을 재실행해 세션을 갱신하세요.
+
+---
+
+### 7.4 playwright.config (별도 테스트 레포)
+
+```typescript
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  use: { baseURL: 'http://localhost:5173', trace: 'on-first-retry',
+         screenshot: 'only-on-failure', video: 'retain-on-failure' },
+  retries: process.env.CI ? 2 : 0,
+  webServer: [
+    { command: 'npm run start-api', port: 3000, reuseExistingServer: !process.env.CI },
+    { command: 'npm run dev',       port: 5173, reuseExistingServer: !process.env.CI },
+  ],
+});
+```
+
+`baseURL`을 지정하면 `page.goto('/checkout')`·`request.get('/api/products')`처럼 **상대경로**만으로 요청할 수 있습니다.
+
+---
+
+### 7.5 순수 API 검증은 `page.request` (UI 없이)
+
+순수 API 검증에는 UI를 띄우지 말고 **`request` 픽스처** 또는 `playwright.request.newContext({ baseURL, extraHTTPHeaders })`를 쓰세요. **UI 동작이 유발한 네트워크 호출**을 검증할 때만 `page.waitForResponse(...)`를 씁니다.
+
+```typescript
+test('상품 목록 API', async ({ request }) => {
+  const res = await request.get('/api/products');   // baseURL=5173, /api는 3000으로 프록시
+  expect(res).toBeOK();
+  const { products } = await res.json();
+  expect(products.length).toBeGreaterThan(0);
+});
+
+test('내 주문 (인증 필요)', async ({ playwright }) => {
+  const anon = await playwright.request.newContext({ baseURL: 'http://localhost:5173' });
+  const { token } = await (await anon.post('/api/login',
+    { data: { username: 'test', password: '1234' } })).json();  // 응답 바디의 token (set-cookie 아님)
+  const api = await playwright.request.newContext({
+    baseURL: 'http://localhost:5173',
+    extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+  });
+  expect((await api.get('/api/orders')).status()).toBe(200);
+});
+```
+
+한 줄 규칙: **순수 API = `page.request`, UI 유발 호출 검증 = `waitForResponse`.**
+
+---
+
+### 7.6 테스트 격리
+
+장바구니/주문/리뷰/계정이 서버 DB에 **계정 단위로 영속**됩니다. `beforeEach`에서 `POST /api/reset`(공유 환경 전체 초기화)으로 시드를 복원하거나, 병렬 실행 시 테스트별 **고유 계정**으로 격리하세요.
+
+```typescript
+test.beforeEach(async ({ request }) => { await request.post('/api/reset'); });
+// 병렬(fullyParallel) 시엔 고유 계정 권장:
+// const username = `u${Date.now()}_${test.info().parallelIndex}`;
+```
+
+> 공유 배포 환경에서는 `reset`이 **모든 사용자**의 데이터를 초기화하니 주의하세요.
 
 ---
 
@@ -1047,7 +1167,7 @@ await page.locator('.element').waitFor();
 | 배송지 입력 | `#checkout-name`, `#checkout-phone`, `#checkout-address`, `#checkout-memo` |
 | 배송지 에러 | `[data-testid="checkout-name-error"]`, `[data-testid="checkout-phone-error"]`, `[data-testid="checkout-address-error"]` |
 | 쿠폰 | `#coupon-code`, `[data-testid="coupon-apply-btn"]`, `[data-testid="coupon-message"]`, `[data-testid="coupon-remove-btn"]` |
-| 결제수단 라디오 | `#payment-card`, `#payment-bank`, `#payment-kakao` (카드만 실제 동작 — 무통장/카카오 선택 시 `#payment-method-notice` 준비중 안내) |
+| 결제수단 라디오 | `#payment-card`(카드), `#payment-bank`(라벨 "무통장입금" — 선택 시 `payment-bank-warn` 경고), `#payment-inicis`(이니시스 샌드박스). 결제수단 안내는 `payment-method-notice` |
 | 카드 입력 (카드 선택 시에만 렌더) | `#card-number`(data-testid: `card-number-input`), `#card-expiry`(`card-expiry-input`), `#card-cvc`(`card-cvc-input`) |
 | 테스트 카드 안내 (접이식) | `#test-card-guide` / `#test-card-guide-toggle` → `#test-card-guide-body`, 행 `[data-testid="test-card-row-0000"]`·`-0001`·`-0002`·`-9999` |
 | 약관 동의 (체크 전 결제버튼 비활성) | `#agree-terms` |
@@ -1083,20 +1203,22 @@ await page.locator('.element').waitFor();
 | 갤러리 (이미지 3장) | `[data-testid="product-main-image"]`, `[data-testid="gallery-thumb-0"]`~`gallery-thumb-2` (`aria-pressed`) |
 | 탭 | `#tab-description`, `#tab-specs`, `#tab-shipping`, `#tab-reviews` → 패널 `[data-testid="tab-panel-description"]` 등 (활성 탭 패널만 DOM에 존재) |
 | 스펙 행 | `[data-testid="spec-row-{i}"]` (상품당 7~8행) |
-| 재고 뱃지 (`품절`/`재고 부족`/`재고 충분`) | `[data-testid="stock-badge"]` — 품절 시 `#add-to-cart-button`, `#buy-now-button` 모두 `disabled` |
+| 재고 뱃지 (`품절`/`재고 부족`/`재고 충분`) | `[data-testid="stock-badge"]` — 재고 0이면 `#add-to-cart-button`, `#buy-now-button` 모두 `disabled`. **씨드에는 재고 0(품절) 상품이 없으므로**(전체 5~30 범위) 품절 UI를 검증하려면 관리자 `PUT /api/admin`으로 재고를 0으로 낮춰 재현 |
 | 평점 요약 | `[data-testid="rating-average"]`, `[data-testid="rating-bar-5"]`~`rating-bar-1` |
 | 리뷰 작성 (로그인 필요) | `[data-testid="star-input-1"]`~`star-input-5`, `#review-comment`, `#review-submit`, `[data-testid="review-form-message"]` (in-DOM 메시지, alert 아님) |
 | 리뷰 이미지 첨부 (최대 3장) | `[data-testid="image-upload-input-review"]`(file input), 업로드 후 썸네일 `[data-testid="review-upload-thumb-{i}"]` / 제거 `[data-testid="review-upload-remove-{i}"]` |
 | 리뷰별 첨부 이미지 (목록) | `[data-testid="review-images-{reviewId}"]` → 개별 `[data-testid="review-image-{reviewId}-{i}"]` |
 | 리뷰 정렬 / 더보기 / 항목 | `#review-sort` (`latest`/`rating`), `[data-testid="review-load-more"]`, `[data-testid="review-item-{id}"]` |
 
-#### 목록 `/products` · 홈 `/`
+#### 목록 = 홈 `/`
 | 용도 | 셀렉터 |
 |---|---|
-| 정렬 (홈·목록 공통) | `#sort-select` (`default`/`price-asc`/`price-desc`/`name`/`discount`) |
-| 가격 필터 (**/products 전용**) | `#min-price`, `#max-price`, `[data-testid="apply-price-filter"]`, `[data-testid="reset-price-filter"]`, `[data-testid="price-filter-error"]` |
-| 검색 결과 개수 (/products) | `[data-testid="search-result-count"]` |
-| 품절 뱃지 (씨드 기준 상품 3/8/18) | `[data-testid="soldout-badge-{id}"]` |
+| 정렬 (홈) | `#sort-select` (`default`/`price-asc`/`price-desc`/`name`/`discount`) |
+| 가격 필터 (홈) | `#min-price`, `#max-price`, `[data-testid="apply-price-filter"]`, `[data-testid="reset-price-filter"]`, `[data-testid="price-filter-error"]` |
+| 검색 결과 개수 | `[data-testid="search-result-count"]` |
+
+> 목록/정렬/가격필터/검색은 모두 **홈(`/`)** 에서 수행합니다.
+> 씨드 상품 재고는 전체 5~30 범위입니다 — `soldout-badge-{id}` 품절 뱃지를 보려면 관리자 API로 재고를 0으로 낮춰 재현하세요(§8.6).
 
 #### 장바구니 `/cart` · 주문완료 `/order-complete`
 - 장바구니는 **서버 장바구니**(로그인 필수)이며 `cart-item-{productId}` 등 기존 `cart-*` testid는 **productId 기준**입니다. `#checkout-btn` 클릭 시 `/checkout`으로 이동합니다(주문 생성은 체크아웃 페이지에서).
@@ -1141,7 +1263,10 @@ test('회원가입 전체 플로우', async ({ page }) => {
   // 아이디 규칙: 영문 소문자 + 숫자 4~12자
   const username = `qa${Date.now().toString().slice(-8)}`;
 
-  await page.goto('/signup');
+  // 회원가입은 홈+모달로 동작한다. 계정 드롭다운에서 회원가입 모달을 연다.
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-signup').click();
 
   // 1) 이미 존재하는 아이디로 중복확인
   await page.fill('#signup-username', 'test');
@@ -1166,15 +1291,17 @@ test('회원가입 전체 플로우', async ({ page }) => {
   await page.fill('#signup-password-confirm', 'password1');
   await page.click('#signup-submit');
 
-  // 성공 메시지(in-DOM) → 약 1초 뒤 자동으로 /login 이동
+  // 성공 메시지(in-DOM) → 잠시 뒤 로그인 모달로 전환 (URL은 바뀌지 않음)
   await expect(page.getByTestId('signup-success')).toBeVisible();
-  await page.waitForURL('/login');
+  await expect(page.getByTestId('login-modal')).toBeVisible();
 
-  // 4) 새 계정으로 로그인
-  await page.fill('#login-username', username);
-  await page.fill('#login-password', 'password1');
-  await page.click('#login-submit');
-  await expect(page.locator('#home-logout')).toBeVisible();
+  // 4) 새 계정으로 로그인 (로그인 모달에서 바로)
+  await page.getByTestId('username-input').fill(username);
+  await page.getByTestId('password-input').fill('password1');
+  await page.getByTestId('login-submit-button').click();
+
+  // 리다이렉트 아님 — 모달 닫힘으로 검증
+  await expect(page.getByTestId('login-modal')).toBeHidden();
 });
 ```
 
@@ -1189,19 +1316,21 @@ test('회원가입 전체 플로우', async ({ page }) => {
 import { test, expect } from '@playwright/test';
 
 test('체크아웃 전체 플로우', async ({ page }) => {
-  // 로그인
-  await page.goto('/login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  await expect(page.locator('#home-logout')).toBeVisible();
+  // 로그인 (계정 드롭다운 → 모달). storageState를 쓰면 이 블록은 생략 가능(7.3).
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
 
   // 장바구니 담기 (성공 시 alert 발생 → 다이얼로그 처리)
   page.once('dialog', (dialog) => dialog.accept());
-  await page.click('[data-testid="add-to-cart-btn-1"]');
+  await page.getByTestId('add-to-cart-btn-1').click();
 
-  // 장바구니 → 체크아웃 (전 상품 자동 선택됨)
-  await page.click('[data-testid="cart-button"]');
+  // 장바구니로 이동 (홈 헤더는 #home-cart-btn, 서브페이지 공통 헤더는 site-nav-cart)
+  await page.locator('#home-cart-btn').click();
   await page.click('#checkout-btn');
   await page.waitForURL('/checkout');
 
@@ -1216,7 +1345,7 @@ test('체크아웃 전체 플로우', async ({ page }) => {
   await expect(page.getByTestId('checkout-phone-error')).toBeVisible();
   await expect(page.getByTestId('checkout-address-error')).toBeVisible();
 
-  // 3) 쿠폰 실패: EXPIRED10 (만료 쿠폰, 의도적) → 400 COUPON_EXPIRED
+  // 3) 쿠폰 실패: EXPIRED10 (만료 쿠폰) → 400 COUPON_EXPIRED
   await page.fill('#coupon-code', 'EXPIRED10');
   await page.click('[data-testid="coupon-apply-btn"]');
   await expect(page.getByTestId('coupon-message'))
@@ -1252,7 +1381,8 @@ test('체크아웃 전체 플로우', async ({ page }) => {
 
 > 가격/할인은 **서버(DB)가 결정**합니다. 클라이언트가 보낸 가격은 무시되므로,
 > `checkout-final` 금액과 주문 API 응답의 `finalPrice`가 일치하는지 검증하는 것도 좋은 연습입니다.
-> 참고: 상품 3/4 포함 주문은 422 `ORDER_BLOCKED_PRODUCT`, 재고 0(상품 18)은 409 `INSUFFICIENT_STOCK` — `checkout-error`에 표시됩니다(의도적).
+> 참고: 상품 3/4 포함 주문은 422 `ORDER_BLOCKED_PRODUCT` — `checkout-error`에 표시됩니다.
+> 재고부족(409 `INSUFFICIENT_STOCK`)은 씨드에 재고 0 상품이 없으므로, 현재 재고를 조회한 뒤 `stock+1` 수량으로 주문하거나 관리자 `PUT /api/admin`으로 재고를 낮춰 재현합니다.
 > 결제 실패(끝 4자리 `0001`/`0002`/`9999`)와 외부 PG 목킹 연습은 [8.8](#88-결제-플로우-테스트-카드--외부-pg-목킹) 참고.
 
 ---
@@ -1265,12 +1395,18 @@ test('체크아웃 전체 플로우', async ({ page }) => {
 import { test, expect } from '@playwright/test';
 
 test('주문 취소 플로우', async ({ page }) => {
-  // 로그인 후 /orders 이동 (딥링크 직후는 REQ-1 때문에 비로그인이므로 UI 로그인 먼저)
-  await page.goto('/login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  await page.click('#home-orders-btn');
+  // 로그인 (계정 드롭다운 → 모달) 후 계정 드롭다운의 주문내역으로 이동.
+  // 로그인은 localStorage에 저장되므로 storageState(7.3)로 이 블록을 대체할 수도 있다.
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-orders').click();
   await page.waitForURL('/orders');
 
   // 첫 번째 주문 행 클릭 → 상세 확장
@@ -1326,10 +1462,13 @@ import { test, expect } from '@playwright/test';
 
 test('위시리스트 플로우', async ({ page }) => {
   // 로그인 (비로그인 상태로 하트 클릭 시 로그인 유도 confirm 발생)
-  await page.goto('/login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
 
   // 1) 홈 카드의 하트 토글 → aria-pressed 검증
   const heart = page.getByTestId('wishlist-toggle-1');
@@ -1337,8 +1476,9 @@ test('위시리스트 플로우', async ({ page }) => {
   await heart.click();
   await expect(heart).toHaveAttribute('aria-pressed', 'true');
 
-  // 2) 위시리스트 페이지에서 확인
-  await page.click('#home-wishlist-btn');
+  // 2) 위시리스트 페이지에서 확인 (계정 드롭다운 → 위시리스트)
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-wishlist').click();
   await page.waitForURL('/wishlist');
   await expect(page.getByTestId('wishlist-item-1')).toBeVisible();
 
@@ -1371,12 +1511,15 @@ test('갤러리와 탭', async ({ page }) => {
 });
 
 test('리뷰 작성 → in-DOM 메시지 → 평점 분포 갱신', async ({ page }) => {
-  // 리뷰 작성은 로그인 필요 → UI 로그인 후 상세 진입
-  await page.goto('/login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  await page.click('[data-testid="view-detail-btn-1"]');
+  // 리뷰 작성은 로그인 필요 → UI 로그인(계정 드롭다운→모달) 후 상세 진입
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+  await page.getByTestId('view-detail-btn-1').click();
 
   await page.click('#tab-reviews');
   await page.getByTestId('star-input-4').click();          // 별점 4점
@@ -1392,27 +1535,33 @@ test('리뷰 작성 → in-DOM 메시지 → 평점 분포 갱신', async ({ pag
   await expect(page.getByTestId('rating-bar-4')).toBeVisible();
 });
 
-test('품절 상품(18)은 구매 버튼 비활성', async ({ page }) => {
-  await page.goto('/product/18'); // 씨드 기준 재고 0 (의도적)
+test('재고 0 상품은 구매 버튼 비활성 (재고를 0으로 만들어 재현)', async ({ page, request }) => {
+  // 씨드에는 재고 0 상품이 없으므로(전체 5~30), 관리자 API로 특정 상품 재고를 0으로 낮춘다.
+  // (관리자 토큰 확보는 /api/login으로 admin/1234 로그인 후 Bearer 사용 — 7.5 참고)
+  // await request.put('/api/admin', { headers: { Authorization: `Bearer ${adminToken}` },
+  //   data: { id: 1, stock: 0 } });
 
+  await page.goto('/product/1');
   await expect(page.getByTestId('stock-badge')).toHaveText('품절');
   await expect(page.locator('#add-to-cart-button')).toBeDisabled();
   await expect(page.locator('#buy-now-button')).toBeDisabled();
 });
 ```
 
-> 리뷰는 계정당 상품 1개만 작성 가능 — 같은 계정으로 다시 제출하면 409 `REVIEW_ALREADY_EXISTS`가
-> `review-form-message`에 표시됩니다. 10자 미만 코멘트는 400 `COMMENT_TOO_SHORT`. 둘 다 좋은 negative 연습입니다.
+> **리뷰는 같은 상품에 여러 번 작성해도 항상 201로 성공합니다.**
+> 단 10자 미만 코멘트는 400 `COMMENT_TOO_SHORT`가 `review-form-message`에 표시됩니다 — 이것이 좋은 negative 연습입니다.
 
 ---
 
-### 8.6 목록 (정렬 · 가격 필터 · 품절 뱃지)
+### 8.6 목록 (정렬 · 가격 필터) — 홈(`/`) 기준
+
+> 정렬·가격필터·검색은 모두 **홈(`/`)** 에서 수행합니다.
 
 ```typescript
 import { test, expect } from '@playwright/test';
 
-test('정렬과 가격 필터', async ({ page }) => {
-  await page.goto('/products');
+test('정렬과 가격 필터 (홈)', async ({ page }) => {
+  await page.goto('/');
 
   // 정렬: 낮은 가격순
   await page.selectOption('#sort-select', 'price-asc');
@@ -1430,11 +1579,11 @@ test('정렬과 가격 필터', async ({ page }) => {
   await page.click('[data-testid="apply-price-filter"]');
   await expect(page.getByTestId('search-result-count')).toBeVisible();
 
-  // 품절 뱃지 (씨드 기준 상품 3/8/18 재고 0)
   await page.click('[data-testid="reset-price-filter"]');
-  await expect(page.getByTestId('soldout-badge-3')).toBeVisible();
 });
 ```
+
+> 품절 뱃지(`soldout-badge-{id}`)를 검증하려면 관리자 `PUT /api/admin`으로 해당 상품 재고를 0으로 낮춘 뒤 홈을 새로고침하세요.
 
 ---
 
@@ -1445,36 +1594,41 @@ test('정렬과 가격 필터', async ({ page }) => {
 ```typescript
 import { test, expect } from '@playwright/test';
 
+async function loginAs(page, username, password) {
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill(username);
+  await page.getByTestId('password-input').fill(password);
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+}
+
 test('다른 브라우저 컨텍스트에서도 장바구니 유지', async ({ browser }) => {
   // 컨텍스트 A: 로그인 후 상품 담기
   const ctxA = await browser.newContext();
   const pageA = await ctxA.newPage();
-  await pageA.goto('/login');
-  await pageA.fill('#login-username', 'test');
-  await pageA.fill('#login-password', '1234');
-  await pageA.click('#login-submit');
+  await loginAs(pageA, 'test', '1234');
   pageA.once('dialog', (d) => d.accept());
-  await pageA.click('[data-testid="add-to-cart-btn-1"]');
+  await pageA.getByTestId('add-to-cart-btn-1').click();
   await ctxA.close();
 
   // 컨텍스트 B: 완전히 새로운 브라우저 상태에서 같은 계정으로 로그인
   const ctxB = await browser.newContext();
   const pageB = await ctxB.newPage();
-  await pageB.goto('/login');
-  await pageB.fill('#login-username', 'test');
-  await pageB.fill('#login-password', '1234');
-  await pageB.click('#login-submit');
+  await loginAs(pageB, 'test', '1234');
 
   // 서버 장바구니가 그대로 유지되어 있음
-  await pageB.click('[data-testid="cart-button"]');
+  await pageB.locator('#home-cart-btn').click();
   await expect(pageB.getByTestId('cart-item-1')).toBeVisible();
   await ctxB.close();
 });
 ```
 
-> REQ-1 때문에 `storageState`로 **로그인 상태**는 재사용할 수 없지만, 장바구니 데이터 자체는
-> 서버에 남아 있다는 점이 핵심입니다. 테스트 간 간섭을 피하려면 테스트 시작/종료 시
-> 장바구니를 비우거나(`cart_update` 수량 0) `POST /api/reset`을 사용하세요.
+> 로그인 상태 자체는 localStorage에 저장되어 `storageState`로 재사용할 수 있습니다(7.3).
+> 여기서 핵심은 **로그인 세션과 무관하게 장바구니 데이터가 서버(DB)에 남는다**는 점입니다 —
+> 새 컨텍스트에서 같은 계정으로 로그인만 하면 장바구니가 그대로 보입니다. 테스트 간 간섭을 피하려면
+> 시작/종료 시 장바구니를 비우거나(`cart_update` 수량 0) `POST /api/reset`을 사용하세요.
 
 ---
 
@@ -1612,7 +1766,7 @@ test('유효 송장 → 상태 + 이벤트 타임라인', async ({ page }) => {
 
 ### 8.11 내정보 (아바타 · 주소검색 폴백)
 
-`/profile`은 **로그인 필요** 페이지입니다. 딥링크로 바로 들어가면 REQ-1 때문에 비로그인이라 `profile-login-required`가 뜹니다. 주소검색은 카카오(다음) 우편번호 위젯을 외부 스크립트로 동적 로드하며, 차단/실패 시 수동입력 폼(`address-search-fallback`)으로 폴백합니다.
+`/profile`은 **로그인 필요** 페이지입니다. 로그인하지 않은 채 딥링크로 들어가면 `profile-login-required`가 뜹니다(로그인 상태는 localStorage에 유지되므로, storageState(7.3)로 미리 인증해 두면 바로 프로필이 렌더됩니다). 주소검색은 카카오(다음) 우편번호 위젯을 외부 스크립트로 동적 로드하며, 차단/실패 시 수동입력 폼(`address-search-fallback`)으로 폴백합니다.
 
 ```typescript
 import { test, expect } from '@playwright/test';
@@ -1626,9 +1780,10 @@ test('외부 우편번호 스크립트 차단 → 수동입력 폴백', async ({
   // 카카오 우편번호 스크립트 로드를 차단해 폴백 강제 (외부 스크립트 목킹)
   await page.route('**/*postcode*', (route) => route.abort());
 
-  // 로그인 후 /profile 진입 (홈에서 #home-profile-btn 사용)
-  // ... UI 로그인 ...
-  await page.click('#home-profile-btn');
+  // 로그인 후 계정 드롭다운의 내정보로 진입
+  // ... UI 로그인(user-menu-trigger → usermenu-login → 모달) 또는 storageState(7.3) ...
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-profile').click();
   await page.waitForURL('/profile');
 
   await page.getByTestId('address-search-btn').click();

@@ -11,6 +11,46 @@
 
 ---
 
+## 시작하기 전에 — 환경/인증/도구 (SSOT 요약)
+
+> 앱 사실(인증·셀렉터·픽스처·격리)의 정본은 [README_QA.md](README_QA.md)에 있습니다. 이 문서는 API 검증에 필요한 만큼만 얕게 재설명합니다. Postman/Newman 상세는 [API_TEST_COLLECTION.md](API_TEST_COLLECTION.md)로 이관되었습니다.
+
+**앱 주소(origin)와 프록시.**
+- 브라우저가 접속하는 앱은 `http://localhost:5173`(Vite dev server)입니다. `/api/...` 요청은 Vite가 뒤에서 `http://localhost:3000`(Express)로 **프록시**합니다.
+- 그래서 테스트는 **`baseURL: 'http://localhost:5173'` + 상대경로 `/api/...`**를 씁니다. 상대경로를 쓰면 프록시/CORS 경로를 포함해 실제 사용자와 동일한 경로를 검증하게 됩니다. (아래 모든 예제도 상대경로를 씁니다.)
+
+**API 검증 도구 — Playwright `request` 픽스처.**
+- 순수 API 검증(네트워크만)은 `request` 픽스처 또는 `request.newContext({ baseURL, extraHTTPHeaders })`를 씁니다. `expect(res).toBeOK()`, `res.status()`, `await res.json()`으로 검증합니다.
+- UI 조작이 유발한 네트워크 호출을 확인할 때만 `page.waitForResponse(...)`를 씁니다.
+- 한 줄 구분: **순수 API = `page.request` / UI 유발 호출 검증 = `waitForResponse`.**
+
+**인증 — JWT는 응답 바디로, 클라이언트는 localStorage에 저장.**
+- 서버는 set-cookie를 쓰지 않습니다. `POST /api/login`이 응답 바디로 `{ token, user }`를 줍니다. 인증이 필요한 요청은 `Authorization: Bearer <token>` 헤더로 보냅니다.
+- 프론트(`src/App.jsx`)는 로그인 정보(`token`/`role`/`username`)를 **localStorage**에 저장합니다. localStorage는 Playwright `storageState`에 직렬화되므로, **한 번 로그인 → `storageState` 파일로 저장 → 재사용**이 됩니다(아래 [인증/권한 검증](#인증권한-검증) 참고). JWT 자체는 **1시간 후 만료**되어 이후 인증요청은 401로 거절됩니다(의도된 픽스처).
+
+**전역 설정(별도 테스트 레포)** — 자동화 코드는 이 레포가 아니라 별도 테스트 레포에 둡니다(이 레포는 테스트 대상 SUT):
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+export default defineConfig({
+  use: {
+    baseURL: 'http://localhost:5173',   // 이후 request.get('/api/...') 상대경로 사용
+    trace: 'on-first-retry',
+    screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
+  },
+  retries: process.env.CI ? 2 : 0,
+  webServer: [
+    { command: 'npm run start-api', port: 3000, reuseExistingServer: !process.env.CI },
+    { command: 'npm run dev',       port: 5173, reuseExistingServer: !process.env.CI },
+  ],
+});
+```
+
+> 아래 예제들은 이 `baseURL` 설정을 전제로 `request.get('/api/...')`처럼 **상대경로**를 씁니다.
+
+---
+
 ## API 목록 및 개요
 
 ### 기존 API (CRUD 중심)
@@ -31,7 +71,7 @@
 
 > 📌 관리자 CRUD는 DB(Postgres)에 바로 반영되므로 상품 목록(`/api/products`)/상세(`/api/products/:id`) 조회에 **즉시 반영됩니다**.
 
-> 📌 **참고**: 과거에 있던 `/api/cart`, `/api/order`, `/api/wishlist` 엔드포인트는 `/api/user-actions` 하나로 통합되어 **더 이상 존재하지 않습니다** (호출 시 404). 매핑 상세는 `API_CONSOLIDATION.md` 참고.
+> 📌 **참고**: 장바구니/주문/위시리스트는 `/api/user-actions` 하나로 통합되어 있습니다. 매핑 상세는 `API_CONSOLIDATION.md` 참고.
 
 ### 새로운 API (검증 연습용)
 
@@ -111,85 +151,80 @@ GET /api/products/delete/1
 
 #### 테스트 케이스
 ```javascript
+// baseURL=http://localhost:5173 (config) 전제 → 상대경로 '/api/...' 사용
+// 순수 API 검증이므로 request 픽스처를 쓴다 (fetch/axios 아님)
+
 // 1. 기본 조회
-test('GET /api/products - 상품 목록 조회', async () => {
-  const response = await fetch('http://localhost:3000/api/products');
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
-  expect(Array.isArray(data.products)).toBe(true);
-  expect(data.products.length).toBeGreaterThan(0);
+test('GET /api/products - 상품 목록 조회', async ({ request }) => {
+  const res = await request.get('/api/products');
+
+  expect(res).toBeOK();                 // 2xx 여부를 한 번에
+  const { products } = await res.json();
+  expect(Array.isArray(products)).toBe(true);
+  expect(products.length).toBeGreaterThan(0);
 });
 
 // 2. 단일 조회
-test('GET /api/products/1 - 특정 상품 조회', async () => {
-  const response = await fetch('http://localhost:3000/api/products/1');
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
+test('GET /api/products/1 - 특정 상품 조회', async ({ request }) => {
+  const res = await request.get('/api/products/1');
+
+  expect(res.status()).toBe(200);
+  const data = await res.json();
   expect(data.id).toBe(1);
   expect(data.name).toBeDefined();
 });
 
 // 3. 존재하지 않는 리소스
-test('GET /api/products/9999 - 404 반환', async () => {
-  const response = await fetch('http://localhost:3000/api/products/9999');
-  
-  expect(response.status).toBe(404);
-  const data = await response.json();
-  expect(data.code).toBe('PRODUCT_NOT_FOUND');
+test('GET /api/products/9999 - 404 반환', async ({ request }) => {
+  const res = await request.get('/api/products/9999');
+
+  expect(res.status()).toBe(404);
+  expect((await res.json()).code).toBe('PRODUCT_NOT_FOUND');
 });
 
 // 3-1. 의도적 오류 케이스 (연습용 픽스처 — 수정해야 할 버그가 아님)
-test('GET /api/products/3 - 의도적 500 반환', async () => {
-  // 상품 3, 4번은 항상 500을 반환하도록 설계된 의도적 케이스
-  const response = await fetch('http://localhost:3000/api/products/3');
-  
-  expect(response.status).toBe(500);
-  const data = await response.json();
-  expect(data.code).toBe('INTERNAL_SERVER_ERROR');
+test('GET /api/products/3 - 의도적 500 반환', async ({ request }) => {
+  // 상품 3, 4번은 항상 500을 반환하도록 설계된 의도적 케이스 (고치지 말 것)
+  const res = await request.get('/api/products/3');
+
+  expect(res.status()).toBe(500);
+  expect((await res.json()).code).toBe('INTERNAL_SERVER_ERROR');
 });
 
-test('GET /api/products/16 - 의도적 404 반환', async () => {
-  // 상품 16번은 항상 404를 반환하도록 설계된 의도적 케이스
-  const response = await fetch('http://localhost:3000/api/products/16');
-  
-  expect(response.status).toBe(404);
-  const data = await response.json();
-  expect(data.code).toBe('PRODUCT_NOT_FOUND');
+test('GET /api/products/16 - 의도적 404 반환', async ({ request }) => {
+  // 상품 16번은 항상 404를 반환하도록 설계된 의도적 케이스 (고치지 말 것)
+  const res = await request.get('/api/products/16');
+
+  expect(res.status()).toBe(404);
+  expect((await res.json()).code).toBe('PRODUCT_NOT_FOUND');
 });
 
 // 4. 쿼리 파라미터
-test('GET /api/search?q=블루투스 - 검색', async () => {
-  const response = await fetch('http://localhost:3000/api/search?q=블루투스');
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
+test('GET /api/search?q=블루투스 - 검색', async ({ request }) => {
+  const res = await request.get('/api/search?q=블루투스');
+
+  expect(res.status()).toBe(200);
+  const data = await res.json();
   expect(data.query).toBe('블루투스');
   expect(data.count).toBeGreaterThan(0);
 });
 
-// 5. 복합 쿼리
-test('GET /api/search - 복합 필터', async () => {
-  const params = new URLSearchParams({
-    category: '전자기기',
-    minPrice: '50000',
-    maxPrice: '200000',
-    sort: 'price-asc'
+// 5. 복합 쿼리 (params 옵션으로 쿼리스트링을 안전하게 조립)
+test('GET /api/search - 복합 필터', async ({ request }) => {
+  const res = await request.get('/api/search', {
+    params: { category: '전자기기', minPrice: '50000', maxPrice: '200000', sort: 'price-asc' },
   });
-  
-  const response = await fetch(`http://localhost:3000/api/search?${params}`);
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
-  
+
+  expect(res.status()).toBe(200);
+  const data = await res.json();
+
   // 모든 상품이 전자기기인지 확인
   data.products.forEach(p => {
     expect(p.category).toBe('전자기기');
     expect(p.price).toBeGreaterThanOrEqual(50000);
     expect(p.price).toBeLessThanOrEqual(200000);
   });
-  
+
   // 가격 오름차순 정렬 확인
   for (let i = 0; i < data.products.length - 1; i++) {
     expect(data.products[i].price).toBeLessThanOrEqual(data.products[i + 1].price);
@@ -199,117 +234,54 @@ test('GET /api/search - 복합 필터', async () => {
 
 ### POST - 생성
 
-#### 테스트 케이스
+> ℹ️ **리뷰는 자유롭게 작성됩니다.** 같은 상품에 리뷰를 여러 번 작성해도 **항상 201**로 성공하므로, productId는 아무거나 써도 됩니다.
+
+토큰은 로그인 API로 매번 받아 씁니다. 아래 예제는 설명을 짧게 하려고 `token`이 이미 있다고 가정하며, 실제 획득 방법은 [리뷰 작성 (인증 필요)](#리뷰-작성-인증-필요)의 로그인 → 토큰 패턴을 참고하세요.
+
 ```javascript
-// 1. 정상 생성
-test('POST /api/reviews - 리뷰 작성', async () => {
-  const token = 'your-jwt-token'; // 로그인으로 발급받은 실제 토큰 사용
-  
-  // 주의: test 계정은 초기 데이터에 상품 1, 2 리뷰가 이미 존재
-  // → productId 1로 작성하면 409가 발생하므로 5번 상품 사용 (또는 POST /api/reset 후 실행)
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      productId: 5,
-      rating: 5,
-      comment: '정말 좋은 상품입니다! 강력 추천합니다.'
-    })
+// 1. 정상 생성 → 항상 201 (productId 아무거나 OK)
+test('POST /api/reviews - 리뷰 작성', async ({ request }) => {
+  const res = await request.post('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { productId: 1, rating: 5, comment: '정말 좋은 상품입니다! 강력 추천합니다.' },
   });
-  
-  expect(response.status).toBe(201);
-  const data = await response.json();
+
+  expect(res.status()).toBe(201);
+  const data = await res.json();
   expect(data.review.id).toBeDefined();
   expect(data.review.rating).toBe(5);
 });
 
-// 2. 필수 필드 누락
-test('POST /api/reviews - 필수 필드 누락 시 400', async () => {
-  const token = 'your-jwt-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      productId: 1,
-      // rating 누락
-      comment: '좋아요'
-    })
+// 2. 필수 필드 누락 (rating 없음) → 400
+test('POST /api/reviews - 필수 필드 누락 시 400', async ({ request }) => {
+  const res = await request.post('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { productId: 1, comment: '좋아요' },   // rating 누락
   });
-  
-  expect(response.status).toBe(400);
-  const data = await response.json();
-  expect(data.code).toBe('RATING_REQUIRED');
+
+  expect(res.status()).toBe(400);
+  expect((await res.json()).code).toBe('RATING_REQUIRED');
 });
 
-// 3. 유효성 검사 실패
-test('POST /api/reviews - 별점 범위 초과 시 400', async () => {
-  const token = 'your-jwt-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      productId: 1,
-      rating: 10, // 1-5 범위 초과
-      comment: '별점이 너무 높아요'
-    })
+// 3. 유효성 검사 실패 (별점 범위 초과) → 400
+test('POST /api/reviews - 별점 범위 초과 시 400', async ({ request }) => {
+  const res = await request.post('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { productId: 1, rating: 10, comment: '별점이 너무 높아요' },   // 1-5 범위 초과
   });
-  
-  expect(response.status).toBe(400);
-  const data = await response.json();
-  expect(data.code).toBe('INVALID_RATING');
+
+  expect(res.status()).toBe(400);
+  expect((await res.json()).code).toBe('INVALID_RATING');
 });
 
-// 4. 중복 생성 (409 Conflict)
-test('POST /api/reviews - 중복 리뷰 시 409', async () => {
-  const token = 'your-jwt-token'; // test 계정 토큰
-  
-  // test 계정은 초기 데이터에 상품 1 리뷰가 이미 존재 → 첫 요청부터 409 발생
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      productId: 1,
-      rating: 5,
-      comment: '이미 작성한 리뷰입니다.'
-    })
+// 4. 인증 없이 요청 → 401 (headers 미전달)
+test('POST /api/reviews - 토큰 없이 요청 시 401', async ({ request }) => {
+  const res = await request.post('/api/reviews', {
+    data: { productId: 1, rating: 5, comment: '인증 없이 작성' },
   });
-  
-  expect(response.status).toBe(409);
-  const data = await response.json();
-  expect(data.code).toBe('REVIEW_ALREADY_EXISTS');
-});
 
-// 5. 인증 없이 요청 (401)
-test('POST /api/reviews - 토큰 없이 요청 시 401', async () => {
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      productId: 1,
-      rating: 5,
-      comment: '인증 없이 작성'
-    })
-  });
-  
-  expect(response.status).toBe(401);
-  const data = await response.json();
-  expect(data.code).toBe('AUTH_NO_TOKEN');
+  expect(res.status()).toBe(401);
+  expect((await res.json()).code).toBe('AUTH_NO_TOKEN');
 });
 ```
 
@@ -318,47 +290,27 @@ test('POST /api/reviews - 토큰 없이 요청 시 401', async () => {
 #### 테스트 케이스
 ```javascript
 // 1. 정상 수정
-test('PATCH /api/reviews - 리뷰 수정', async () => {
-  const token = 'your-jwt-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      id: 1,
-      rating: 4, // 별점만 수정
-    })
+test('PATCH /api/reviews - 리뷰 수정', async ({ request }) => {
+  const res = await request.patch('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { id: 1, rating: 4 },   // 별점만 수정
   });
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
-  expect(data.review.rating).toBe(4);
+
+  expect(res.status()).toBe(200);
+  expect((await res.json()).review.rating).toBe(4);
 });
 
 // 2. 권한 없음 (403)
-test('PATCH /api/reviews - 타인 리뷰 수정 시 403', async () => {
+test('PATCH /api/reviews - 타인 리뷰 수정 시 403', async ({ request }) => {
   // test 계정 토큰 사용 — 리뷰 2번은 다른 사용자(user123) 소유
   // (admin 계정은 모든 리뷰를 수정할 수 있으므로 403이 발생하지 않음)
-  const token = 'test-user-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      id: 2, // 다른 사용자(user123)의 리뷰
-      comment: '타인 리뷰 수정 시도입니다'
-    })
+  const res = await request.patch('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { id: 2, comment: '타인 리뷰 수정 시도입니다' },   // 다른 사용자(user123)의 리뷰
   });
-  
-  expect(response.status).toBe(403);
-  const data = await response.json();
-  expect(data.code).toBe('FORBIDDEN');
+
+  expect(res.status()).toBe(403);
+  expect((await res.json()).code).toBe('FORBIDDEN');
 });
 ```
 
@@ -366,44 +318,26 @@ test('PATCH /api/reviews - 타인 리뷰 수정 시 403', async () => {
 
 #### 테스트 케이스
 ```javascript
-// 1. 정상 삭제
-test('DELETE /api/reviews - 리뷰 삭제', async () => {
-  const token = 'your-jwt-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      id: 1
-    })
+// 1. 정상 삭제 → 200 (삭제는 항상 200으로 응답)
+test('DELETE /api/reviews - 리뷰 삭제', async ({ request }) => {
+  const res = await request.delete('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { id: 1 },
   });
-  
-  expect(response.status).toBe(200);
-  const data = await response.json();
-  expect(data.message).toContain('삭제');
+
+  expect(res.status()).toBe(200);
+  expect((await res.json()).message).toContain('삭제');
 });
 
 // 2. 존재하지 않는 리소스 삭제 (404)
-test('DELETE /api/reviews - 없는 리뷰 삭제 시 404', async () => {
-  const token = 'your-jwt-token';
-  
-  const response = await fetch('http://localhost:3000/api/reviews', {
-    method: 'DELETE',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({
-      id: 9999
-    })
+test('DELETE /api/reviews - 없는 리뷰 삭제 시 404', async ({ request }) => {
+  const res = await request.delete('/api/reviews', {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { id: 9999 },
   });
-  
-  expect(response.status).toBe(404);
-  const data = await response.json();
-  expect(data.code).toBe('REVIEW_NOT_FOUND');
+
+  expect(res.status()).toBe(404);
+  expect((await res.json()).code).toBe('REVIEW_NOT_FOUND');
 });
 ```
 
@@ -411,46 +345,36 @@ test('DELETE /api/reviews - 없는 리뷰 삭제 시 404', async () => {
 
 #### 테스트 케이스
 ```javascript
+// Playwright 응답 헤더는 소문자 키의 객체로 온다: res.headers()['x-product-id']
 // 1. HEAD 메서드로 재고 확인
-test('HEAD /api/inventory - 재고 존재 확인', async () => {
-  const response = await fetch('http://localhost:3000/api/inventory?productId=1', {
-    method: 'HEAD'
-  });
-  
-  expect(response.status).toBe(200);
-  
-  // 헤더 검증
-  expect(response.headers.get('X-Product-Id')).toBe('1');
-  expect(response.headers.get('X-Stock-Count')).toBeDefined();
-  expect(response.headers.get('X-Stock-Status')).toBeDefined();
-  expect(response.headers.get('ETag')).toBeDefined();
-  
+test('HEAD /api/inventory - 재고 존재 확인', async ({ request }) => {
+  const res = await request.head('/api/inventory?productId=1');
+
+  expect(res.status()).toBe(200);
+
+  // 헤더 검증 (키는 소문자)
+  const h = res.headers();
+  expect(h['x-product-id']).toBe('1');
+  expect(h['x-stock-count']).toBeDefined();
+  expect(h['x-stock-status']).toBeDefined();
+  expect(h['etag']).toBeDefined();
+
   // 본문이 없는지 확인
-  const text = await response.text();
-  expect(text).toBe('');
+  expect((await res.body()).length).toBe(0);
 });
 
 // 2. GET과 HEAD 비교
-test('GET vs HEAD - 헤더는 동일, 본문만 차이', async () => {
-  // GET 요청
-  const getResponse = await fetch('http://localhost:3000/api/inventory?productId=1');
-  const getHeaders = getResponse.headers;
-  const getBody = await getResponse.json();
-  
-  // HEAD 요청
-  const headResponse = await fetch('http://localhost:3000/api/inventory?productId=1', {
-    method: 'HEAD'
-  });
-  const headHeaders = headResponse.headers;
-  const headBody = await headResponse.text();
-  
+test('GET vs HEAD - 헤더는 동일, 본문만 차이', async ({ request }) => {
+  const getRes = await request.get('/api/inventory?productId=1');
+  const headRes = await request.head('/api/inventory?productId=1');
+
   // 주요 헤더가 동일한지 확인
-  expect(getHeaders.get('X-Stock-Count')).toBe(headHeaders.get('X-Stock-Count'));
-  expect(getHeaders.get('ETag')).toBe(headHeaders.get('ETag'));
-  
+  expect(getRes.headers()['x-stock-count']).toBe(headRes.headers()['x-stock-count']);
+  expect(getRes.headers()['etag']).toBe(headRes.headers()['etag']);
+
   // GET은 본문 있음, HEAD는 본문 없음
-  expect(getBody).toBeDefined();
-  expect(headBody).toBe('');
+  expect(await getRes.json()).toBeDefined();
+  expect((await headRes.body()).length).toBe(0);
 });
 ```
 
@@ -462,47 +386,35 @@ test('GET vs HEAD - 헤더는 동일, 본문만 차이', async () => {
 
 ```javascript
 // 원하는 상태 코드 받기
-test('특정 상태 코드 받기', async () => {
-  // 200 OK
-  let response = await fetch('http://localhost:3000/api/status-codes?code=200');
-  expect(response.status).toBe(200);
-  
-  // 404 Not Found
-  response = await fetch('http://localhost:3000/api/status-codes?code=404');
-  expect(response.status).toBe(404);
-  
-  // 500 Internal Server Error
-  response = await fetch('http://localhost:3000/api/status-codes?code=500');
-  expect(response.status).toBe(500);
+test('특정 상태 코드 받기', async ({ request }) => {
+  expect((await request.get('/api/status-codes?code=200')).status()).toBe(200);
+  expect((await request.get('/api/status-codes?code=404')).status()).toBe(404);
+  expect((await request.get('/api/status-codes?code=500')).status()).toBe(500);
 });
 
-// 리다이렉트 테스트
-test('리다이렉트 상태 코드', async () => {
-  const response = await fetch('http://localhost:3000/api/status-codes?code=301', {
-    redirect: 'manual' // 자동 리다이렉트 방지
-  });
-  
-  expect(response.status).toBe(301);
-  expect(response.headers.get('Location')).toBe('https://example.com/new-location');
+// 리다이렉트 테스트 (자동 리다이렉트 방지)
+test('리다이렉트 상태 코드', async ({ request }) => {
+  const res = await request.get('/api/status-codes?code=301', { maxRedirects: 0 });
+
+  expect(res.status()).toBe(301);
+  expect(res.headers()['location']).toBe('https://example.com/new-location');
 });
 
 // Rate Limiting 테스트
-test('429 Too Many Requests', async () => {
-  const response = await fetch('http://localhost:3000/api/status-codes?code=429');
-  
-  expect(response.status).toBe(429);
-  expect(response.headers.get('Retry-After')).toBeDefined();
-  expect(response.headers.get('X-RateLimit-Limit')).toBeDefined();
+test('429 Too Many Requests', async ({ request }) => {
+  const res = await request.get('/api/status-codes?code=429');
+
+  expect(res.status()).toBe(429);
+  expect(res.headers()['retry-after']).toBeDefined();
+  expect(res.headers()['x-ratelimit-limit']).toBeDefined();
 });
 
-// 타임아웃 테스트
-test('요청 지연 시뮬레이션', async () => {
-  const startTime = Date.now();
-  
-  await fetch('http://localhost:3000/api/status-codes?code=200&delay=2000');
-  
-  const elapsed = Date.now() - startTime;
-  expect(elapsed).toBeGreaterThanOrEqual(2000);
+// 지연 응답 검증 — 서버가 실제로 늦게 응답하는지 확인
+// (응답을 await하면 지연 시간만큼 자연히 걸리므로, 그 경과 시간을 측정해 검증한다)
+test('요청 지연 시뮬레이션', async ({ request }) => {
+  const start = Date.now();
+  await request.get('/api/status-codes?code=200&delay=2000');
+  expect(Date.now() - start).toBeGreaterThanOrEqual(2000);
 });
 ```
 
@@ -512,34 +424,32 @@ test('요청 지연 시뮬레이션', async () => {
 
 ### 요청 헤더 검증
 ```javascript
-test('Content-Type 헤더 검증', async () => {
-  const response = await fetch('http://localhost:3000/api/products');
-  
-  expect(response.headers.get('Content-Type')).toContain('application/json');
+test('Content-Type 헤더 검증', async ({ request }) => {
+  const res = await request.get('/api/products');
+
+  expect(res.headers()['content-type']).toContain('application/json');
 });
 
-test('CORS 헤더 검증', async () => {
-  const response = await fetch('http://localhost:3000/api/products', {
-    headers: {
-      'Origin': 'http://localhost:5173'
-    }
+test('CORS 헤더 검증', async ({ request }) => {
+  const res = await request.get('/api/products', {
+    headers: { Origin: 'http://localhost:5173' },
   });
-  
-  expect(response.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');
+
+  expect(res.headers()['access-control-allow-origin']).toBeDefined();
 });
 
-test('Cache-Control 헤더', async () => {
-  const response = await fetch('http://localhost:3000/api/inventory?productId=1');
-  
-  expect(response.headers.get('Cache-Control')).toBeDefined();
+test('Cache-Control 헤더', async ({ request }) => {
+  const res = await request.get('/api/inventory?productId=1');
+
+  expect(res.headers()['cache-control']).toBeDefined();
 });
 ```
 
 ### 응답 본문 검증
 ```javascript
-test('응답 스키마 검증', async () => {
-  const response = await fetch('http://localhost:3000/api/products');
-  const data = await response.json();
+test('응답 스키마 검증', async ({ request }) => {
+  const res = await request.get('/api/products');
+  const data = await res.json();
   
   // 필드 존재 확인
   expect(data.products).toBeDefined();
@@ -563,60 +473,79 @@ test('응답 스키마 검증', async () => {
 
 ## 인증/권한 검증
 
+### 인증 모델 한눈에
+
+- 서버는 **set-cookie를 쓰지 않습니다.** `POST /api/login`이 응답 바디로 `{ token, user }`를 주고, 인증 요청은 `Authorization: Bearer <token>` 헤더로 보냅니다.
+- 프론트(`src/App.jsx`)는 `token`/`role`/`username`을 **localStorage**에 저장합니다. 그 결과 로그인이 **새로고침·탭 닫기·재시작 후에도 유지**되고 **탭 간 공유**됩니다. JWT 자체는 **1시간 후 만료**되어 이후 인증요청은 401(의도된 픽스처).
+- API 검증 관점에서는 대개 UI 없이 `POST /api/login`으로 토큰만 받아 헤더에 실으면 충분합니다.
+
 ### JWT 토큰 검증
 ```javascript
-// 1. 토큰 없이 요청
-test('토큰 없이 보호된 API 호출 - 401', async () => {
-  const response = await fetch('http://localhost:3000/api/user-actions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ action: 'wishlist_add', productId: 1 })
+// 1. 토큰 없이 요청 → 401
+test('토큰 없이 보호된 API 호출 - 401', async ({ request }) => {
+  const res = await request.post('/api/user-actions', {
+    data: { action: 'wishlist_add', productId: 1 },
   });
-  
-  expect(response.status).toBe(401);
-  const data = await response.json();
-  expect(data.code).toBe('AUTH_NO_TOKEN');
+
+  expect(res.status()).toBe(401);
+  expect((await res.json()).code).toBe('AUTH_NO_TOKEN');
 });
 
-// 2. 잘못된 토큰
-test('잘못된 토큰 - 401', async () => {
-  const response = await fetch('http://localhost:3000/api/user-actions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer invalid-token'
-    },
-    body: JSON.stringify({ action: 'wishlist_add', productId: 1 })
+// 2. 잘못된 토큰 → 401
+test('잘못된 토큰 - 401', async ({ request }) => {
+  const res = await request.post('/api/user-actions', {
+    headers: { Authorization: 'Bearer invalid-token' },
+    data: { action: 'wishlist_add', productId: 1 },
   });
-  
-  expect(response.status).toBe(401);
-  const data = await response.json();
-  expect(data.code).toBe('AUTH_INVALID_TOKEN');
+
+  expect(res.status()).toBe(401);
+  expect((await res.json()).code).toBe('AUTH_INVALID_TOKEN');
 });
 
-// 3. 권한 부족 (일반 사용자가 관리자 API 호출)
-test('권한 부족 - 403', async () => {
+// 3. 권한 부족 (일반 사용자가 관리자 API 호출) → 403
+test('권한 부족 - 403', async ({ request }) => {
   // 일반 사용자(test)로 로그인해서 실제 토큰 획득
-  const loginRes = await fetch('http://localhost:3000/api/login', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'test', password: '1234' })
+  const { token } = await (await request.post('/api/login', {
+    data: { username: 'test', password: '1234' },
+  })).json();
+
+  const res = await request.get('/api/admin', {
+    headers: { Authorization: `Bearer ${token}` },
   });
-  const { token: userToken } = await loginRes.json();
-  
-  const response = await fetch('http://localhost:3000/api/admin', {
-    headers: {
-      'Authorization': `Bearer ${userToken}`
-    }
-  });
-  
-  expect(response.status).toBe(403);
-  const data = await response.json();
-  expect(data.code).toBe('AUTH_FORBIDDEN');
+
+  expect(res.status()).toBe(403);
+  expect((await res.json()).code).toBe('AUTH_FORBIDDEN');
 });
 ```
+
+### 인증 컨텍스트/토큰 재사용 (권장 패턴)
+
+매 테스트에서 로그인 → 헤더 세팅을 반복하지 않도록 두 가지 방식을 씁니다.
+
+**(A) 인증된 APIRequestContext를 fixture로** — 순수 API 스위트에 가장 잘 맞습니다.
+```ts
+import { test as base, expect, type APIRequestContext } from '@playwright/test';
+
+export const test = base.extend<{ authedRequest: APIRequestContext }>({
+  authedRequest: async ({ playwright }, use) => {
+    const anon = await playwright.request.newContext({ baseURL: 'http://localhost:5173' });
+    const { token } = await (await anon.post('/api/login',
+      { data: { username: 'test', password: '1234' } })).json();
+    const ctx = await playwright.request.newContext({
+      baseURL: 'http://localhost:5173',
+      extraHTTPHeaders: { Authorization: `Bearer ${token}` },
+    });
+    await use(ctx);
+    await ctx.dispose();
+  },
+});
+
+// 사용: test('내 주문', async ({ authedRequest }) => {
+//   expect((await authedRequest.get('/api/orders')).status()).toBe(200);
+// });
+```
+
+**(B) UI까지 함께 검증한다면 storageState 재사용** — 인증이 localStorage에 있으므로 표준 setup-project 패턴이 그대로 동작하고 세션을 재사용할 수 있습니다. `page.request`도 이 저장된 인증을 공유합니다. 상세 셋업은 [README_QA.md](README_QA.md)의 인증 섹션 참고.
 
 ---
 
@@ -648,20 +577,20 @@ GET /api/status-codes?code=500
 ```javascript
 test('다양한 HTTP 상태 코드 테스트', async ({ request }) => {
   // 200 OK
-  const ok = await request.get('http://localhost:3000/api/status-codes?code=200');
+  const ok = await request.get('/api/status-codes?code=200');
   expect(ok.status()).toBe(200);
   
   // 404 Not Found
-  const notFound = await request.get('http://localhost:3000/api/status-codes?code=404');
+  const notFound = await request.get('/api/status-codes?code=404');
   expect(notFound.status()).toBe(404);
   
   // 429 Too Many Requests
-  const tooMany = await request.get('http://localhost:3000/api/status-codes?code=429');
+  const tooMany = await request.get('/api/status-codes?code=429');
   expect(tooMany.status()).toBe(429);
   expect(tooMany.headers()['retry-after']).toBeDefined();
   
   // 500 Server Error
-  const serverError = await request.get('http://localhost:3000/api/status-codes?code=500');
+  const serverError = await request.get('/api/status-codes?code=500');
   expect(serverError.status()).toBe(500);
 });
 ```
@@ -673,7 +602,7 @@ test('다양한 HTTP 상태 코드 테스트', async ({ request }) => {
 #### GET 요청 - 재고 정보 조회
 ```javascript
 test('재고 정보 조회', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/inventory?productId=1');
+  const response = await request.get('/api/inventory?productId=1');
   
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
@@ -698,7 +627,7 @@ test('재고 정보 조회', async ({ request }) => {
 #### HEAD 요청 - 메타데이터만 조회
 ```javascript
 test('HEAD 메서드로 재고 확인', async ({ request }) => {
-  const response = await request.head('http://localhost:3000/api/inventory?productId=1');
+  const response = await request.head('/api/inventory?productId=1');
   
   expect(response.ok()).toBeTruthy();
   
@@ -714,20 +643,23 @@ test('HEAD 메서드로 재고 확인', async ({ request }) => {
 });
 ```
 
-#### 재고 부족 시나리오
+#### 재고 부족 시나리오 (동적으로 만들기)
 ```javascript
-test('재고 부족 상품 확인', async ({ request }) => {
-  // productId 3, 8, 18은 재고가 0으로 고정된 상품 (의도적 픽스처)
-  // 특히 18번은 재고 부족 네거티브 테스트용으로 항상 재고 0
-  const response = await request.get('http://localhost:3000/api/inventory?productId=3');
-  
-  expect(response.ok()).toBeTruthy();
-  const data = await response.json();
-  
+// 씨드 재고는 모든 상품이 5~30 범위다. 품절 상태는 테스트에서 동적으로 만들어 검증한다.
+// 재고 부족(OUT_OF_STOCK / 409 INSUFFICIENT_STOCK)은 다음 중 하나로 동적으로 만든다.
+//  (a) 현재 재고를 조회한 뒤 stock+1 수량으로 주문 → 409 (아래 "재고 초과 주문 방지" 참고)
+//  (b) 관리자 PUT /api/admin 으로 특정 상품 재고를 0으로 낮춘 뒤 조회/주문
+
+test('재고를 0으로 낮춘 뒤 품절 상태 확인', async ({ request }) => {
+  // 관리자 토큰으로 상품 5번 재고를 0으로 세팅했다고 가정 (PUT /api/admin)
+  const res = await request.get('/api/inventory?productId=5');
+
+  expect(res).toBeOK();
+  const data = await res.json();
   expect(data.stock).toBe(0);
   expect(data.available).toBe(false);
   expect(data.status).toBe('OUT_OF_STOCK');
-  expect(response.headers()['x-stock-status']).toBe('OUT_OF_STOCK');
+  expect(res.headers()['x-stock-status']).toBe('OUT_OF_STOCK');
 });
 ```
 
@@ -736,7 +668,7 @@ test('재고 부족 상품 확인', async ({ request }) => {
 #### 리뷰 조회
 ```javascript
 test('상품 리뷰 조회', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/reviews?productId=1');
+  const response = await request.get('/api/reviews?productId=1');
   
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
@@ -761,16 +693,16 @@ test('상품 리뷰 조회', async ({ request }) => {
 ```javascript
 test('리뷰 작성', async ({ request }) => {
   // 먼저 로그인하여 토큰 획득
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
-  // 리뷰 작성 (test 계정은 상품 1, 2에 초기 리뷰가 있으므로 5번 상품 사용)
-  const response = await request.post('http://localhost:3000/api/reviews', {
+  // 리뷰 작성 (중복 제약이 없으므로 productId는 아무거나 → 항상 201)
+  const response = await request.post('/api/reviews', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
-      productId: 5,
+      productId: 1,
       rating: 5,
       comment: '정말 좋은 상품입니다!'
     }
@@ -780,7 +712,7 @@ test('리뷰 작성', async ({ request }) => {
   const data = await response.json();
   
   expect(data.review.id).toBeDefined();
-  expect(data.review.productId).toBe(5);
+  expect(data.review.productId).toBe(1);
   expect(data.review.rating).toBe(5);
   expect(data.review.comment).toBe('정말 좋은 상품입니다!');
 });
@@ -791,7 +723,7 @@ test('리뷰 작성', async ({ request }) => {
 test('리뷰 수정', async ({ request }) => {
   const token = 'your-jwt-token';
   
-  const response = await request.patch('http://localhost:3000/api/reviews', {
+  const response = await request.patch('/api/reviews', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       id: 1,
@@ -814,7 +746,7 @@ test('리뷰 수정', async ({ request }) => {
 test('리뷰 삭제', async ({ request }) => {
   const token = 'your-jwt-token';
   
-  const response = await request.delete('http://localhost:3000/api/reviews', {
+  const response = await request.delete('/api/reviews', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { id: 1 }
   });
@@ -831,7 +763,7 @@ test('리뷰 삭제', async ({ request }) => {
 #### 기본 검색
 ```javascript
 test('상품 검색', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/search?q=블루투스');
+  const response = await request.get('/api/search?q=블루투스');
   
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
@@ -857,7 +789,7 @@ test('카테고리 + 가격 필터 검색', async ({ request }) => {
     sort: 'price-asc'
   });
   
-  const response = await request.get(`http://localhost:3000/api/search?${params}`);
+  const response = await request.get(`/api/search?${params}`);
   
   expect(response.ok()).toBeTruthy();
   const data = await response.json();
@@ -884,7 +816,7 @@ test('카테고리 + 가격 필터 검색', async ({ request }) => {
 #### 빈 검색어 오류 테스트
 ```javascript
 test('빈 검색어 입력 시 400 오류', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/search?q=');
+  const response = await request.get('/api/search?q=');
   
   expect(response.status()).toBe(400);
   const data = await response.json();
@@ -899,7 +831,7 @@ test('빈 검색어 입력 시 400 오류', async ({ request }) => {
 #### 로그인
 ```javascript
 test('로그인 성공', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/login', {
+  const response = await request.post('/api/login', {
     data: {
       username: 'test',
       password: '1234'
@@ -919,7 +851,7 @@ test('로그인 성공', async ({ request }) => {
 #### 로그인 실패
 ```javascript
 test('잘못된 비밀번호로 로그인 시도', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/login', {
+  const response = await request.post('/api/login', {
     data: {
       username: 'test',
       password: 'wrongpassword'
@@ -936,7 +868,7 @@ test('잘못된 비밀번호로 로그인 시도', async ({ request }) => {
 // 차단된 계정 (의도적 케이스)
 test('차단 계정(test2)으로 로그인 시도 시 403', async ({ request }) => {
   // test2 계정은 BLOCKED 상태로 설계된 의도적 연습 케이스
-  const response = await request.post('http://localhost:3000/api/login', {
+  const response = await request.post('/api/login', {
     data: {
       username: 'test2',
       password: '1234'
@@ -953,7 +885,7 @@ test('차단 계정(test2)으로 로그인 시도 시 403', async ({ request }) 
 #### 토큰 없이 보호된 API 호출
 ```javascript
 test('토큰 없이 리뷰 작성 시도', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/reviews', {
+  const response = await request.post('/api/reviews', {
     data: {
       productId: 1,
       rating: 5,
@@ -974,13 +906,13 @@ test('토큰 없이 리뷰 작성 시도', async ({ request }) => {
 ```javascript
 test('일반 사용자가 관리자 페이지 접근 시 403', async ({ request }) => {
   // 일반 사용자로 로그인
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
   // 관리자 API 호출
-  const response = await request.get('http://localhost:3000/api/admin', {
+  const response = await request.get('/api/admin', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
@@ -995,13 +927,13 @@ test('일반 사용자가 관리자 페이지 접근 시 403', async ({ request 
 ```javascript
 test('관리자 권한으로 API 접근', async ({ request }) => {
   // 관리자로 로그인
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'admin', password: '1234' }
   });
   const { token } = await loginRes.json();
   
   // 관리자 API 호출
-  const response = await request.get('http://localhost:3000/api/admin', {
+  const response = await request.get('/api/admin', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
@@ -1016,9 +948,9 @@ test('관리자 권한으로 API 접근', async ({ request }) => {
 
 ### 7. 사용자 액션 통합 (user-actions API)
 
-과거의 `/api/cart`, `/api/order`, `/api/wishlist`는 `POST /api/user-actions` 하나로 통합되었습니다 (구 엔드포인트 호출 시 404). 요청 본문의 `action` 필드로 기능을 구분합니다. **모든 요청에 인증(Bearer 토큰)이 필요합니다.**
+장바구니/주문/위시리스트는 `POST /api/user-actions` 하나로 통합되어 있습니다. 요청 본문의 `action` 필드로 기능을 구분합니다. **모든 요청에 인증(Bearer 토큰)이 필요합니다.**
 
-> ⚠️ **계약 변경**: 장바구니는 이제 **서버(DB)가 관리**합니다. 과거의 클라이언트 배열 기반 계약(`cart` 배열 + `index`로 삭제)은 폐기되었고, `productId` 기준의 `cart_add` / `cart_update` / `cart_remove` 액션을 사용합니다.
+> ℹ️ **장바구니 계약**: 장바구니는 **서버(DB)가 관리**합니다. `productId` 기준의 `cart_add` / `cart_update` / `cart_remove` 액션을 사용합니다.
 
 | action | 요청 본문 | 기능 | 성공 응답 |
 |--------|-----------|------|-----------|
@@ -1038,7 +970,7 @@ test('관리자 권한으로 API 접근', async ({ request }) => {
 ```javascript
 // 토큰 없이 호출 → 401
 test('user-actions - 토큰 없이 호출 시 401', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     data: { action: 'order', items: [] }
   });
   
@@ -1049,12 +981,12 @@ test('user-actions - 토큰 없이 호출 시 401', async ({ request }) => {
 
 // action 누락 → 400
 test('user-actions - action 누락 시 400', async ({ request }) => {
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {}
   });
@@ -1062,20 +994,24 @@ test('user-actions - action 누락 시 400', async ({ request }) => {
   expect(response.status()).toBe(400);
   const data = await response.json();
   expect(data.code).toBe('ACTION_REQUIRED');
+  // availableActions는 9개다 (set_avatar/set_address/register_coupon 포함).
+  // 전체를 강하게 단언하려면 9개 그대로, 아니면 arrayContaining 으로 느슨하게:
   expect(data.availableActions).toEqual([
     'cart_add', 'cart_update', 'cart_remove',
-    'wishlist_add', 'wishlist_remove', 'order'
+    'wishlist_add', 'wishlist_remove', 'order',
+    'set_avatar', 'set_address', 'register_coupon'
   ]);
+  // 또는: expect(data.availableActions).toEqual(expect.arrayContaining(['order', 'cart_add']));
 });
 
 // 지원하지 않는 action → 400
 test('user-actions - 잘못된 action 시 400', async ({ request }) => {
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_clear' } // 존재하지 않는 action
   });
@@ -1094,12 +1030,12 @@ test('user-actions - 잘못된 action 시 400', async ({ request }) => {
 ```javascript
 // 주문 성공 → 201 Created
 test('주문 성공', async ({ request }) => {
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'order',
@@ -1124,18 +1060,18 @@ test('주문 성공', async ({ request }) => {
 // 장바구니 전체 주문 (items 생략) → 201, 주문 후 장바구니 비워짐
 test('장바구니 주문 후 장바구니가 비워진다', async ({ request }) => {
   // 사전조건: cart_add로 상품을 담아둔 상태
-  await request.post('http://localhost:3000/api/user-actions', {
+  await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_add', productId: 1, quantity: 1 }
   });
   
-  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+  const orderRes = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order' }  // items 생략 → 서버 장바구니 주문
   });
   expect(orderRes.status()).toBe(201);
   
-  const cartRes = await request.get('http://localhost:3000/api/user-actions?type=cart', {
+  const cartRes = await request.get('/api/user-actions?type=cart', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   const cart = await cartRes.json();
@@ -1144,7 +1080,7 @@ test('장바구니 주문 후 장바구니가 비워진다', async ({ request })
 
 // 쿠폰 적용 주문 → 201 (order.discount에 할인액 반영)
 test('쿠폰 적용 주문', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'order',
@@ -1165,7 +1101,7 @@ test('쿠폰 적용 주문', async ({ request }) => {
 // 빈 주문 → 400 (items: [] 또는 items 생략 + 빈 장바구니)
 test('빈 주문 시 400', async ({ request }) => {
   // 토큰 획득 생략 (위와 동일)
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order', items: [] }
   });
@@ -1175,28 +1111,31 @@ test('빈 주문 시 400', async ({ request }) => {
   expect(data.code).toBe('EMPTY_ORDER');
 });
 
-// 재고 초과 주문 → 409 (18번 상품은 항상 재고 0 — 의도적 픽스처)
-test('재고 부족 상품 주문 시 409', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+// 재고 초과 주문 → 409 (현재 재고보다 많이 주문해 동적으로 재현)
+test('재고 초과 주문 시 409', async ({ request }) => {
+  // 현재 재고 확인 후 stock+1 수량으로 주문
+  const { stock } = await (await request.get('/api/inventory?productId=1')).json();
+
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'order',
-      items: [{ id: 18, quantity: 1 }]
+      items: [{ id: 1, quantity: stock + 1 }]
     }
   });
-  
+
   expect(response.status()).toBe(409);
   const data = await response.json();
   expect(data.code).toBe('INSUFFICIENT_STOCK');
-  expect(data.productId).toBe(18);
-  expect(data.requestedQuantity).toBe(1);
-  expect(data.availableStock).toBe(0);
+  expect(data.productId).toBe(1);
+  expect(data.requestedQuantity).toBe(stock + 1);
+  expect(data.availableStock).toBe(stock);
 });
 
 // 주문 차단 상품 → 422 (3, 4번 상품은 주문 차단 — 의도적 케이스)
 test('주문 차단 상품 포함 시 422', async ({ request }) => {
-  // 차단 판정은 재고 검증보다 먼저 수행되므로 재고 0인 3번도 422가 반환됨
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  // 차단 판정은 재고 검증보다 먼저 수행되므로, 3/4번은 재고와 무관하게 항상 422
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'order',
@@ -1215,7 +1154,7 @@ test('주문 차단 상품 포함 시 422', async ({ request }) => {
 // 장바구니는 서버(DB)가 사용자별로 관리한다 — productId 기준으로 담기/수정/삭제
 // 담기 → 200 (같은 상품을 다시 담으면 수량이 누적됨)
 test('장바구니 담기', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_add', productId: 1, quantity: 2 }
   });
@@ -1231,7 +1170,7 @@ test('장바구니 담기', async ({ request }) => {
 
 // 수량 변경 (절대값) → 200, quantity: 0이면 항목 삭제
 test('장바구니 수량 변경', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_update', productId: 1, quantity: 5 }
   });
@@ -1243,7 +1182,7 @@ test('장바구니 수량 변경', async ({ request }) => {
 
 // 조회 → 200 { count, items, totalPrice }
 test('장바구니 조회', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/user-actions?type=cart', {
+  const response = await request.get('/api/user-actions?type=cart', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
@@ -1255,7 +1194,7 @@ test('장바구니 조회', async ({ request }) => {
 
 // 삭제 → 200 (장바구니에 없는 상품이면 404 NOT_IN_CART)
 test('장바구니 항목 삭제', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_remove', productId: 1 }
   });
@@ -1267,7 +1206,7 @@ test('장바구니 항목 삭제', async ({ request }) => {
 });
 
 test('장바구니에 없는 상품 삭제 시 404', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cart_remove', productId: 17 } // 장바구니에 없는 상품
   });
@@ -1282,7 +1221,7 @@ test('장바구니에 없는 상품 삭제 시 404', async ({ request }) => {
 ```javascript
 // 추가 → 201 (응답: { message, count })
 test('위시리스트 추가', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'wishlist_add',
@@ -1301,7 +1240,7 @@ test('위시리스트 추가', async ({ request }) => {
 // 조회 → 200 { count, items }
 test('위시리스트 조회', async ({ request }) => {
   const response = await request.get(
-    'http://localhost:3000/api/user-actions?type=wishlist',
+    '/api/user-actions?type=wishlist',
     { headers: { 'Authorization': `Bearer ${token}` } }
   );
   
@@ -1312,7 +1251,7 @@ test('위시리스트 조회', async ({ request }) => {
 
 // 삭제 → 200 (위시리스트에 없는 상품이면 404 NOT_IN_WISHLIST)
 test('위시리스트 삭제', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'wishlist_remove', productId: 1 }
   });
@@ -1329,27 +1268,42 @@ test('위시리스트 삭제', async ({ request }) => {
 
 ```javascript
 test('상태 초기화', async ({ request }) => {
-  const response = await request.post('http://localhost:3000/api/reset');
+  const response = await request.post('/api/reset');
   
   expect(response.status()).toBe(200);
   const data = await response.json();
   
   expect(data.message).toBe('모든 데이터가 초기화되었습니다');
-  expect(data.reset).toEqual([
-    'products', 'users', 'reviews', 'wishlists', 'carts', 'orders', 'coupons'
-  ]);
+  // reset 배열은 9개다. 원소/순서를 통째로 toEqual 하면 서버가 항목을 추가할 때 깨지기 쉬우니
+  // status 200 + message 위주로 검증하고, 배열은 arrayContaining 으로 느슨하게 확인하길 권장.
+  expect(data.reset).toEqual(expect.arrayContaining([
+    'products', 'users', 'reviews', 'wishlists', 'carts', 'orders',
+    'coupons', 'payments', 'user_coupons'
+  ]));
 });
 
 // 테스트 스위트에서의 활용 예: 매 테스트 전에 상태 리셋
 test.beforeEach(async ({ request }) => {
-  await request.post('http://localhost:3000/api/reset');
+  await request.post('/api/reset');
 });
 ```
 
 - POST 이외의 메서드 → 405 `METHOD_NOT_ALLOWED`
-- 복원 범위 (7종): admin CRUD/주문으로 변경된 **상품·재고**, 회원가입으로 생성된 계정을 삭제하고 시드 계정(test/admin/test2)만 남기는 **users**, **리뷰**, **위시리스트**, **장바구니**, **주문/주문 항목**, **쿠폰**(만료 픽스처 EXPIRED10 포함)
+- 복원 범위 (`reset` 배열 9종): admin CRUD/주문으로 변경된 **products**(상품·재고), 회원가입으로 생성된 계정을 삭제하고 시드 계정(test/admin/test2)만 남기는 **users**, **reviews**, **wishlists**, **carts**(장바구니), **orders**(주문/주문 항목), **coupons**(만료 픽스처 EXPIRED10 포함), **payments**, **user_coupons**
 - 관리자 CRUD와 리셋 결과는 DB에 반영되므로 상품 목록/상세 조회에 즉시 반영됨
 - 사이트는 여러 사람이 공유하는 연습 환경이므로, 리셋하면 **다른 사용자의 데이터(가입 계정/주문/리뷰 등)도 함께 초기화**된다는 점에 유의
+
+> **테스트 격리 팁.** 장바구니/주문/리뷰/계정이 서버 DB에 계정 단위로 **영속**됩니다. 앞 테스트의 흔적이 다음 테스트를 오염시키지 않게 하려면 둘 중 하나:
+> - 공유 환경 전체 초기화: `test.beforeEach(async ({ request }) => { await request.post('/api/reset'); })`
+> - 병렬 실행(`fullyParallel`) 시엔 리셋이 서로를 지우므로, 테스트마다 **고유 계정**을 만들어 격리:
+>   ```js
+>   const username = `u${Date.now()}_${test.info().parallelIndex}`;
+>   await request.post('/api/signup', { data: { username, password: 'pass1234' } });
+>   ```
+
+> **응답을 `await`로 기다립니다 — API 검증에도 해당.** `request.get(...)`의 결과는 `await` 한 시점에 이미 완결되므로, 값이 비동기로 채워지길 기다릴 때도 **응답을 `await`한 뒤** 읽으면 됩니다. UI 테스트라면 web-first assertion(`await expect(locator).toBeVisible()` 등)을 써서 조건이 충족될 때까지 자동으로 재시도합니다.
+
+> **로케이터는 `getByTestId`/`getByRole` 우선.** UI를 함께 검증할 때, 이 앱은 `data-testid`가 촘촘히 박혀 있으므로 `page.getByTestId('user-menu-trigger')`처럼 testid/role 기반 로케이터를 1급으로 씁니다. CSS 문자열/`#id`/nth-child 남용은 피하세요. (셀렉터 사전은 [README_QA.md](README_QA.md) 참고.)
 
 ### 9. 회원가입 (signup API)
 
@@ -1366,9 +1320,9 @@ test.beforeEach(async ({ request }) => {
 ```javascript
 // 가입 성공 → 201, 곧바로 로그인 가능
 test('회원가입 후 로그인', async ({ request }) => {
-  await request.post('http://localhost:3000/api/reset'); // clean state
+  await request.post('/api/reset'); // clean state
 
-  const signupRes = await request.post('http://localhost:3000/api/signup', {
+  const signupRes = await request.post('/api/signup', {
     data: { username: 'newuser1', password: 'password1', email: 'new@example.com' }
   });
   expect(signupRes.status()).toBe(201);
@@ -1377,7 +1331,7 @@ test('회원가입 후 로그인', async ({ request }) => {
   expect(signup.user).toEqual({ username: 'newuser1', role: 'USER' });
 
   // 가입한 계정으로 즉시 로그인 가능
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'newuser1', password: 'password1' }
   });
   expect(loginRes.status()).toBe(200);
@@ -1388,17 +1342,17 @@ test('회원가입 후 로그인', async ({ request }) => {
 // 아이디 중복 확인 (GET)
 test('아이디 사용 가능 여부 확인', async ({ request }) => {
   // 시드 계정 test는 사용 불가
-  const taken = await request.get('http://localhost:3000/api/signup?username=test');
+  const taken = await request.get('/api/signup?username=test');
   expect(taken.status()).toBe(200);
   expect((await taken.json()).available).toBe(false);
 
   // 미사용 아이디는 사용 가능
-  const free = await request.get('http://localhost:3000/api/signup?username=freshuser');
+  const free = await request.get('/api/signup?username=freshuser');
   expect(free.status()).toBe(200);
   expect((await free.json()).available).toBe(true);
 
   // 형식이 잘못된 아이디는 400
-  const bad = await request.get('http://localhost:3000/api/signup?username=AB');
+  const bad = await request.get('/api/signup?username=AB');
   expect(bad.status()).toBe(400);
   expect((await bad.json()).code).toBe('INVALID_USERNAME');
 });
@@ -1406,28 +1360,28 @@ test('아이디 사용 가능 여부 확인', async ({ request }) => {
 // 네거티브 케이스 모음
 test('회원가입 유효성 검증', async ({ request }) => {
   // 아이디 형식 오류 (대문자 포함) → 400
-  let res = await request.post('http://localhost:3000/api/signup', {
+  let res = await request.post('/api/signup', {
     data: { username: 'NewUser', password: 'password1' }
   });
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('INVALID_USERNAME');
 
   // 비밀번호 정책 위반 (4자 미만) → 400
-  res = await request.post('http://localhost:3000/api/signup', {
+  res = await request.post('/api/signup', {
     data: { username: 'newuser2', password: 'ab' }
   });
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('INVALID_PASSWORD');
 
   // 이메일 형식 오류 → 400
-  res = await request.post('http://localhost:3000/api/signup', {
+  res = await request.post('/api/signup', {
     data: { username: 'newuser2', password: 'password1', email: 'not-an-email' }
   });
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('INVALID_EMAIL');
 
   // 중복 아이디 (시드 계정 test) → 409
-  res = await request.post('http://localhost:3000/api/signup', {
+  res = await request.post('/api/signup', {
     data: { username: 'test', password: 'password1' }
   });
   expect(res.status()).toBe(409);
@@ -1460,7 +1414,7 @@ test('회원가입 유효성 검증', async ({ request }) => {
 // 정률 쿠폰 + 최대 할인 한도
 test('WELCOME10 - 10% 할인, 최대 20,000원', async ({ request }) => {
   // 100,000원 주문 → 10% = 10,000원 할인
-  let res = await request.post('http://localhost:3000/api/coupons', {
+  let res = await request.post('/api/coupons', {
     data: { code: 'WELCOME10', orderAmount: 100000 }
   });
   expect(res.status()).toBe(200);
@@ -1471,7 +1425,7 @@ test('WELCOME10 - 10% 할인, 최대 20,000원', async ({ request }) => {
   });
 
   // 500,000원 주문 → 10% = 50,000원이지만 최대 한도 20,000원까지만
-  res = await request.post('http://localhost:3000/api/coupons', {
+  res = await request.post('/api/coupons', {
     data: { code: 'WELCOME10', orderAmount: 500000 }
   });
   data = await res.json();
@@ -1482,14 +1436,14 @@ test('WELCOME10 - 10% 할인, 최대 20,000원', async ({ request }) => {
 // 정액 쿠폰 + 최소주문금액
 test('SAVE5000 - 5,000원 할인, 최소주문 30,000원', async ({ request }) => {
   // 조건 충족 → 200
-  let res = await request.post('http://localhost:3000/api/coupons', {
+  let res = await request.post('/api/coupons', {
     data: { code: 'SAVE5000', orderAmount: 30000 }
   });
   expect(res.status()).toBe(200);
   expect((await res.json()).discount).toBe(5000);
 
   // 최소주문금액 미달 → 400
-  res = await request.post('http://localhost:3000/api/coupons', {
+  res = await request.post('/api/coupons', {
     data: { code: 'SAVE5000', orderAmount: 29999 }
   });
   expect(res.status()).toBe(400);
@@ -1498,7 +1452,7 @@ test('SAVE5000 - 5,000원 할인, 최소주문 30,000원', async ({ request }) =
 
 // VIP20 - 20% 할인, 최소주문 100,000원, 최대 할인 50,000원
 test('VIP20 검증', async ({ request }) => {
-  const res = await request.post('http://localhost:3000/api/coupons', {
+  const res = await request.post('/api/coupons', {
     data: { code: 'VIP20', orderAmount: 200000 }
   });
   expect(res.status()).toBe(200);
@@ -1507,19 +1461,19 @@ test('VIP20 검증', async ({ request }) => {
 
 // 만료 쿠폰(의도적 픽스처) / 없는 쿠폰
 test('쿠폰 네거티브 케이스', async ({ request }) => {
-  let res = await request.post('http://localhost:3000/api/coupons', {
+  let res = await request.post('/api/coupons', {
     data: { code: 'EXPIRED10', orderAmount: 50000 }
   });
   expect(res.status()).toBe(400);
   expect((await res.json()).code).toBe('COUPON_EXPIRED');
 
-  res = await request.post('http://localhost:3000/api/coupons', {
+  res = await request.post('/api/coupons', {
     data: { code: 'NOSUCHCODE', orderAmount: 50000 }
   });
   expect(res.status()).toBe(404);
   expect((await res.json()).code).toBe('COUPON_NOT_FOUND');
 
-  res = await request.post('http://localhost:3000/api/coupons', {
+  res = await request.post('/api/coupons', {
     data: { code: 'WELCOME10', orderAmount: 0 }
   });
   expect(res.status()).toBe(400);
@@ -1540,19 +1494,19 @@ test('쿠폰 네거티브 케이스', async ({ request }) => {
 ```javascript
 // 주문 목록 조회
 test('내 주문 목록 조회', async ({ request }) => {
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
 
   // 사전조건: 주문 1건 생성
-  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+  const orderRes = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order', items: [{ id: 1, quantity: 1 }] }
   });
   const { order } = await orderRes.json();
 
-  const response = await request.get('http://localhost:3000/api/orders', {
+  const response = await request.get('/api/orders', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   expect(response.status()).toBe(200);
@@ -1565,7 +1519,7 @@ test('내 주문 목록 조회', async ({ request }) => {
 
 // 주문 상세 조회 (shipping 포함)
 test('주문 상세 조회', async ({ request }) => {
-  const response = await request.get(`http://localhost:3000/api/orders/${orderId}`, {
+  const response = await request.get(`/api/orders/${orderId}`, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   expect(response.status()).toBe(200);
@@ -1577,7 +1531,7 @@ test('주문 상세 조회', async ({ request }) => {
 
 // 없는 주문 / 타인 주문 → 동일하게 404 (존재 여부 비노출)
 test('없는 주문 조회 시 404', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/orders/ORD-19700101-XXXX', {
+  const response = await request.get('/api/orders/ORD-19700101-XXXX', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   expect(response.status()).toBe(404);
@@ -1587,9 +1541,9 @@ test('없는 주문 조회 시 404', async ({ request }) => {
 // 주문 취소 → 200 + 재고 원복, 재취소 → 409
 test('주문 취소 및 재고 원복', async ({ request }) => {
   // 취소 전 재고 확인
-  const before = await (await request.get('http://localhost:3000/api/inventory?productId=1')).json();
+  const before = await (await request.get('/api/inventory?productId=1')).json();
 
-  const cancelRes = await request.patch(`http://localhost:3000/api/orders/${orderId}`, {
+  const cancelRes = await request.patch(`/api/orders/${orderId}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cancel' }
   });
@@ -1599,11 +1553,11 @@ test('주문 취소 및 재고 원복', async ({ request }) => {
   expect(canceled.order.status).toBe('CANCELED');
 
   // 재고가 주문 수량만큼 원복됨
-  const after = await (await request.get('http://localhost:3000/api/inventory?productId=1')).json();
+  const after = await (await request.get('/api/inventory?productId=1')).json();
   expect(after.stock).toBe(before.stock + 1);
 
   // 이미 취소된 주문 재취소 → 409
-  const again = await request.patch(`http://localhost:3000/api/orders/${orderId}`, {
+  const again = await request.patch(`/api/orders/${orderId}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'cancel' }
   });
@@ -1643,11 +1597,11 @@ test('주문 취소 및 재고 원복', async ({ request }) => {
 ```javascript
 // 승인 (뒤 4자리 0000) → 201 DONE
 test('결제 승인', async ({ request }) => {
-  const { token } = await (await request.post('http://localhost:3000/api/login', {
+  const { token } = await (await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   })).json();
 
-  const res = await request.post('http://localhost:3000/api/payment', {
+  const res = await request.post('/api/payment', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000-1234-5678-0000', amount: 129000, orderName: '테스트 주문' }
   });
@@ -1662,7 +1616,7 @@ test('결제 승인', async ({ request }) => {
 
 // 거절 카드 (뒤 4자리 0001) → 402 PAYMENT_DECLINED
 test('결제 거절', async ({ request }) => {
-  const res = await request.post('http://localhost:3000/api/payment', {
+  const res = await request.post('/api/payment', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000000000000001', amount: 10000 }
   });
@@ -1672,7 +1626,7 @@ test('결제 거절', async ({ request }) => {
 
 // 타임아웃 폴트 주입 (?simulate=timeout) — 카드와 무관하게 504
 test('결제 게이트웨이 타임아웃 재현', async ({ request }) => {
-  const res = await request.post('http://localhost:3000/api/payment?simulate=timeout', {
+  const res = await request.post('/api/payment?simulate=timeout', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000000000000000', amount: 10000 }
   });
@@ -1683,12 +1637,12 @@ test('결제 게이트웨이 타임아웃 재현', async ({ request }) => {
 
 // 사후검증: GET ?paymentKey= 로 결제 레코드 재조회
 test('결제 사후검증', async ({ request }) => {
-  const pay = await (await request.post('http://localhost:3000/api/payment', {
+  const pay = await (await request.post('/api/payment', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000000000000000', amount: 5000 }
   })).json();
 
-  const res = await request.get(`http://localhost:3000/api/payment?paymentKey=${pay.paymentKey}`, {
+  const res = await request.get(`/api/payment?paymentKey=${pay.paymentKey}`, {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   expect(res.status()).toBe(200);
@@ -1699,7 +1653,7 @@ test('결제 사후검증', async ({ request }) => {
   expect(record.orderId).toBeNull();   // 아직 주문에 연결 전
 
   // 없는 결제키 → 404
-  const notFound = await request.get('http://localhost:3000/api/payment?paymentKey=PAY-none', {
+  const notFound = await request.get('/api/payment?paymentKey=PAY-none', {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   expect(notFound.status()).toBe(404);
@@ -1720,13 +1674,13 @@ test('결제 사후검증', async ({ request }) => {
 // 결제 → 주문 연동 (금액 일치)
 test('결제 후 주문 연동', async ({ request }) => {
   // 1) 결제 승인 (주문 최종금액과 동일하게)
-  const pay = await (await request.post('http://localhost:3000/api/payment', {
+  const pay = await (await request.post('/api/payment', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000000000000000', amount: 129000 }
   })).json();
 
   // 2) 주문에 paymentKey 전달
-  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+  const orderRes = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order', items: [{ id: 1, quantity: 1 }], paymentKey: pay.paymentKey }
   });
@@ -1738,12 +1692,12 @@ test('결제 후 주문 연동', async ({ request }) => {
 
 // 금액 불일치 → 402 PAYMENT_INVALID
 test('결제-주문 금액 불일치', async ({ request }) => {
-  const pay = await (await request.post('http://localhost:3000/api/payment', {
+  const pay = await (await request.post('/api/payment', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { cardNumber: '4000000000000000', amount: 1 }   // 주문 금액과 다르게
   })).json();
 
-  const orderRes = await request.post('http://localhost:3000/api/user-actions', {
+  const orderRes = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order', items: [{ id: 1, quantity: 1 }], paymentKey: pay.paymentKey }
   });
@@ -1773,7 +1727,7 @@ test('결제-주문 금액 불일치', async ({ request }) => {
 // 정상 업로드 → 201 { url, kind }
 test('이미지 업로드 성공', async ({ request }) => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const res = await request.post('http://localhost:3000/api/upload', {
+  const res = await request.post('/api/upload', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { kind: 'review', image: png }
   });
@@ -1785,7 +1739,7 @@ test('이미지 업로드 성공', async ({ request }) => {
 
 // 이미지 아님 → 400 INVALID_FILE_TYPE
 test('잘못된 파일 형식', async ({ request }) => {
-  const res = await request.post('http://localhost:3000/api/upload', {
+  const res = await request.post('/api/upload', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { kind: 'avatar', image: 'data:text/plain;base64,aGVsbG8=' }
   });
@@ -1796,7 +1750,7 @@ test('잘못된 파일 형식', async ({ request }) => {
 // 2MB 초과 → 413 FILE_TOO_LARGE
 test('용량 초과 업로드', async ({ request }) => {
   const bigBase64 = 'A'.repeat(3 * 1024 * 1024);   // 디코딩 시 ~2.25MB
-  const res = await request.post('http://localhost:3000/api/upload', {
+  const res = await request.post('/api/upload', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { kind: 'review', image: `data:image/png;base64,${bigBase64}` }
   });
@@ -1811,17 +1765,17 @@ test('용량 초과 업로드', async ({ request }) => {
 // set_avatar → 200 { avatarUrl }, 이후 GET ?type=profile 로 확인
 test('아바타 설정', async ({ request }) => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const res = await request.post('http://localhost:3000/api/user-actions', {
+  const res = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'set_avatar', image: png }
   });
   expect(res.status()).toBe(200);
   expect((await res.json()).avatarUrl).toBe(png);
 
-  const profile = await (await request.get('http://localhost:3000/api/user-actions?type=profile', {
+  const profile = await (await request.get('/api/user-actions?type=profile', {
     headers: { 'Authorization': `Bearer ${token}` }
   })).json();
-  expect(profile.profile.avatarUrl).toBe(png);   // { profile: { username, role, email, avatarUrl } }
+  expect(profile.profile.avatarUrl).toBe(png);   // { profile: { username, role, email, avatarUrl, defaultAddress } }
 });
 ```
 
@@ -1831,14 +1785,14 @@ test('아바타 설정', async ({ request }) => {
 // 리뷰에 이미지 첨부
 test('이미지 포함 리뷰 작성', async ({ request }) => {
   const png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
-  const res = await request.post('http://localhost:3000/api/reviews', {
+  const res = await request.post('/api/reviews', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { productId: 1, rating: 5, comment: '사진 첨부 테스트 리뷰입니다', images: [png] }
   });
-  expect([201, 409]).toContain(res.status());   // 이미 리뷰가 있으면 409 (product_id+username UNIQUE)
+  expect(res.status()).toBe(201);   // 리뷰 중복 제약이 없으므로 항상 201
 
   // 이미지 4개 → 400 INVALID_REVIEW_IMAGE
-  const tooMany = await request.post('http://localhost:3000/api/reviews', {
+  const tooMany = await request.post('/api/reviews', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { productId: 2, rating: 5, comment: '이미지 개수 초과 테스트', images: [png, png, png, png] }
   });
@@ -1866,19 +1820,19 @@ tracking 응답의 `events`는 `[{ status, label, at, location }]` 형태이며 
 ```javascript
 // 상태 전진: PAID → PREPARING → SHIPPING(운송장 부여)
 test('주문 상태 전진', async ({ request }) => {
-  const { order } = await (await request.post('http://localhost:3000/api/user-actions', {
+  const { order } = await (await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'order', items: [{ id: 1, quantity: 1 }] }
   })).json();
 
-  const step1 = await request.patch(`http://localhost:3000/api/orders/${order.id}`, {
+  const step1 = await request.patch(`/api/orders/${order.id}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'advance' }
   });
   expect(step1.status()).toBe(200);
   expect((await step1.json()).order.status).toBe('PREPARING');
 
-  const step2 = await request.patch(`http://localhost:3000/api/orders/${order.id}`, {
+  const step2 = await request.patch(`/api/orders/${order.id}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'advance' }
   });
@@ -1890,7 +1844,7 @@ test('주문 상태 전진', async ({ request }) => {
 // 종료 상태에서 advance → 409 INVALID_TRANSITION
 test('배송완료 후 전진 불가', async ({ request }) => {
   // ... DELIVERED 까지 진행시킨 orderId 라고 가정
-  const res = await request.patch(`http://localhost:3000/api/orders/${deliveredOrderId}`, {
+  const res = await request.patch(`/api/orders/${deliveredOrderId}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'advance' }
   });
@@ -1902,7 +1856,7 @@ test('배송완료 후 전진 불가', async ({ request }) => {
 
 // set_status 는 관리자 전용 — 일반 사용자 403
 test('일반 사용자 set_status 금지', async ({ request }) => {
-  const res = await request.patch(`http://localhost:3000/api/orders/${orderId}`, {
+  const res = await request.patch(`/api/orders/${orderId}`, {
     headers: { 'Authorization': `Bearer ${token}` },
     data: { action: 'set_status', status: 'DELIVERED' }
   });
@@ -1912,7 +1866,7 @@ test('일반 사용자 set_status 금지', async ({ request }) => {
 
 // 배송 추적: 송장번호 경로(공개)
 test('배송 추적 조회', async ({ request }) => {
-  const res = await request.get(`http://localhost:3000/api/tracking?trackingNumber=${trackingNumber}`);
+  const res = await request.get(`/api/tracking?trackingNumber=${trackingNumber}`);
   expect(res.status()).toBe(200);
   const data = await res.json();
   expect(data.trackingNumber).toBe(trackingNumber);
@@ -1921,7 +1875,7 @@ test('배송 추적 조회', async ({ request }) => {
   expect(data.events[0]).toMatchObject({ status: 'PAID', label: '결제완료' });
 
   // 없는 송장번호 → 404
-  const notFound = await request.get('http://localhost:3000/api/tracking?trackingNumber=MC0000000000');
+  const notFound = await request.get('/api/tracking?trackingNumber=MC0000000000');
   expect(notFound.status()).toBe(404);
   expect((await notFound.json()).code).toBe('TRACKING_NOT_FOUND');
 });
@@ -1946,7 +1900,7 @@ test('배송 추적 조회', async ({ request }) => {
 모든 API는 CORS를 지원합니다:
 ```javascript
 test('CORS 헤더 검증', async ({ request }) => {
-  const response = await request.get('http://localhost:3000/api/products', {
+  const response = await request.get('/api/products', {
     headers: { 'Origin': 'http://localhost:5173' }
   });
   
@@ -1959,17 +1913,17 @@ test('CORS 헤더 검증', async ({ request }) => {
 ```javascript
 test('재고 초과 주문 방지', async ({ request }) => {
   // 로그인하여 토큰 획득
-  const loginRes = await request.post('http://localhost:3000/api/login', {
+  const loginRes = await request.post('/api/login', {
     data: { username: 'test', password: '1234' }
   });
   const { token } = await loginRes.json();
   
-  // 1. 현재 재고 확인 (상품 1번: 초기 재고 15)
-  const invRes = await request.get('http://localhost:3000/api/inventory?productId=1');
+  // 1. 현재 재고 확인 (씨드 재고는 상품마다 5~30 범위 — 조회한 값을 그대로 사용한다)
+  const invRes = await request.get('/api/inventory?productId=1');
   const { stock } = await invRes.json();
   
   // 2. 재고보다 많은 수량으로 주문 시도 (가격/이름은 서버가 DB에서 결정하므로 id, quantity만 전달)
-  const response = await request.post('http://localhost:3000/api/user-actions', {
+  const response = await request.post('/api/user-actions', {
     headers: { 'Authorization': `Bearer ${token}` },
     data: {
       action: 'order',
@@ -2082,54 +2036,42 @@ test('재고 초과 주문 방지', async ({ request }) => {
 - [ ] GET /api/tracking?orderId= 인증 필요, 타인/없는 주문 404 TRACKING_NOT_FOUND
 
 ### 상태 초기화
-- [ ] POST /api/reset 200 및 reset 목록(7종) 확인
-- [ ] 리셋 후 상품/사용자/리뷰/위시리스트/장바구니/주문/쿠폰이 시드 상태로 복원
+- [ ] POST /api/reset 200 및 reset 목록(9종) 확인 (arrayContaining 권장)
+- [ ] 리셋 후 상품/사용자/리뷰/위시리스트/장바구니/주문/쿠폰/결제/보유쿠폰이 시드 상태로 복원
 - [ ] 서버 재시작만으로는 초기화되지 않음(DB 영속) 확인
 
 ---
 
 **이 가이드를 참고하여 체계적인 API 테스트를 수행하세요!**
 
-### Playwright 예제
+### Playwright 예제 — 스위트 골격 (config의 baseURL 재사용)
+
+`playwright.config.ts`에 `baseURL: 'http://localhost:5173'`을 두면 아래처럼 **상대경로**만 쓰면 됩니다. 로그인 토큰은 `beforeAll`에서 한 번만 받아 재사용합니다(반복 로그인 제거는 위 [인증 컨텍스트/토큰 재사용](#인증-컨텍스트토큰-재사용-권장-패턴)의 fixture 방식이 더 깔끔합니다).
 
 ```javascript
 import { test, expect } from '@playwright/test';
 
 test.describe('API 검증 테스트', () => {
-  let baseURL = 'http://localhost:3000';
   let token;
 
   test.beforeAll(async ({ request }) => {
-    // 로그인하여 토큰 획득
-    const response = await request.post(`${baseURL}/api/login`, {
-      data: {
-        username: 'test',
-        password: '1234'
-      }
+    // 로그인하여 토큰 획득 (baseURL은 config에서)
+    const res = await request.post('/api/login', {
+      data: { username: 'test', password: '1234' },
     });
-    
-    const data = await response.json();
-    token = data.token;
+    token = (await res.json()).token;
   });
 
   test('상품 검색 API - 쿼리 파라미터', async ({ request }) => {
-    const response = await request.get(`${baseURL}/api/search`, {
-      params: {
-        q: '블루투스',
-        category: '전자기기',
-        minPrice: '50000',
-        sort: 'price-asc'
-      }
+    const res = await request.get('/api/search', {
+      params: { q: '블루투스', category: '전자기기', minPrice: '50000', sort: 'price-asc' },
     });
 
-    expect(response.ok()).toBeTruthy();
-    const data = await response.json();
-    
+    expect(res).toBeOK();
+    const data = await res.json();
     expect(data.query).toBe('블루투스');
     expect(data.filters.category).toBe('전자기기');
     expect(data.count).toBeGreaterThan(0);
-    
-    // 모든 상품이 조건을 만족하는지 확인
     data.products.forEach(p => {
       expect(p.name).toContain('블루투스');
       expect(p.category).toBe('전자기기');
@@ -2138,179 +2080,37 @@ test.describe('API 검증 테스트', () => {
   });
 
   test('리뷰 작성 API - POST', async ({ request }) => {
-    // test 계정은 상품 1, 2에 초기 리뷰가 있으므로 5번 상품 사용
-    const response = await request.post(`${baseURL}/api/reviews`, {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      },
-      data: {
-        productId: 5,
-        rating: 5,
-        comment: 'Playwright로 작성한 리뷰입니다. 정말 좋은 상품이에요!'
-      }
+    // 리뷰 중복 제약이 없으므로 productId는 아무거나 → 항상 201
+    const res = await request.post('/api/reviews', {
+      headers: { Authorization: `Bearer ${token}` },
+      data: { productId: 1, rating: 5, comment: 'Playwright로 작성한 리뷰입니다.' },
     });
 
-    expect(response.status()).toBe(201);
-    const data = await response.json();
-    
+    expect(res.status()).toBe(201);
+    const data = await res.json();
     expect(data.review.id).toBeDefined();
     expect(data.review.rating).toBe(5);
     expect(data.review.username).toBe('test');
   });
-
-  test('재고 확인 API - HEAD 메서드', async ({ request }) => {
-    const response = await request.head(`${baseURL}/api/inventory?productId=1`);
-
-    expect(response.ok()).toBeTruthy();
-    
-    // 헤더 검증
-    const headers = response.headers();
-    expect(headers['x-product-id']).toBe('1');
-    expect(headers['x-stock-count']).toBeDefined();
-    expect(headers['x-stock-status']).toBeDefined();
-  });
-
-  test('상태 코드 연습 API', async ({ request }) => {
-    // 404 테스트
-    const notFound = await request.get(`${baseURL}/api/status-codes?code=404`);
-    expect(notFound.status()).toBe(404);
-    
-    // 429 테스트
-    const tooMany = await request.get(`${baseURL}/api/status-codes?code=429`);
-    expect(tooMany.status()).toBe(429);
-    expect(tooMany.headers()['retry-after']).toBeDefined();
-  });
 });
 ```
 
-### Postman/Newman 예제
+### Postman/Newman
 
-```javascript
-// Postman 컬렉션 예시
-{
-  "info": {
-    "name": "Mini Commerce API Tests"
-  },
-  "item": [
-    {
-      "name": "로그인",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('Status code is 200', function () {",
-              "    pm.response.to.have.status(200);",
-              "});",
-              "",
-              "pm.test('응답에 토큰 포함', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.token).to.exist;",
-              "    pm.environment.set('token', jsonData.token);",
-              "});"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "POST",
-        "header": [],
-        "body": {
-          "mode": "raw",
-          "raw": "{\n  \"username\": \"test\",\n  \"password\": \"1234\"\n}"
-        },
-        "url": {
-          "raw": "{{baseUrl}}/api/login",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "login"]
-        }
-      }
-    },
-    {
-      "name": "상품 검색",
-      "event": [
-        {
-          "listen": "test",
-          "script": {
-            "exec": [
-              "pm.test('검색 결과 존재', function () {",
-              "    var jsonData = pm.response.json();",
-              "    pm.expect(jsonData.count).to.be.above(0);",
-              "});",
-              "",
-              "pm.test('모든 상품이 필터 조건 만족', function () {",
-              "    var jsonData = pm.response.json();",
-              "    jsonData.products.forEach(function(product) {",
-              "        pm.expect(product.category).to.equal('전자기기');",
-              "    });",
-              "});"
-            ]
-          }
-        }
-      ],
-      "request": {
-        "method": "GET",
-        "url": {
-          "raw": "{{baseUrl}}/api/search?category=전자기기&sort=price-asc",
-          "host": ["{{baseUrl}}"],
-          "path": ["api", "search"],
-          "query": [
-            {"key": "category", "value": "전자기기"},
-            {"key": "sort", "value": "price-asc"}
-          ]
-        }
-      }
-    }
-  ]
-}
-```
+Postman 컬렉션 상세(환경변수 `baseUrl` = `http://localhost:5173`, 로그인 토큰 저장 스크립트 등)는 별도 문서로 이관했습니다 → [API_TEST_COLLECTION.md](API_TEST_COLLECTION.md).
 
 ---
 
-## 📝 체크리스트
+## 📝 RESTful 일반 원칙 (개념 참고)
 
-### RESTful API 기본
-- [ ] URL은 명사 사용
-- [ ] HTTP 메서드 적절히 사용
-- [ ] 상태 코드 의미에 맞게 반환
-- [ ] JSON 형식 응답
-- [ ] 에러 시 일관된 형식
+앱별 상세 체크리스트는 위 [QA 자동화 체크리스트](#-qa-자동화-체크리스트)에 있습니다. 여기서는 어떤 REST API에도 적용되는 원칙만 요약합니다.
 
-### 요청 검증
-- [ ] 필수 파라미터 누락 시 400
-- [ ] 타입 불일치 시 400
-- [ ] 범위 초과 시 400
-- [ ] 잘못된 형식 시 400
-
-### 응답 검증
-- [ ] 성공 시 올바른 데이터
-- [ ] 일관된 응답 구조
-- [ ] 에러 시 code 포함
-- [ ] 페이지네이션 (필요 시)
-
-### 인증/권한
-- [ ] 토큰 없이 요청 시 401
-- [ ] 잘못된 토큰 시 401
-- [ ] 권한 부족 시 403
-- [ ] 토큰 만료 처리
-
-### HTTP 메서드
-- [ ] GET - 조회만, 부작용 없음
-- [ ] POST - 생성, 201 반환
-- [ ] PUT/PATCH - 수정, 200 반환
-- [ ] DELETE - 삭제, 200/204 반환
-- [ ] HEAD - 메타데이터만
-
-### 상태 코드
-- [ ] 200 - 성공
-- [ ] 201 - 생성 성공
-- [ ] 400 - 잘못된 요청
-- [ ] 401 - 인증 필요
-- [ ] 403 - 권한 없음
-- [ ] 404 - 리소스 없음
-- [ ] 409 - 충돌
-- [ ] 500 - 서버 오류
+- **URL/메서드**: URL은 명사(`/api/products`), 동작은 HTTP 메서드로. GET은 조회만(부작용 없음)·POST는 생성(201)·PUT/PATCH는 수정(200)·DELETE는 삭제(이 앱은 항상 200으로 응답)·HEAD는 헤더만.
+- **요청 검증**: 필수 파라미터 누락/타입 불일치/범위 초과/형식 오류는 모두 400.
+- **응답 검증**: 성공 시 데이터·구조 일관성, 에러 시 `code` 포함(단 `/api/login`은 `message`만 — 예외).
+- **인증/권한**: 토큰 없음/무효 401, 권한 부족 403, JWT 1시간 만료 후 401.
+- **상태 코드 의미**: 200 성공 · 201 생성 · 400 잘못된 요청 · 401 인증 필요 · 403 권한 없음 · 404 없음 · 409 충돌 · 422 처리 불가(주문 차단 상품) · 500 서버 오류.
 
 ---
 
-**이 가이드로 완벽한 API 테스트를 수행하세요!**
+**이 가이드로 체계적인 API 테스트를 수행하세요!**

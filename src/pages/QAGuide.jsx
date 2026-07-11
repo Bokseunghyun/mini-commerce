@@ -1865,15 +1865,16 @@ test('상품 추가 → 수정 → 삭제', async ({ page }) => {
 
 \`\`\`typescript
 test('전체 주문 흐름 (UI + API 통합)', async ({ page }) => {
-  // 1. 로그인
+  // 1. 로그인 (계정 드롭다운 → 로그인 항목 → 모달)
   await page.goto('/');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+
   const [loginResponse] = await Promise.all([
     page.waitForResponse((res) => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
   
   expect(loginResponse.status()).toBe(200);
@@ -2575,6 +2576,88 @@ export default function QAGuide({ onClose }) {
                 </ul>
               </section>
 
+              {/* 자동화 필수 수칙 (베스트 프랙티스) */}
+              <section style={styles.section}>
+                <h3 style={styles.sectionTitle}>✅ 자동화 필수 수칙 (읽고 시작하세요)</h3>
+                <ul style={styles.list}>
+                  <li>
+                    <strong>테스트 코드는 별도 레포에.</strong> 이 레포는 테스트 대상(SUT)이라 Playwright 코드를 포함하지 않는 것이 설계 의도입니다.
+                    아래 예제는 별도 테스트 레포에 작성하세요.
+                  </li>
+                  <li>
+                    <strong>baseURL은 <code>http://localhost:5173</code>(Vite).</strong> API는 상대경로 <code>/api/...</code>로 호출하면 Vite가 Express(3000)로 프록시합니다.
+                  </li>
+                  <li>
+                    <strong>순수 API 검증은 <code>page.request</code> / <code>request.newContext(...)</code></strong>, UI 동작이 유발한 호출 검증만 <code>page.waitForResponse(...)</code>를 씁니다.
+                  </li>
+                  <li>
+                    <strong>조건 기반 대기 권장.</strong> web-first assertion(<code>await expect(locator).toBeVisible()</code> 등)이나 <code>locator.waitFor()</code>로 조건이 충족될 때까지 대기하세요.
+                  </li>
+                  <li>
+                    <strong>인증은 localStorage + storageState 재사용.</strong> 로그인 인증정보(token/role/username)는 localStorage에 영속되어
+                    <code>storageState</code>로 저장해 여러 테스트에서 재사용할 수 있습니다(JWT는 1시간 후 만료 — 의도된 고정값).
+                    서버는 set-cookie 없이 <code>{'{ token, user }'}</code> 바디로만 주므로, 인증요청은 <code>Authorization: Bearer &lt;token&gt;</code> 헤더로 보냅니다.
+                  </li>
+                  <li>
+                    <strong>테스트 격리.</strong> 장바구니/주문/리뷰/계정은 서버 DB에 계정 단위로 영속됩니다.
+                    <code>beforeEach</code>에서 <code>POST /api/reset</code>으로 초기화하거나, 병렬 실행 시 테스트별 고유 계정(signup)으로 격리하세요.
+                  </li>
+                  <li>
+                    <strong>dialog 처리.</strong> 보호 페이지 진입 <code>confirm()</code>, 주문/취소 등 <code>alert()</code>가 뜹니다.
+                    리스너가 없으면 자동 dismiss되어 흐름이 끊기므로 <code>page.on('dialog', d =&gt; d.accept())</code>를 등록하세요.
+                  </li>
+                  <li>
+                    <strong>라우트 안내.</strong> 상품 목록/정렬/가격필터는 홈(<code>/</code>)에서 제공됩니다. 로그인/회원가입은 홈에서 계정 드롭다운을 열어 모달로 진행하며 URL이 바뀌지 않습니다.
+                  </li>
+                </ul>
+                <div style={{ ...styles.note, backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>📁 playwright.config (별도 테스트 레포)</p>
+                  <pre style={{ ...styles.code, margin: '4px 0 0 0' }}>{`export default defineConfig({
+  use: { baseURL: 'http://localhost:5173', trace: 'on-first-retry',
+         screenshot: 'only-on-failure', video: 'retain-on-failure' },
+  retries: process.env.CI ? 2 : 0,
+  webServer: [
+    { command: 'npm run start-api', port: 3000, reuseExistingServer: !process.env.CI },
+    { command: 'npm run dev',       port: 5173, reuseExistingServer: !process.env.CI },
+  ],
+});`}</pre>
+                </div>
+                <div style={{ ...styles.note, backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>🔑 storageState로 로그인 재사용 (setup 프로젝트)</p>
+                  <pre style={{ ...styles.code, margin: '4px 0 0 0' }}>{`// auth.setup.ts — 한 번 로그인해 세션을 파일로 저장
+setup('로그인', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden(); // 로그인 성공 시 모달이 닫힘
+  await page.context().storageState({ path: '.auth/user.json' }); // localStorage 포함 저장
+});
+
+// playwright.config.ts
+projects: [
+  { name: 'setup', testMatch: /auth\\.setup\\.ts/ },
+  { name: 'chromium', dependencies: ['setup'],
+    use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' } },
+];`}</pre>
+                </div>
+                <div style={{ ...styles.note, backgroundColor: '#e0f2fe', borderLeft: '4px solid #0284c7' }}>
+                  <p style={{ margin: 0, fontWeight: 600, marginBottom: '8px' }}>🌐 순수 API 검증 (page.request + 인증)</p>
+                  <pre style={{ ...styles.code, margin: '4px 0 0 0' }}>{`test('내 주문 (인증 필요)', async ({ playwright }) => {
+  const anon = await playwright.request.newContext({ baseURL: 'http://localhost:5173' });
+  const { token } = await (await anon.post('/api/login',
+    { data: { username: 'test', password: '1234' } })).json();
+  const api = await playwright.request.newContext({
+    baseURL: 'http://localhost:5173',
+    extraHTTPHeaders: { Authorization: \`Bearer \${token}\` },
+  });
+  expect((await api.get('/api/orders')).status()).toBe(200);
+});`}</pre>
+                </div>
+              </section>
+
               {/* 2. 자동화 대상 UI 포인트 */}
               <section style={styles.section}>
                 <h3 style={styles.sectionTitle}>🎯 자동화 대상 UI/API 포인트</h3>
@@ -2583,9 +2666,9 @@ export default function QAGuide({ onClose }) {
                   <h4 style={styles.subsectionTitle}>UI 식별자</h4>
                   <p style={styles.text}>모든 주요 UI 요소는 다음 중 하나 이상을 포함합니다:</p>
                   <ul style={styles.list}>
-                    <li><code>id</code> 속성 (예: id="home-search", id="login-submit")</li>
-                    <li><code>className</code> (예: className="search-input", "login-button")</li>
-                    <li><code>data-testid</code> (자동화 전용 식별자)</li>
+                    <li><code>data-testid</code> (자동화 전용 식별자) — 이 앱에는 389개가 촘촘히 박혀 있어 <strong>1급(우선) 셀렉터</strong>로 안심하고 씁니다</li>
+                    <li><code>id</code> 속성 (예: <code>#home-admin-btn</code>, <code>#home-cart-btn</code>)</li>
+                    <li><code>className</code> (예: <code>className="product-card"</code>, <code>"review-item"</code>)</li>
                     <li><code>aria-label</code> (접근성 + 자동화)</li>
                     <li><code>role</code> (의미론적 역할)</li>
                   </ul>
@@ -2593,28 +2676,28 @@ export default function QAGuide({ onClose }) {
                     ✅ 주요 UI 요소에는 <code>data-testid</code>가 부여되어 있어 <code>page.getByTestId()</code>로 안정적으로 접근할 수 있습니다.
                     예: <code>login-submit-button</code>(로그인 버튼), <code>{"view-detail-btn-{id}"}</code>(상품 상세 버튼),
                     {" "}<code>{"add-to-cart-btn-{id}"}</code>(장바구니 담기 버튼), <code>{"cart-item-{id}"}</code>(장바구니 행),
-                    {" "}<code>loading-spinner</code>(로딩 인디케이터)
+                    {" "}<code>loading-spinner</code>(로딩 인디케이터). 로케이터 우선순위는
+                    {" "}<strong>getByTestId / getByRole → getByLabel·getByText → CSS(<code>#id</code>/<code>.class</code>)</strong> 순을 권장합니다.
                   </p>
                 </div>
 
                 <div style={styles.subsection}>
                   <h4 style={styles.subsectionTitle}>주요 테스트 포인트</h4>
+                  <p style={styles.note}>
+                    💡 홈 헤더 id는 <code>#home-admin-btn</code>·<code>#home-cart-btn</code>이며,
+                    로그인/계정 기능은 계정 드롭다운(<code>user-menu-trigger</code>)을 열고 <code>usermenu-*</code> 항목으로 접근합니다.
+                    로그인 폼은 모달(<code>login-modal</code>) 안에 있습니다.
+                  </p>
                   <table style={styles.table}>
                     <thead>
                       <tr>
                         <th style={styles.th}>페이지</th>
                         <th style={styles.th}>요소</th>
-                        <th style={styles.th}>ID/클래스</th>
+                        <th style={styles.th}>셀렉터 (실재)</th>
                         <th style={styles.th}>검증 포인트</th>
                       </tr>
                     </thead>
                     <tbody>
-                      <tr>
-                        <td style={styles.td}>홈</td>
-                        <td style={styles.td}>검색창</td>
-                        <td style={styles.td}>#home-search</td>
-                        <td style={styles.td}>입력, 검색 버튼 클릭</td>
-                      </tr>
                       <tr>
                         <td style={styles.td}>홈</td>
                         <td style={styles.td}>장바구니 버튼</td>
@@ -2629,33 +2712,45 @@ export default function QAGuide({ onClose }) {
                       </tr>
                       <tr>
                         <td style={styles.td}>홈</td>
-                        <td style={styles.td}>검색 버튼</td>
-                        <td style={styles.td}>#home-search-btn</td>
-                        <td style={styles.td}>빈 검색어 시 API 400 오류</td>
+                        <td style={styles.td}>계정 드롭다운 열기</td>
+                        <td style={styles.td}>getByTestId('user-menu-trigger')</td>
+                        <td style={styles.td}>로그인/회원가입/로그아웃 진입점</td>
+                      </tr>
+                      <tr>
+                        <td style={styles.td}>계정 메뉴</td>
+                        <td style={styles.td}>로그인 항목</td>
+                        <td style={styles.td}>getByTestId('usermenu-login')</td>
+                        <td style={styles.td}>로그인 모달 오픈</td>
                       </tr>
                       <tr>
                         <td style={styles.td}>로그인</td>
                         <td style={styles.td}>아이디 입력</td>
-                        <td style={styles.td}>#login-username</td>
+                        <td style={styles.td}>getByTestId('username-input')</td>
+                        <td style={styles.td}>Validation 에러</td>
+                      </tr>
+                      <tr>
+                        <td style={styles.td}>로그인</td>
+                        <td style={styles.td}>비밀번호 입력</td>
+                        <td style={styles.td}>getByTestId('password-input')</td>
                         <td style={styles.td}>Validation 에러</td>
                       </tr>
                       <tr>
                         <td style={styles.td}>로그인</td>
                         <td style={styles.td}>로그인 버튼</td>
-                        <td style={styles.td}>#login-submit</td>
+                        <td style={styles.td}>getByTestId('login-submit-button')</td>
                         <td style={styles.td}>disabled 상태 확인</td>
                       </tr>
                       <tr>
                         <td style={styles.td}>로그인</td>
-                        <td style={styles.td}>에러 메시지</td>
-                        <td style={styles.td}>#login-error</td>
-                        <td style={styles.td}>잘못된 입력 시 표시</td>
+                        <td style={styles.td}>로그인 모달</td>
+                        <td style={styles.td}>getByTestId('login-modal')</td>
+                        <td style={styles.td}>성공 시 모달이 사라짐(리다이렉트 아님)</td>
                       </tr>
                       <tr>
-                        <td style={styles.td}>상품상세</td>
-                        <td style={styles.td}>재고 정보</td>
-                        <td style={styles.td}>#stock-info</td>
-                        <td style={styles.td}>재고 API 연동</td>
+                        <td style={styles.td}>서브페이지 헤더</td>
+                        <td style={styles.td}>배송조회 / 장바구니</td>
+                        <td style={styles.td}>getByTestId('site-nav-tracking') / getByTestId('site-nav-cart')</td>
+                        <td style={styles.td}>공개 배송조회·장바구니 이동</td>
                       </tr>
                       <tr>
                         <td style={styles.td}>상품상세</td>
@@ -2665,6 +2760,16 @@ export default function QAGuide({ onClose }) {
                       </tr>
                     </tbody>
                   </table>
+                  <p style={styles.note}>
+                    💡 <strong>로그인은 홈(<code>/</code>)에서 모달로 진행되며 URL이 그대로 유지됩니다.</strong>
+                    로그인 성공은 모달이 사라짐(<code>getByTestId('login-modal')</code> hidden) 또는
+                    로그아웃 항목(<code>getByTestId('usermenu-logout')</code>) 노출로 검증합니다.
+                  </p>
+                  <p style={styles.note}>
+                    🔁 로그인 인증정보(token/role/username)는 <strong>localStorage</strong>에 저장되어 새로고침·탭 재시작 후에도 유지되고 탭 간 공유됩니다.
+                    Playwright의 <code>storageState</code>는 localStorage를 직렬화하므로, 한 번 로그인한 세션을 파일로 저장해
+                    여러 테스트에서 <strong>재사용</strong>할 수 있습니다(단, JWT는 발급 1시간 후 만료 — 의도된 고정값).
+                  </p>
                 </div>
               </section>
             </div>
@@ -2756,58 +2861,65 @@ export default function QAGuide({ onClose }) {
                     <li><code>expect().toBeVisible()</code>: 요소가 화면에 보이는지 확인합니다.</li>
                     <li><code>expect().toContainText()</code>: 요소에 특정 텍스트가 포함되어 있는지 확인합니다.</li>
                   </ul>
+                  <p style={styles.note}>
+                    💡 로그인은 <strong>계정 드롭다운(user-menu-trigger) → 로그인 항목(usermenu-login) → 로그인 모달(login-modal)</strong> 순서로 진입합니다.
+                    성공 시 모달이 닫히므로, 모달이 사라짐 또는 로그아웃 항목 노출로 검증합니다.
+                  </p>
                   <pre style={styles.code}>{`// 로그인 성공 테스트
 // 목적: 올바른 계정 정보로 로그인이 정상적으로 되는지 확인
 test('로그인 성공', async ({ page }) => {
   // 1. 홈페이지로 이동
   await page.goto('/');
-  
-  // 2. 로그인 버튼 클릭
-  await page.click('#home-login');
-  
+
+  // 2. 계정 드롭다운 열고 로그인 항목 클릭
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+
   // 3. 아이디 입력
-  await page.fill('#login-username', 'test');
-  
+  await page.getByTestId('username-input').fill('test');
+
   // 4. 비밀번호 입력
-  await page.fill('#login-password', '1234');
-  
+  await page.getByTestId('password-input').fill('1234');
+
   // 5. 로그인 제출 버튼 클릭
-  await page.click('#login-submit');
-  
-  // 6. 로그인 성공 시 로그아웃 버튼이 보여야 함
-  await expect(page.locator('#home-logout')).toBeVisible();
+  await page.getByTestId('login-submit-button').click();
+
+  // 6. 리다이렉트가 아니라 모달 닫힘으로 검증 (로그인 상태면 로그아웃 항목 노출)
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+  await page.getByTestId('user-menu-trigger').click();
+  await expect(page.getByTestId('usermenu-logout')).toBeVisible();
 });
 
 // 로그인 실패 테스트
 // 목적: 잘못된 계정 정보로 로그인 시 에러 메시지가 표시되는지 확인
 test('잘못된 계정 로그인 실패', async ({ page }) => {
   await page.goto('/');
-  await page.click('#home-login');
-  
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+
   // 존재하지 않는 계정 정보 입력
-  await page.fill('#login-username', 'wronguser');
-  await page.fill('#login-password', 'wrongpass');
-  await page.click('#login-submit');
-  
-  // 에러 메시지가 표시되는지 확인
-  await expect(page.locator('#login-error'))
-    .toContainText('아이디 또는 비밀번호 오류');
+  await page.getByTestId('username-input').fill('wronguser');
+  await page.getByTestId('password-input').fill('wrongpass');
+  await page.getByTestId('login-submit-button').click();
+
+  // 에러 메시지가 표시되는지 확인 (모달은 그대로 열려 있음)
+  await expect(page.getByText('아이디 또는 비밀번호')).toBeVisible();
 });
 
-// 차단된 계정 테스트
+// 차단된 계정 테스트 (test2는 의도된 차단 픽스처)
 // 목적: 차단된 계정으로 로그인 시 접근이 차단되는지 확인
 test('차단된 계정 로그인 차단', async ({ page }) => {
   await page.goto('/');
-  await page.click('#home-login');
-  
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+
   // 차단된 계정(test2) 정보 입력
-  await page.fill('#login-username', 'test2');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
+  await page.getByTestId('username-input').fill('test2');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+
   // 차단 메시지가 표시되는지 확인
-  await expect(page.locator('#login-error'))
-    .toContainText('차단된 계정');
+  await expect(page.getByText('차단된 계정')).toBeVisible();
 });`}</pre>
                 </div>
 
@@ -2894,11 +3006,11 @@ test('일반 사용자는 관리자 API 접근 불가', async ({ page }) => {
   // 일반 사용자로 로그인 (헬퍼 함수 사용)
   await loginAs(page, 'test', '1234');
   
-  // localStorage에서 토큰 가져오기
-  const token = await page.evaluate(() => 
-    sessionStorage.getItem('token')
+  // localStorage에서 토큰 가져오기 (로그인 인증정보는 localStorage에 저장됨)
+  const token = await page.evaluate(() =>
+    localStorage.getItem('token')
   );
-  
+
   // 관리자 API 호출 (인증 토큰 포함)
   const response = await page.request.get('/api/admin', {
     headers: { Authorization: \`Bearer \${token}\` }
@@ -2916,35 +3028,26 @@ test('일반 사용자는 관리자 API 접근 불가', async ({ page }) => {
                   <p style={styles.text}>
                     <strong>설명:</strong> 검색 기능의 입력 검증을 테스트합니다. 빈 검색어나 너무 긴 검색어를 입력했을 때 적절한 에러 처리가 되는지 확인합니다.
                   </p>
-                  <pre style={styles.code}>{`// 빈 검색어 테스트
-// 목적: 검색어 없이 검색 버튼 클릭 시 400 에러가 발생하는지 확인
-test('빈 검색어로 검색 버튼 클릭 시 400 오류', async ({ page }) => {
-  await page.goto('/');
-  
-  // 검색어 입력 없이 검색 버튼 클릭
-  await page.click('#home-search-btn');
-  
-  // 에러 alert 확인
-  page.on('dialog', async dialog => {
-    expect(dialog.message()).toContain('400');
-    expect(dialog.message()).toContain('검색어를 입력해주세요');
-    await dialog.accept();
-  });
-});
-
+                  <p style={styles.note}>
+                    💡 검색 입력 검증은 <strong>API 레벨(page.request)</strong>로 검증하는 것이 가장 결정론적입니다.
+                    <code>page.request.get('/api/search?...')</code>는 baseURL(<code>http://localhost:5173</code>) 기준 상대경로로 호출되며
+                    <code>/api</code>는 Vite가 Express(3000)로 프록시합니다.
+                  </p>
+                  <pre style={styles.code}>{`// 검색 API - 빈 검색어 파라미터 → 400 (EMPTY_QUERY)
 test('검색 API - 빈 검색어 파라미터', async ({ page }) => {
   const response = await page.request.get('/api/search?q=');
-  
+
   expect(response.status()).toBe(400);
   const body = await response.json();
   expect(body.code).toBe('EMPTY_QUERY');
 });
 
+// 검색 API - 100자 초과 → 400 (QUERY_TOO_LONG)
 test('검색 API - 긴 검색어', async ({ page }) => {
   const response = await page.request.get(
     '/api/search?q=' + 'a'.repeat(101)
   );
-  
+
   expect(response.status()).toBe(400);
   const body = await response.json();
   expect(body.code).toBe('QUERY_TOO_LONG');
@@ -2965,10 +3068,10 @@ test('검색 API - 긴 검색어', async ({ page }) => {
 
 test('리뷰 작성 - 입력 검증', async ({ page }) => {
   await loginAs(page, 'test', '1234');
-  const token = await page.evaluate(() => 
-    sessionStorage.getItem('token')
+  const token = await page.evaluate(() =>
+    localStorage.getItem('token')
   );
-  
+
   // 너무 짧은 리뷰
   const response = await page.request.post('/api/reviews', {
     headers: { Authorization: \`Bearer \${token}\` },
@@ -3008,17 +3111,17 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                       <strong>홈페이지 진입</strong>
                       <ul style={styles.list}>
                         <li>UI: 상품 카드 표시 확인 (className="product-card")</li>
-                        <li>UI: 로그인 버튼 표시 확인 (id="login-button")</li>
+                        <li>UI: 계정 드롭다운 진입점 확인 (getByTestId('user-menu-trigger'))</li>
                       </ul>
                     </li>
                     <li>
                       <strong>로그인 시도</strong>
                       <ul style={styles.list}>
-                        <li>UI: 로그인 폼 표시 (id="login-form")</li>
-                        <li>UI: username, password 입력</li>
+                        <li>UI: 계정 드롭다운 열기 → 로그인 항목(usermenu-login) 클릭 → 로그인 모달(login-modal) 표시</li>
+                        <li>UI: username-input, password-input 입력 후 login-submit-button 클릭</li>
                         <li>API: POST /api/login → 200 응답 확인</li>
                         <li>API: token 포함 여부 확인</li>
-                        <li>UI: sessionStorage에 token 저장 확인</li>
+                        <li>UI: localStorage에 token 저장 확인 (로그인 인증정보는 localStorage에 영속 → storageState로 세션 재사용 가능)</li>
                       </ul>
                     </li>
                     <li>
@@ -3060,19 +3163,22 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('.product-card').first()).toBeVisible();
   
-  // 2. 로그인
-  await page.click('#home-login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  
+  // 2. 로그인 (계정 드롭다운 → 로그인 항목 → 모달)
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+
   const [loginResponse] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
-  
+
   expect(loginResponse.status()).toBe(200);
   const loginData = await loginResponse.json();
   expect(loginData.token).toBeTruthy();
+  // 로그인 성공은 모달 닫힘으로 검증 (리다이렉트 없음)
+  await expect(page.getByTestId('login-modal')).toBeHidden();
   
   // 3. 상품 상세 진입
   const [productResponse] = await Promise.all([
@@ -3136,7 +3242,7 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                         <li>UI: 별점 선택 (1-5)</li>
                         <li>UI: 리뷰 내용 입력 (최소 10자)</li>
                         <li>API: POST /api/reviews → 201 응답 확인</li>
-                        <li>API: 중복 작성 시 409 에러 확인</li>
+                        <li>API: 같은 상품에 여러 번 작성해도 <strong>항상 201</strong>로 성공합니다</li>
                         <li>UI: 리뷰 목록 새로고침 확인</li>
                       </ul>
                     </li>
@@ -3166,13 +3272,15 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                 <div style={styles.subsection}>
                   <h5 style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Playwright 코드 예시</h5>
                   <pre style={styles.code}>{`test('리뷰 CRUD 흐름', async ({ page }) => {
-  // 로그인
+  // 로그인 (계정 드롭다운 → 로그인 항목 → 모달)
   await page.goto('/');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
   // 상품 상세 진입
   await page.click('[data-testid="product-card-1"]');
   await page.waitForSelector('#reviews-section');
@@ -3291,12 +3399,14 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   const noAuthData = await noAuthResponse.json();
   expect(noAuthData.code).toBe('AUTH_NO_TOKEN');
   
-  // 2. 일반 계정
-  await page.click('#home-login');
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
+  // 2. 일반 계정 로그인 (계정 드롭다운 → 로그인 항목 → 모달)
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
   page.on('dialog', dialog => {
     expect(dialog.message()).toContain('관리자 권한');
     dialog.accept();
@@ -3311,13 +3421,16 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   const forbiddenData = await forbiddenResponse.json();
   expect(forbiddenData.code).toBe('AUTH_FORBIDDEN');
   
-  // 3. 관리자 계정
-  await page.click('button:has-text("로그아웃")');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'admin');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
+  // 3. 관리자 계정 (로그아웃 후 재로그인)
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-logout').click();
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('admin');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+
   const [adminResponse] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/admin')),
     page.click('button:has-text("관리자")')
@@ -3438,7 +3551,7 @@ POST /api/reviews
 // 필수 필드 누락 → 400 (RATING_REQUIRED)
 // 별점 범위 초과 (1-5) → 400 (INVALID_RATING)
 // 리뷰 10자 미만 → 400 (COMMENT_TOO_SHORT)
-// 중복 리뷰 → 409 (REVIEW_ALREADY_EXISTS)
+// 같은 상품에 여러 번 작성해도 항상 201로 성공
 // 토큰 없음 → 401 (AUTH_NO_TOKEN)`}</pre>
                 </div>
 
@@ -3568,9 +3681,9 @@ test('상태 코드 500 테스트', async ({ page }) => {
                   <div style={styles.skillCard}>
                     <h4 style={styles.skillTitle}>🎯 셀렉터 전략</h4>
                     <ul style={styles.list}>
-                      <li>ID, class, aria-label 활용</li>
-                      <li>의미론적 셀렉터 우선</li>
-                      <li>data-* 속성 지양</li>
+                      <li>getByTestId / getByRole 우선 (이 앱은 testid 389개)</li>
+                      <li>보조로 getByLabel·getByText 활용</li>
+                      <li>CSS(#id·.class·nth-child) 남용 지양</li>
                     </ul>
                   </div>
 

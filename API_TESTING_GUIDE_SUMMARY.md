@@ -17,8 +17,8 @@
 
 ```typescript
 // UI만 검증 (불충분)
-await page.click('#login-submit');
-await expect(page.locator('.success')).toBeVisible();
+await page.getByTestId('login-submit-button').click();
+await expect(page.getByTestId('login-modal')).toBeHidden();
 // → 화면은 성공이지만 실제 서버 응답은?
 
 // API까지 검증 (완전)
@@ -35,9 +35,15 @@ expect(data.token).toBeTruthy();
 - 토큰, 에러 코드 등 실제 데이터 검증 필요
 - 실무에서 버그의 30%는 API 검증으로만 발견
 
+> 🌐 **환경 전제:** 앱 origin은 `http://localhost:5173`(vite dev), `/api/*`는 vite가 백엔드(`3000`)로 프록시한다.
+> 테스트에서는 `playwright.config.ts`에 `baseURL: 'http://localhost:5173'`를 두고 **상대경로 `/api/...`**만 쓴다.
+
 ---
 
 ## 2. 핵심 함수 3가지
+
+> 🎯 **셀렉터 팁:** 이 앱에는 `data-testid`가 389개나 촘촘히 박혀 있다.
+> UI를 다룰 때는 `getByTestId`/`getByRole`를 **1급(우선) 셀렉터**로 안심하고 써라.
 
 ### 2.1 page.waitForResponse() - 응답 대기
 
@@ -85,19 +91,21 @@ expect(response.status()).toBe(200);
 ```typescript
 import { test, expect } from '@playwright/test';
 
-// UI 없이 API만 테스트
-const response = await page.request.get('/api/products/99');
+// UI 없이 API만 테스트 (baseURL=5173, /api는 백엔드로 프록시)
+const response = await page.request.get('/api/products/16');
 
 expect(response.status()).toBe(404);
 const body = await response.json();
 expect(body.code).toBe('PRODUCT_NOT_FOUND');
 ```
 
-> 💡 본 사이트의 의도적 픽스처: 상품 3/4 → 500, 상품 16 → 404 (버그가 아닌 연습용 고정 시나리오)
+> 💡 본 사이트의 고정 픽스처: 상품 `3`·`4` 조회 → 500, 상품 `16` 조회 → 404. 이 응답을 그대로 검증하는 연습용 시나리오다.
 
 **언제 사용?**
-- UI 없이 API만 검증할 때
+- UI 없이 API만 검증할 때 → **순수 API 검증의 기본 도구**
 - 여러 상태 코드를 빠르게 테스트할 때
+- (참고) UI 동작이 유발한 네트워크 호출을 검증할 때만 `page.waitForResponse(...)`를 쓴다.
+  즉 **순수 API = `page.request`, UI 유발 호출 검증 = `waitForResponse`**.
 
 ---
 
@@ -105,31 +113,39 @@ expect(body.code).toBe('PRODUCT_NOT_FOUND');
 
 ### 패턴 1: 로그인 검증
 
+> ⚠️ 로그인은 **모달**로 진입한다. 계정 드롭다운(`user-menu-trigger`)을 연 뒤 `usermenu-login`을 누르면 로그인 모달(`login-modal`)이 뜬다.
+> 로그인 성공은 모달(`login-modal`)이 닫히는 것(또는 `usermenu-logout` 노출)으로 검증한다.
+
 ```typescript
 import { test, expect } from '@playwright/test';
 
 test('로그인 성공', async ({ page }) => {
   await page.goto('/');
-  await page.click('#home-login');  // 홈 → 로그인 페이지 이동
-  
-  // 입력
-  await page.fill('#login-username', 'test');
-  await page.fill('#login-password', '1234');
-  
-  // API 응답 캡처
+
+  // 계정 드롭다운 → 로그인 모달 열기
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+
+  // 입력 (모달 안의 폼)
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+
+  // 클릭이 유발하는 로그인 API 응답을 함께 캡처
   const [response] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
-  
-  // API 검증
+
+  // API 검증 (서버는 set-cookie 없이 { token, user }만 반환)
   expect(response.status()).toBe(200);
   const data = await response.json();
   expect(data.token).toBeTruthy();
   expect(data.user).toBeDefined();
-  
-  // UI 검증
-  await expect(page.locator('#home-logout')).toBeVisible();
+
+  // UI 검증: 리다이렉트가 아니라 모달이 닫히고 로그인 상태 UI가 뜬다
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+  await page.getByTestId('user-menu-trigger').click();
+  await expect(page.getByTestId('usermenu-logout')).toBeVisible();
 });
 ```
 
@@ -140,25 +156,28 @@ import { test, expect } from '@playwright/test';
 
 test('잘못된 계정 로그인 실패', async ({ page }) => {
   await page.goto('/');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'wrong');
-  await page.fill('#login-password', 'wrong');
-  
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('wrong');
+  await page.getByTestId('password-input').fill('wrong');
+
   const [response] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/login')),
-    page.click('#login-submit')
+    page.getByTestId('login-submit-button').click()
   ]);
-  
+
   // 에러 응답 검증 (응답: { "message": "아이디 또는 비밀번호 오류" })
   expect(response.status()).toBe(401);
   const data = await response.json();
   expect(data.message).toContain('아이디 또는 비밀번호');
-  
-  // 에러 메시지 UI 확인
-  await expect(page.locator('#login-error'))
+
+  // 에러 메시지 UI 확인 (모달은 닫히지 않고 에러가 표시됨)
+  await expect(page.getByTestId('login-error'))
     .toContainText('아이디 또는 비밀번호');
 });
 ```
+
+> 💡 사용자 `test2`는 비밀번호가 맞아도 로그인이 차단되어 403을 반환하는 고정 픽스처다. 이 차단 응답(403)을 검증하는 케이스로 활용한다.
 
 ### 패턴 3: POST 요청 검증
 
@@ -166,17 +185,13 @@ test('잘못된 계정 로그인 실패', async ({ page }) => {
 import { test, expect } from '@playwright/test';
 
 test('상품 추가', async ({ page }) => {
-  // 로그인하여 토큰 획득 (상품 추가는 ADMIN 권한 필요)
-  await page.goto('/');
-  await page.click('#home-login');
-  await page.fill('#login-username', 'admin');
-  await page.fill('#login-password', '1234');
-  await page.click('#login-submit');
-  
-  const token = await page.evaluate(() => 
-    localStorage.getItem('token')
-  );
-  
+  // 상품 추가는 ADMIN 권한 필요 → 토큰이 있어야 한다.
+  // UI 로그인 없이 API로 직접 토큰을 받는 것이 가장 빠르다:
+  const login = await page.request.post('/api/login', {
+    data: { username: 'admin', password: '1234' }
+  });
+  const { token } = await login.json();
+
   // API 직접 호출 (상품 추가는 POST /api/admin)
   const response = await page.request.post('/api/admin', {
     headers: {
@@ -269,6 +284,9 @@ await page.waitForResponse(
 
 ### 실수 4: 헤더에 토큰 빠뜨림
 
+이 앱은 로그인 인증정보(`token`/`role`/`username`)를 **localStorage**에 저장한다.
+따라서 아래처럼 `localStorage`에서 토큰을 읽어 헤더에 넣는다.
+
 ```typescript
 // ❌ 잘못된 코드
 const response = await page.request.get('/api/admin');
@@ -279,6 +297,55 @@ const token = await page.evaluate(() => localStorage.getItem('token'));
 const response = await page.request.get('/api/admin', {
   headers: { Authorization: `Bearer ${token}` }
 });
+```
+
+> 💡 순수 API 검증이라면 UI를 거칠 필요 없이 `POST /api/login`으로 토큰을 바로 받는 편이 빠르다(패턴 3 참고).
+> 로그인은 새로고침·탭 재시작 후에도 유지되고 탭 간 공유된다. JWT는 **1시간 후 만료**되어 이후 인증요청은 401이다(고정 픽스처).
+
+### 실수 5: `waitForTimeout`으로 고정 대기
+
+```typescript
+// ❌ 잘못된 코드 — 느리면 실패, 빠르면 낭비
+await page.getByTestId('login-submit-button').click();
+await page.waitForTimeout(3000);
+await expect(page.getByTestId('login-modal')).toBeHidden();
+
+// ✅ 올바른 코드 — 조건 충족까지 자동 재시도(web-first assertion)
+await page.getByTestId('login-submit-button').click();
+await expect(page.getByTestId('login-modal')).toBeHidden();
+```
+
+`page.waitForTimeout(...)` 같은 sleep과 `waitForLoadState('networkidle')`은 피한다.
+대신 `await expect(locator).toBeVisible()` / `toHaveText(...)`, `await locator.waitFor({ state: 'hidden' })`처럼 조건을 기다리는 단언을 쓴다.
+
+### 로그인 재사용 — storageState (반복 로그인 제거)
+
+`storageState`는 **쿠키 + localStorage를 파일로 직렬화**한다(sessionStorage는 저장 안 됨). 이 앱은 인증을 localStorage에 두므로 표준 setup 패턴이 그대로 동작한다.
+
+```typescript
+// auth.setup.ts — 한 번만 로그인해 세션을 파일로 저장
+import { test as setup, expect } from '@playwright/test';
+const authFile = '.auth/user.json';
+
+setup('로그인', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('user-menu-trigger').click();
+  await page.getByTestId('usermenu-login').click();
+  await page.getByTestId('username-input').fill('test');
+  await page.getByTestId('password-input').fill('1234');
+  await page.getByTestId('login-submit-button').click();
+  await expect(page.getByTestId('login-modal')).toBeHidden();
+  await page.context().storageState({ path: authFile });  // localStorage 포함 저장 → 재사용
+});
+```
+
+```typescript
+// playwright.config.ts — setup 프로젝트가 만든 세션을 이후 테스트가 재사용
+projects: [
+  { name: 'setup', testMatch: /auth\.setup\.ts/ },
+  { name: 'chromium', dependencies: ['setup'],
+    use: { ...devices['Desktop Chrome'], storageState: '.auth/user.json' } },
+];
 ```
 
 ---
@@ -296,11 +363,11 @@ const response = await page.waitForResponse(
 ```typescript
 const [response] = await Promise.all([
   page.waitForResponse(res => res.url().includes('/api/endpoint')),
-  page.click('#button')
+  page.getByTestId('login-submit-button').click()  // 이 앱은 data-testid가 촘촘하니 getByTestId를 1급 셀렉터로
 ]);
 ```
 
-### API 직접 호출
+### API 직접 호출 (baseURL=5173, 상대경로만)
 ```typescript
 const response = await page.request.get('/api/endpoint');
 const response = await page.request.post('/api/endpoint', {
@@ -336,13 +403,22 @@ const response = await page.request.get('/api/protected', {
 
 ### 테스트 데이터 초기화 (반복 실행 대비)
 ```typescript
-// 모든 상태가 Postgres(DB)에 저장되므로 서버 재시작으로는 초기화되지 않음
-// POST /api/reset 으로 초기화 — 상품/사용자(가입 계정 삭제)/리뷰/위시리스트/장바구니/주문/쿠폰을 시드 상태로 복원
+// 모든 상태가 Postgres(DB)에 계정 단위로 영속되므로 서버 재시작으로는 초기화되지 않음
+// POST /api/reset 으로 시드 상태 복원 (장바구니/주문/리뷰/쿠폰 등)
 const res = await page.request.post('/api/reset');
 expect(res.status()).toBe(200);
-// 응답: { "message": "모든 데이터가 초기화되었습니다",
-//         "reset": ["products", "users", "reviews", "wishlists", "carts", "orders", "coupons"] }
+// 응답 reset 배열은 9개: products, users, reviews, wishlists, carts,
+//   orders, coupons, payments, user_coupons
+// → status 200 + message 존재 위주로 검증하는 것이 안정적
+expect((await res.json()).message).toBeTruthy();
 ```
+
+> 🔒 **테스트 격리:** `beforeEach`에서 `POST /api/reset`(공유 환경 전체 초기화)을 하거나,
+> 병렬 실행(fullyParallel)이라면 테스트별 **고유 계정**(`/api/signup`)으로 격리한다.
+> ```typescript
+> test.beforeEach(async ({ request }) => { await request.post('/api/reset'); });
+> // 병렬 시: const username = `u${Date.now()}_${test.info().parallelIndex}`;
+> ```
 
 ### 신규 엔드포인트 빠른 참조 (signup / coupons / orders)
 ```typescript
@@ -355,7 +431,7 @@ await page.request.post('/api/signup', {
 await page.request.get('/api/signup?username=newuser1'); // → 200 { username, available }
 
 // 쿠폰 검증 — 시드 4종: WELCOME10(10%, 최대 2만), SAVE5000(5천원, 최소 3만),
-//                     VIP20(20%, 최소 10만, 최대 5만), EXPIRED10(만료 — 의도적 픽스처)
+//                     VIP20(20%, 최소 10만, 최대 5만), EXPIRED10(만료 응답 검증용 고정 픽스처)
 // 네거티브: 404 COUPON_NOT_FOUND, 400 COUPON_EXPIRED / MIN_ORDER_NOT_MET / INVALID_AMOUNT
 await page.request.post('/api/coupons', {
   data: { code: 'WELCOME10', orderAmount: 100000 }
