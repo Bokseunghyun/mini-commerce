@@ -235,7 +235,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
       return;
     }
 
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     fetch(`${API_BASE}/api/user-actions?type=cart`, {
       headers: { Authorization: token ? `Bearer ${token}` : "" },
     })
@@ -259,7 +259,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
   // 내 보유 쿠폰(사용가능) 로드 — 드롭다운 선택용
   const fetchMyCoupons = async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-actions?type=coupons`, {
@@ -280,7 +280,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
   // 내 정보에 저장된 기본 배송지 로드 (내 배송지 불러오기용)
   const fetchDefaultAddress = async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-actions?type=profile`, {
@@ -339,7 +339,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
 
     setIsApplyingCoupon(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const authHeaders = {
         "Content-Type": "application/json",
         Authorization: token ? `Bearer ${token}` : "",
@@ -433,7 +433,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     setSubmitError("");
     setIsSubmitting(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const body = {
         action: "order",
         shipping: {
@@ -512,7 +512,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
   const handleInicisPay = async (gopaymethod = "Card") => {
     setIsPaying(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
 
       // 리다이렉트 방식 대비: 주문 컨텍스트를 sessionStorage에 보존
       // (이니시스가 전체 페이지를 리다이렉트하면 React 상태가 사라지므로 복귀 후 이 값으로 주문 생성)
@@ -602,7 +602,7 @@ export default function CheckoutPage({ apiBase, buyNowItem, selectedItems, onOrd
     let paymentKey = "";
     setIsPaying(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/payment`, {
         method: "POST",
         headers: {

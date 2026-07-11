@@ -43,7 +43,7 @@ export default function InicisCompletePage({ apiBase, onOrderComplete, onCancel 
       }
 
       try {
-        const token = sessionStorage.getItem("token");
+        const token = localStorage.getItem("token");
         const body = { action: "order", paymentKey };
         if (ctx?.shipping) body.shipping = ctx.shipping;
         if (ctx?.couponCode) body.couponCode = ctx.couponCode;

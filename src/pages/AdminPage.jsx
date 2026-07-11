@@ -42,7 +42,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
   // 권한 검증
   useEffect(() => {
     const checkAdminAccess = async () => {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       
       try {
         const res = await fetch(`${API_BASE}/api/admin`, {
@@ -133,7 +133,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
 
     // API 호출
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "PUT",
         headers: {
@@ -195,7 +195,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
   // ============================================
   const handleToggleActive = async (productId) => {
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const product = products.find(p => p.id === productId);
       
       if (!product) return;
@@ -300,7 +300,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     };
 
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "POST",
         headers: {
@@ -377,7 +377,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     if (!confirm("이 상품을 삭제하시겠습니까?")) return;
 
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/admin`, {
         method: "DELETE",
         headers: {
@@ -422,7 +422,7 @@ export default function AdminPage({ products: initialProducts = [], onUpdateProd
     }
     setIsResetting(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/reset`, {
         method: "POST",
         headers: { Authorization: token ? `Bearer ${token}` : "" },
@@ -1462,7 +1462,7 @@ function CouponAdminSection({ apiBase }) {
   const [creating, setCreating] = useState(false);
 
   const fetchCoupons = async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     try {
       const res = await fetch(`${API_BASE}/api/admin/coupons`, {
         headers: { Authorization: token ? `Bearer ${token}` : "" },
@@ -1486,7 +1486,7 @@ function CouponAdminSection({ apiBase }) {
     setMessage(null);
     setCreating(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const body = {
         code: form.code.trim().toUpperCase(),
         type: form.type,

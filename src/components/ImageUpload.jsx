@@ -67,7 +67,7 @@ export default function ImageUpload({ kind = "review", onUploaded, maxLabel, api
     setUploading(true);
 
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${apiBase}/api/upload`, {
         method: "POST",
         headers: {

@@ -117,7 +117,7 @@ export default function HomePage({
 
   // 로그인 상태면 위시리스트 1회 조회하여 하트 상태 초기화
   useEffect(() => {
-    const token = sessionStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (!isLoggedIn || !token) return;
 
     let cancelled = false;
@@ -142,7 +142,7 @@ export default function HomePage({
 
   // 위시리스트 토글 (하트 클릭)
   const handleWishlistToggle = async (product) => {
-    const token = sessionStorage.getItem('token');
+    const token = localStorage.getItem('token');
     if (!token) {
       if (confirm('로그인이 필요한 서비스입니다.\n로그인하시겠습니까?')) {
         onLogin?.();

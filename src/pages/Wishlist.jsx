@@ -44,7 +44,7 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
     setOptionSel((prev) => ({ ...prev, [productId]: { ...prev[productId], [key]: value } }));
 
   const fetchWishlist = useCallback(async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) {
       setIsLoggedIn(false);
       setIsLoading(false);
@@ -101,7 +101,7 @@ export default function WishlistPage({ apiBase, onBack, onView, onAddToCart }) {
     setMessage(null);
     setRemovingId(item.productId);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: {

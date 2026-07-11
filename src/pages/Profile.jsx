@@ -22,7 +22,7 @@ import AddressSearch from "../components/AddressSearch";
 // 토큰에서 username 추출 (실패해도 크래시 X) — 아바타 폴백 이니셜용
 function getCurrentUsername() {
   try {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return null;
     return JSON.parse(atob(token.split(".")[1])).username || null;
   } catch {
@@ -111,7 +111,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
   const [registering, setRegistering] = useState(false);
 
   const fetchProfile = useCallback(async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) {
       setIsLoggedIn(false);
       setIsLoading(false);
@@ -158,7 +158,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
   }, [fetchProfile]);
 
   const fetchCoupons = useCallback(async () => {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/user-actions?type=coupons`, {
@@ -185,7 +185,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
     setRegistering(true);
     setCouponMessage(null);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}` },
@@ -216,7 +216,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
     // 업로드된 이미지는 즉시 미리 반영
     setAvatarUrl(url);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: {
@@ -258,7 +258,7 @@ export default function ProfilePage({ apiBase, onBack, onGoOrders, onGoTracking 
     }
     setSavingAddress(true);
     try {
-      const token = sessionStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const res = await fetch(`${API_BASE}/api/user-actions`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token || ""}` },

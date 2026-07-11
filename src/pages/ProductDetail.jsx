@@ -73,7 +73,7 @@ const starString = (rating) => {
 // 토큰에서 username 추출 (실패해도 크래시 X)
 const getCurrentUsername = () => {
   try {
-    const token = sessionStorage.getItem("token");
+    const token = localStorage.getItem("token");
     if (!token) return null;
     return JSON.parse(atob(token.split(".")[1])).username || null;
   } catch {
@@ -310,7 +310,7 @@ export default function ProductDetailPage({
     setSubmittingReview(true);
 
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/reviews`, {
         method: 'POST',
         headers: {
@@ -363,7 +363,7 @@ export default function ProductDetailPage({
     }
 
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/reviews`, {
         method: 'PATCH',
         headers: {
@@ -399,7 +399,7 @@ export default function ProductDetailPage({
     if (!confirm('이 리뷰를 삭제하시겠습니까?')) return;
 
     try {
-      const token = sessionStorage.getItem('token');
+      const token = localStorage.getItem('token');
       const res = await fetch(`${API_BASE}/api/reviews`, {
         method: 'DELETE',
         headers: {
