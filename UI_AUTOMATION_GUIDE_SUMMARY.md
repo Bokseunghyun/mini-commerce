@@ -7,7 +7,7 @@
 > - 앱 origin은 `http://localhost:5173`(vite dev) 하나. `/api`는 vite가 `http://localhost:3000`(Express)로 프록시한다. 테스트는 `baseURL: 'http://localhost:5173'` + 상대경로 `/api/...`를 쓴다.
 > - 라우트: `/`(홈, 상품 목록·정렬·검색 포함), `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin`. 목록/정렬/필터는 홈(`/`) 기준. `/login`·`/signup`은 홈+모달로 열리며 URL이 바뀌지 않는다(§ 로그인 & 세션).
 > - 로그인/계정 셀렉터는 **계정 드롭다운 경유**: 드롭다운 열기 `user-menu-trigger` → 항목 `usermenu-login`/`usermenu-signup`/`usermenu-logout`/`usermenu-wishlist`/`usermenu-orders`/`usermenu-profile`. 로그인 폼 `login-modal`/`username-input`/`password-input`/`login-submit-button`. 헤더 id는 `#home-admin-btn`(관리자)·`#home-cart-btn`(장바구니). 서브페이지 공통 헤더 배송조회 `site-nav-tracking`, 장바구니 `site-nav-cart`.
-> - 주요 data-testid: `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn` → `/checkout` 이동), `admin-row-{id}`, `view-detail-btn-{id}`, `add-to-cart-btn-{id}`, `wishlist-toggle-{id}`(하트, `aria-pressed`). 이 앱은 data-testid가 389개로 촘촘히 박혀 있으니 `getByTestId`/`getByRole`를 **1급(우선) 셀렉터**로 쓴다.
+> - 주요 data-testid: `cart-item-{productId}`, `cart-increase-{productId}`, `cart-decrease-{productId}`, `cart-remove-{productId}`, `cart-total`, `checkout-button`(= `#checkout-btn` → `/checkout` 이동), `admin-row-{id}`. **홈(`/`) 상품카드는 모든 카드가 동일한 testid를 공유**한다(`product-card`/`product-image`/`product-name`/`price`/`original-price`/`discount-badge`/`soldout-badge`/`wishlist-toggle`(하트, `aria-pressed`)/`view-detail-btn` — id 접미사 없음). 따라서 특정 상품 카드를 고르려면 상품명·접근성 이름·카테고리(`data-product-category`)·위치(`nth`)로 **스코핑**해야 한다(§3 패턴 3-1). 이 앱은 data-testid가 389개로 촘촘히 박혀 있으니 `getByTestId`/`getByRole`를 **1급(우선) 셀렉터**로 쓴다.
 > - **인증 = localStorage:** 로그인 정보(`token`/`role`/`username`)는 localStorage에 저장된다. 새로고침·탭 닫기·재시작 후에도 유지되고 탭 간 공유되며, **`storageState`로 재사용이 가능**하다. JWT는 1시간 후 만료되어 이후 인증요청은 401. 로그인은 페이지 이동 없이 모달만 닫히므로, `login-modal` 사라짐 또는 `usermenu-logout` 노출로 검증한다.
 > - **서버 장바구니(계정 영속):** 장바구니는 서버 DB에 계정 단위로 저장 → 다른 브라우저/컨텍스트에서 로그인해도 유지. localStorage 클리어로 초기화되지 않음 (`POST /api/reset` 또는 `cart_update` 수량 0으로 비움)
 > - 본 사이트는 `alert()`/`confirm()`을 많이 사용(장바구니 담기 alert, 주문 취소·로그인 유도 confirm 등) → `page.on('dialog', ...)` 처리가 중요한 연습 포인트
@@ -315,13 +315,45 @@ test('상품 목록 로딩', async ({ page }) => {
   await page.goto('/');
 
   // 콘텐츠가 나타날 때까지는 고정 대기가 아니라 요소의 web-first assertion으로 대기.
-  // 첫 상품 카드가 보이면 로딩이 끝난 것으로 간주 (최소 1개 이상)
-  await expect(page.getByTestId('view-detail-btn-1')).toBeVisible();
+  // 홈 카드는 모두 같은 testid를 공유하므로, 로딩 완료는 "최소 1개 이상"으로 확인
+  await expect(page.getByTestId('product-card').first()).toBeVisible();
 
-  // 첫 상품의 담기 버튼도 확인 (data-testid: add-to-cart-btn-{id})
-  await expect(page.getByTestId('add-to-cart-btn-1')).toBeVisible();
+  // 특정 상품 카드는 상품명으로 스코핑한 뒤 그 안의 버튼을 확인 (§패턴 3-1)
+  const card = page.getByTestId('product-card')
+    .filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' });
+  await expect(card.getByTestId('view-detail-btn')).toBeVisible();
 });
 ```
+
+### 패턴 3-1: 동일 testid 카드에서 원하는 상품 고르기 (홈 `/`)
+
+> 홈 상품카드는 **셀렉터 전략 연습을 위해 모든 카드가 같은 `data-testid`를 공유**합니다
+> (카드가 전부 같은 값 — id 접미사 없음). 그래서 특정 상품을 고르려면 카드를 먼저
+> 좁힌(scoping) 뒤 그 안에서 버튼을 눌러야 합니다.
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+// 1) 상품명 텍스트로 카드 스코핑 → 카드 안에서 버튼은 유일
+const card = page.getByTestId('product-card')
+  .filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' });
+await card.getByTestId('view-detail-btn').click();
+await card.getByTestId('wishlist-toggle').click();
+
+// 2) 접근성 이름으로 바로 (권장 — 사용자가 보는 이름 그대로)
+await page.getByRole('button', { name: '스마트 워치 헬스 트래커 방수 기능 상품 상세' }).click();
+
+// 3) 위치(nth) — 정렬 순서를 알 때 (0부터)
+await page.getByTestId('product-card').nth(2).getByTestId('view-detail-btn').click();
+
+// 4) 카테고리(data-product-category)로 좁힌 뒤 추가 특정
+const electronics = page.locator('[data-product-category="전자기기"]');
+await electronics.filter({ hasText: '4K 웹캠' }).getByTestId('view-detail-btn').click();
+```
+
+> ⚠️ 안티패턴: `await page.getByTestId('view-detail-btn').click()`처럼 카드 스코핑 없이 쓰면
+> 모든 카드(19개)가 매칭되어 Playwright strict mode 위반(에러)입니다. 반드시
+> 상품명·접근성 이름·카테고리·위치로 하나를 특정하세요.
 
 ### 패턴 4: 조건부 요소 (로그인/로그아웃 토글)
 
@@ -621,7 +653,8 @@ page.on('dialog', async (dialog) => {
 - 비로그인 딥링크: `orders-login-required` 표시
 
 ### 6.4 위시리스트 `/wishlist`
-홈 카드 하트 `wishlist-toggle-{id}` 클릭 → `aria-pressed` `false`→`true` 검증
+홈 카드 하트(모든 카드 공통 `wishlist-toggle`)를 상품명으로 스코핑해 클릭 → `aria-pressed` `false`→`true` 검증
+(`page.getByTestId('product-card').filter({ hasText: '상품명' }).getByTestId('wishlist-toggle')` — §3 패턴 3-1)
 → 계정 드롭다운(`user-menu-trigger`) → `usermenu-wishlist`로 페이지 이동 → `wishlist-item-{productId}` 확인 → `wishlist-remove-{productId}` 삭제 (`wishlist-add-to-cart-{productId}`, 빈 목록 `wishlist-empty`, 비로그인 `wishlist-login-required`)
 
 ### 6.5 상품 상세 `/product/:id`

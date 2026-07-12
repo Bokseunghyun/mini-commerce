@@ -12,7 +12,7 @@
 | 라우트 | `/`, `/product/:id`, `/cart`, `/checkout`, `/orders`, `/wishlist`, `/profile`(로그인 필요), `/tracking`(공개), `/order-complete`, `/admin`. 로그인·회원가입은 홈(`/`)+모달로 동작합니다(§인증). 목록/정렬/검색은 홈(`/`)에서 수행합니다 |
 | 로그인 (계정 드롭다운 경유) | 헤더의 계정 드롭다운을 `user-menu-trigger`로 연 뒤 `usermenu-login` → 로그인 모달(`login-modal`)의 `username-input`, `password-input`, `login-submit-button` |
 | 홈 헤더 id | `#home-admin-btn`(관리자), `#home-cart-btn`(장바구니). 로그인/로그아웃/위시리스트/주문/프로필/배송조회는 계정 드롭다운(`usermenu-*`) 또는 서브페이지 헤더(`site-nav-*`)의 data-testid를 사용합니다 |
-| 상품 버튼 (data-testid) | `view-detail-btn-{id}`(상세 보기), `add-to-cart-btn-{id}`(장바구니 담기), `wishlist-toggle-{id}`(하트, `aria-pressed`) |
+| 홈 상품카드 (data-testid — **모든 카드 공통 = 동일값**) | 카드 루트 `product-card`, 상세 보기 `view-detail-btn`, 하트 `wishlist-toggle`(`aria-pressed`), 이미지 `product-image`, 상품명 `product-name`, 판매가 `price`, 정가 `original-price`, 할인율 `discount-badge`, 품절 `soldout-badge`. 홈 카드는 전부 같은 testid를 공유하므로 **하나만 특정하려면 스코핑이 필요**합니다(상품명 `filter(hasText)`·접근성 이름·`nth`·카테고리 — §3.7) |
 | 딥링크 | 위 라우트 전부 `page.goto()` 직접 진입 가능. 로그인은 **localStorage에 저장되어 새로고침·재시작·탭 간 공유되므로**, `storageState` 재사용으로 로그인 상태를 이어받을 수 있습니다(§인증) |
 
 **계정 드롭다운 항목 (data-testid):** 드롭다운 열기 `user-menu-trigger`, 항목 `usermenu-login`, `usermenu-signup`, `usermenu-logout`, `usermenu-wishlist`, `usermenu-orders`, `usermenu-profile`. 서브페이지 공통 헤더에는 공개 배송조회 `site-nav-tracking`, 장바구니 이동 `site-nav-cart`. 로그인/계정 동작은 `user-menu-trigger`→`usermenu-*`, 로그인 폼은 `login-modal`/`username-input`/`password-input`/`login-submit-button`을 사용합니다.
@@ -645,7 +645,7 @@ await page.getByPlaceholder('검색어를 입력하세요').fill('Playwright');
 
 ```typescript
 page.getByTestId('submit-button')
-page.getByTestId('product-card-1')
+page.getByTestId('product-card')   // 홈 상품카드: 모든 카드가 동일 testid → 스코핑 필요(§3.7)
 ```
 
 #### 언제 써야 하나?
@@ -661,6 +661,41 @@ await page.getByTestId('login-submit-button').click();
 > 💡 **본 사이트는 `data-testid`가 389개나 촘촘히 박혀 있어 `getByTestId`를 1급(우선) 셀렉터로 안심하고 써도 됩니다.**
 > 접근성 의미가 뚜렷한 요소(버튼·링크·입력)는 `getByRole`을, 그 외에는 `getByTestId`를 우선하고,
 > 안정적인 로케이터로 `getByRole`/`getByTestId`를 선택하세요.
+
+---
+
+### 3.7 동일 testid 카드에서 원하는 상품 고르기 (홈 `/`)
+
+홈(`/`) 상품카드는 **모든 카드가 같은 `data-testid`를 공유**합니다(`product-card`, `view-detail-btn`, `wishlist-toggle`, `product-name`, `price` …). 이는 원하는 카드를 스스로 특정하는 **셀렉터 전략을 연습**하도록 만든 의도적 설계입니다.
+
+**❌ 안티패턴:** 카드 스코핑 없이 공통 testid를 단독으로 쓰면 화면의 카드 수(예: 19개)만큼 매칭되어 Playwright **strict mode 위반**(에러)이 납니다.
+
+```typescript
+await page.getByTestId('view-detail-btn').click(); // ❌ 카드 19개 매칭 → strict mode 에러
+```
+
+**✅ 전략 — 카드 하나로 좁힌 뒤 그 안에서 조작:**
+
+```typescript
+// 1) 상품명 텍스트로 카드 스코핑 → 카드 안에서 버튼은 유일
+const card = page.getByTestId('product-card')
+  .filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' });
+await card.getByTestId('view-detail-btn').click();
+await card.getByTestId('wishlist-toggle').click();
+
+// 2) 접근성 이름으로 바로 (권장 — 사용자가 보는 이름 그대로)
+//    상세버튼 aria-label = "{상품명} 상품 상세", 하트 = "{상품명} 위시리스트에 추가/제거"
+await page.getByRole('button', { name: '스마트 워치 헬스 트래커 방수 기능 상품 상세' }).click();
+
+// 3) 위치(nth) — 정렬 순서를 알 때
+await page.getByTestId('product-card').nth(2).getByTestId('view-detail-btn').click();
+
+// 4) 카테고리로 좁힌 뒤 추가 특정 (data-product-category: 전자기기/액세서리/생활)
+const electronics = page.locator('[data-product-category="전자기기"]');
+await electronics.filter({ hasText: '4K 웹캠' }).getByTestId('view-detail-btn').click();
+```
+
+> 카드에는 `data-product-category`(카테고리)·`data-product-index`(0부터)·`role="listitem"`도 있어 위치/그룹으로도 좁힐 수 있습니다. 상품명·가격은 카드 안 텍스트(`product-name`/`price`)로 그대로 읽습니다.
 
 ---
 
@@ -849,7 +884,9 @@ await page.click('button');
 
 ```typescript
 // 패턴 1: URL 변경 대기 (상품 카드 클릭 → 상세 페이지로 이동)
-await page.getByTestId('view-detail-btn-1').click();
+// 홈 카드는 testid가 모두 같으므로 상품명으로 카드를 좁힌 뒤 그 안의 버튼을 클릭(§3.7)
+await page.getByTestId('product-card').filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' })
+  .getByTestId('view-detail-btn').click();
 await page.waitForURL('**/product/**');
 
 // 패턴 2: 로딩 완료 대기
@@ -1005,7 +1042,8 @@ await page.waitForLoadState('load');
 await page.locator('.loading').waitFor({ state: 'hidden' });
 
 // ✅ URL 변경 대기 (상품 카드 클릭 → 상세 페이지로 이동)
-await page.getByTestId('view-detail-btn-1').click();
+// 홈 카드 testid는 공통이므로 접근성 이름(aria-label)으로 특정(§3.7)
+await page.getByRole('button', { name: '스마트 워치 헬스 트래커 방수 기능 상품 상세' }).click();
 await page.waitForURL('**/product/**');
 
 // ✅ 모달 완전히 닫힘 대기
@@ -1192,7 +1230,7 @@ test.beforeEach(async ({ request }) => { await request.post('/api/reset'); });
 #### 위시리스트 `/wishlist` (Wishlist.jsx) + 목록/홈 하트
 | 용도 | 셀렉터 |
 |---|---|
-| 목록/홈 카드의 하트 토글 (`aria-pressed`) | `[data-testid="wishlist-toggle-{id}"]` |
+| 목록/홈 카드의 하트 토글 (`aria-pressed`) | `wishlist-toggle` — **홈 카드는 모든 카드 공통(동일값)**이라 카드를 상품명 등으로 스코핑해야 합니다(§3.7) |
 | 위시리스트 행 | `[data-testid="wishlist-item-{productId}"]` |
 | 장바구니 담기 / 삭제 | `[data-testid="wishlist-add-to-cart-{productId}"]`, `[data-testid="wishlist-remove-{productId}"]` |
 | 빈 목록 / 로그인 필요 | `[data-testid="wishlist-empty"]`, `[data-testid="wishlist-login-required"]` |
@@ -1218,7 +1256,7 @@ test.beforeEach(async ({ request }) => { await request.post('/api/reset'); });
 | 검색 결과 개수 | `[data-testid="search-result-count"]` |
 
 > 목록/정렬/가격필터/검색은 모두 **홈(`/`)** 에서 수행합니다.
-> 씨드 상품 재고는 전체 5~30 범위입니다 — `soldout-badge-{id}` 품절 뱃지를 보려면 관리자 API로 재고를 0으로 낮춰 재현하세요(§8.6).
+> 씨드 상품 재고는 전체 5~30 범위입니다 — 품절 뱃지 `soldout-badge`(홈 카드 공통 testid)를 보려면 관리자 API로 재고를 0으로 낮춰 재현하세요(§8.6).
 
 #### 장바구니 `/cart` · 주문완료 `/order-complete`
 - 장바구니는 **서버 장바구니**(로그인 필수)이며 `cart-item-{productId}` 등 기존 `cart-*` testid는 **productId 기준**입니다. `#checkout-btn` 클릭 시 `/checkout`으로 이동합니다(주문 생성은 체크아웃 페이지에서).
@@ -1325,9 +1363,12 @@ test('체크아웃 전체 플로우', async ({ page }) => {
   await page.getByTestId('login-submit-button').click();
   await expect(page.getByTestId('login-modal')).toBeHidden();
 
-  // 장바구니 담기 (성공 시 alert 발생 → 다이얼로그 처리)
+  // 장바구니 담기: 홈 카드 → 상세 이동 → 옵션(색상/사이즈 필수) 선택 → 담기 (성공 시 alert)
+  await page.getByTestId('product-card').first().getByTestId('view-detail-btn').click();
+  await page.getByTestId('option-color-블랙').click();
+  await page.getByTestId('option-size-M').click();
   page.once('dialog', (dialog) => dialog.accept());
-  await page.getByTestId('add-to-cart-btn-1').click();
+  await page.getByTestId('add-to-cart-button').click();
 
   // 장바구니로 이동 (홈 헤더는 #home-cart-btn, 서브페이지 공통 헤더는 site-nav-cart)
   await page.locator('#home-cart-btn').click();
@@ -1471,7 +1512,11 @@ test('위시리스트 플로우', async ({ page }) => {
   await expect(page.getByTestId('login-modal')).toBeHidden();
 
   // 1) 홈 카드의 하트 토글 → aria-pressed 검증
-  const heart = page.getByTestId('wishlist-toggle-1');
+  //    홈 카드 testid는 모두 같으므로 상품명으로 카드를 좁혀 그 안의 하트를 집는다(§3.7).
+  //    아래 위시리스트 페이지 검증(wishlist-item-1)과 맞추려고 상품 1의 이름으로 스코핑.
+  const heart = page.getByTestId('product-card')
+    .filter({ hasText: '프리미엄 무선 블루투스 이어폰 노이즈 캔슬링' })
+    .getByTestId('wishlist-toggle');
   await expect(heart).toHaveAttribute('aria-pressed', 'false');
   await heart.click();
   await expect(heart).toHaveAttribute('aria-pressed', 'true');
@@ -1519,7 +1564,9 @@ test('리뷰 작성 → in-DOM 메시지 → 평점 분포 갱신', async ({ pag
   await page.getByTestId('password-input').fill('1234');
   await page.getByTestId('login-submit-button').click();
   await expect(page.getByTestId('login-modal')).toBeHidden();
-  await page.getByTestId('view-detail-btn-1').click();
+  // 홈 카드 testid는 공통 → 상품명으로 카드를 좁혀 상세로 이동(§3.7)
+  await page.getByTestId('product-card').filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' })
+    .getByTestId('view-detail-btn').click();
 
   await page.click('#tab-reviews');
   await page.getByTestId('star-input-4').click();          // 별점 4점
@@ -1583,7 +1630,7 @@ test('정렬과 가격 필터 (홈)', async ({ page }) => {
 });
 ```
 
-> 품절 뱃지(`soldout-badge-{id}`)를 검증하려면 관리자 `PUT /api/admin`으로 해당 상품 재고를 0으로 낮춘 뒤 홈을 새로고침하세요.
+> 품절 뱃지(`soldout-badge`, 홈 카드 공통 testid)를 검증하려면 관리자 `PUT /api/admin`으로 해당 상품 재고를 0으로 낮춘 뒤 홈을 새로고침하세요. 특정 상품의 뱃지는 상품명으로 카드를 스코핑해 확인합니다(§3.7).
 
 ---
 
@@ -1609,8 +1656,11 @@ test('다른 브라우저 컨텍스트에서도 장바구니 유지', async ({ b
   const ctxA = await browser.newContext();
   const pageA = await ctxA.newPage();
   await loginAs(pageA, 'test', '1234');
+  await pageA.getByTestId('product-card').first().getByTestId('view-detail-btn').click();
+  await pageA.getByTestId('option-color-블랙').click();
+  await pageA.getByTestId('option-size-M').click();
   pageA.once('dialog', (d) => d.accept());
-  await pageA.getByTestId('add-to-cart-btn-1').click();
+  await pageA.getByTestId('add-to-cart-button').click();
   await ctxA.close();
 
   // 컨텍스트 B: 완전히 새로운 브라우저 상태에서 같은 계정으로 로그인

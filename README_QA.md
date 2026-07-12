@@ -261,8 +261,11 @@ page.locator('#category-전자기기')
 page.locator('#category-액세서리')
 page.locator('#category-생활')
 
-// 상품 카드 부가 요소
-page.getByTestId('wishlist-toggle-1')  // 위시리스트 하트 토글 (aria-pressed)
+// 상품 카드 (홈 그리드) — 모든 카드가 동일한 testid를 공유하므로 카드를 먼저 스코핑
+page.getByTestId('product-card')       // 카드 컨테이너 (19개 전부 동일값)
+page.getByTestId('wishlist-toggle')    // 하트 토글 (aria-pressed) — 카드 스코핑 후 사용
+page.getByTestId('view-detail-btn')    // 상세보기 버튼 — 카드 스코핑 후 사용
+// 특정 카드를 고르는 법은 아래 [상품 카드](#상품-카드-홈-그리드--동일-testid) 절 참조
 ```
 
 > 목록/정렬/가격필터는 **홈(`/`)** 에서 동작합니다. 관련 셀렉터: `#sort-select`(정렬), `#min-price`/`#max-price`(가격 입력), `apply-price-filter`/`reset-price-filter`/`price-filter-error`/`search-result-count`(data-testid).
@@ -294,14 +297,39 @@ page.locator('[data-testid="signup-success"]')              // 가입 성공 메
 
 > 서브페이지 공통 헤더(공개): 배송조회 이동 `site-nav-tracking`, 장바구니 이동 `site-nav-cart` (data-testid).
 
-### 상품
+### 상품 카드 (홈 그리드) — 동일 testid
+홈(`/`) 상품 카드는 **셀렉터 전략 연습을 위해 모든 카드가 같은 `data-testid`를 공유**합니다(카드/서브요소 모두 동일값). 따라서 **원하는 카드를 먼저 스코핑**(상품명 텍스트·접근성 이름·`data-product-category`·위치)한 뒤 그 안의 버튼을 눌러야 합니다.
+
+| 셀렉터 | 값 | 비고 |
+|--------|----|------|
+| `getByTestId('product-card')` | 모든 카드 공통(동일값) | `<article>`, `role="listitem"`, 19개 매칭 → 스코핑 필요 |
+| `getByTestId('product-image')` / `product-name` / `price` / `original-price` | 카드 공통(동일값) | 카드 스코핑 후 사용 |
+| `getByTestId('discount-badge')` / `soldout-badge` | 카드 공통(동일값) | 조건부 렌더 |
+| `getByTestId('wishlist-toggle')` / `view-detail-btn` | 카드 공통(동일값) | 카드 스코핑 후 사용 |
+| `.product-card` (className) | 모든 카드 | `document.querySelectorAll('.product-card').length`로 카드 개수 카운트 가능 |
+| `[data-product-category="전자기기"]` | 카테고리 그룹 | 그룹으로 좁히는 용도 (전자기기/액세서리/생활) |
+| `[data-product-index="0"]` | 위치(0부터) | 정렬 순서를 알 때 |
+
+#### 동일 testid 카드에서 원하는 상품 고르기 (초보용)
+카드가 전부 같은 testid이므로, **상품명 텍스트 / 접근성 이름 / 카테고리 / 위치(nth)** 중 하나로 카드를 특정합니다.
 ```typescript
-page.locator('[data-product-id="1"]')                  // 상품 카드
-page.locator('.product-card')                          // 모든 상품
-page.locator('[data-testid="product-card-1"]')         // 상품 카드 (testid)
-page.locator('[data-testid="view-detail-btn-1"]')      // 상세보기 버튼
-page.locator('[data-testid="add-to-cart-btn-1"]')      // 장바구니 담기 버튼
+// 1) 상품명 텍스트로 카드 스코핑 → 카드 안에서 버튼은 유일
+const card = page.getByTestId('product-card')
+  .filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' });
+await card.getByTestId('view-detail-btn').click();
+await card.getByTestId('wishlist-toggle').click();
+
+// 2) 접근성 이름으로 바로 (권장 — 사용자가 보는 이름 그대로, aria-label)
+await page.getByRole('button', { name: '스마트 워치 헬스 트래커 방수 기능 상품 상세' }).click();
+
+// 3) 위치(nth) — 정렬 순서를 알 때
+await page.getByTestId('product-card').nth(2).getByTestId('view-detail-btn').click();
+
+// 4) 카테고리로 좁힌 뒤 상품명으로 특정
+const 전자 = page.locator('[data-product-category="전자기기"]');
+await 전자.filter({ hasText: '4K 웹캠' }).getByTestId('view-detail-btn').click();
 ```
+> 안티패턴: `await page.getByTestId('view-detail-btn').click()`처럼 카드 스코핑 없이 단독으로 쓰면 카드 19개가 매칭되어 Playwright strict mode 위반(에러)이 납니다. 반드시 상품명/이름/카테고리/위치로 하나를 특정하세요.
 
 ### 상품 상세 페이지 (/product/:id)
 ```typescript
@@ -560,9 +588,12 @@ test('잘못된 계정 로그인 실패', async ({ page }) => {
  * 
  * 테스트 흐름:
  * 1. 브라우저의 alert 창을 감지하는 리스너 등록
- * 2. 상품 3번의 상세보기 버튼 클릭
+ * 2. 상품 3번 카드를 상품명으로 스코핑 → 상세보기 버튼 클릭
  * 3. alert 메시지에 '500'이 포함되어 있는지 확인
  * 4. alert 창 닫기 (accept)
+ *
+ * 참고: 홈 카드는 모든 카드가 동일 testid를 공유하므로, 상품명 텍스트로
+ *       카드를 먼저 스코핑한 뒤 그 안의 view-detail-btn을 눌러 하나만 특정합니다.
  */
 test('상품 3번 500 에러', async ({ page }) => {
   // dialog 이벤트: 브라우저의 alert, confirm, prompt 창이 뜰 때 발생
@@ -574,8 +605,10 @@ test('상품 3번 500 에러', async ({ page }) => {
   });
   
   await page.goto('/');
-  // 상품 3번의 상세보기 버튼 클릭 (data-testid 우선)
-  await page.getByTestId('view-detail-btn-3').click();
+  // 상품 3번 카드를 상품명으로 스코핑 → 상세보기 버튼 클릭
+  const card = page.getByTestId('product-card')
+    .filter({ hasText: '휴대용 블루투스 스피커 360도 서라운드 사운드' });
+  await card.getByTestId('view-detail-btn').click();
 });
 
 /**

@@ -608,7 +608,7 @@ await page.getByPlaceholder('검색어를 입력하세요').fill('Playwright');
 
 \`\`\`typescript
 page.getByTestId('submit-button')
-page.getByTestId('product-card-1')
+page.getByTestId('product-card')  // 홈 상품카드 — 모든 카드가 같은 값!
 \`\`\`
 
 #### 언제 써야 하나?
@@ -624,6 +624,34 @@ await page.getByTestId('complex-component').click();
 // 1순위: getByRole()
 // 2순위: getByLabel(), getByText()
 // 3순위: getByTestId()
+\`\`\`
+
+#### 🎯 동일 testid 카드에서 원하는 상품 고르기
+
+**홈(\`/\`) 상품카드는 셀렉터 전략 연습을 위해 모든 카드가 같은 testid를 공유합니다.**
+카드(\`product-card\`)와 그 안의 버튼(\`view-detail-btn\`, \`wishlist-toggle\`)·
+텍스트(\`product-name\`, \`price\`)는 **19개 카드가 전부 같은 값**이라, 하나를 특정하려면
+반드시 **스코핑**해야 합니다.
+
+\`\`\`typescript
+// ❌ 안티패턴: 스코핑 없이 단독 사용 → 19개 매칭 → strict mode 위반(에러)
+await page.getByTestId('view-detail-btn').click();
+
+// ✅ 1) 상품명 텍스트로 카드 스코핑 → 카드 안에서 버튼은 유일
+const card = page.getByTestId('product-card')
+  .filter({ hasText: '스마트 워치 헬스 트래커 방수 기능' });
+await card.getByTestId('view-detail-btn').click();
+await card.getByTestId('wishlist-toggle').click();
+
+// ✅ 2) 접근성 이름으로 바로 (권장 — 사용자가 보는 이름 그대로)
+await page.getByRole('button', { name: '스마트 워치 헬스 트래커 방수 기능 상품 상세' }).click();
+
+// ✅ 3) 위치(nth) — 정렬 순서를 알 때
+await page.getByTestId('product-card').nth(2).getByTestId('view-detail-btn').click();
+
+// ✅ 4) 카테고리로 좁힌 뒤 추가 특정
+const 전자 = page.locator('[data-product-category="전자기기"]');
+await 전자.filter({ hasText: '4K 웹캠' }).getByTestId('view-detail-btn').click();
 \`\`\`
 
 ---
@@ -2674,10 +2702,17 @@ projects: [
                   </ul>
                   <p style={styles.note}>
                     ✅ 주요 UI 요소에는 <code>data-testid</code>가 부여되어 있어 <code>page.getByTestId()</code>로 안정적으로 접근할 수 있습니다.
-                    예: <code>login-submit-button</code>(로그인 버튼), <code>{"view-detail-btn-{id}"}</code>(상품 상세 버튼),
-                    {" "}<code>{"add-to-cart-btn-{id}"}</code>(장바구니 담기 버튼), <code>{"cart-item-{id}"}</code>(장바구니 행),
+                    예: <code>login-submit-button</code>(로그인 버튼), <code>{"cart-item-{id}"}</code>(장바구니 행),
                     {" "}<code>loading-spinner</code>(로딩 인디케이터). 로케이터 우선순위는
                     {" "}<strong>getByTestId / getByRole → getByLabel·getByText → CSS(<code>#id</code>/<code>.class</code>)</strong> 순을 권장합니다.
+                  </p>
+                  <p style={styles.note}>
+                    ⚠️ <strong>홈(<code>/</code>) 상품카드 testid는 모든 카드가 공통(동일값)입니다.</strong>
+                    카드(<code>product-card</code>)와 그 안의 <code>view-detail-btn</code>·<code>wishlist-toggle</code>·
+                    <code>product-name</code>·<code>price</code>는 19개 카드가 전부 같은 값이라(셀렉터 전략 연습용 의도적 설계),
+                    하나를 특정하려면 상품명(<code>filter({"{ hasText }"})</code>)·접근성 이름(<code>getByRole</code>)·
+                    카테고리(<code>[data-product-category]</code>)·위치(<code>nth</code>)로 <strong>스코핑</strong>해야 합니다.
+                    스코핑 없이 <code>getByTestId('view-detail-btn')</code> 단독은 19개 매칭으로 strict mode 위반입니다.
                   </p>
                 </div>
 
@@ -2926,43 +2961,27 @@ test('차단된 계정 로그인 차단', async ({ page }) => {
                 <div style={styles.scenario}>
                   <h4 style={styles.subsectionTitle}>시나리오 2: 상품 상세 오류 검증</h4>
                   <p style={styles.text}>
-                    <strong>설명:</strong> 존재하지 않는 상품을 조회할 때 404 에러가 발생하는지 확인합니다. UI를 통한 방법과 API 직접 호출 두 가지 방법으로 테스트합니다.
+                    <strong>설명:</strong> 존재하지 않는 상품(16번)을 조회할 때 404 에러가 발생하는지 확인합니다.
+                    16번은 홈 상품 그리드에 카드로 렌더링되지 않아(DOM 훅 없음) 클릭 대상이 없으므로, <strong>API 직접 호출</strong>로 검증합니다.
                   </p>
                   <p style={styles.text}>
                     <strong>주요 개념:</strong>
                   </p>
                   <ul style={styles.list}>
-                    <li><code>page.on('dialog')</code>: 브라우저의 alert, confirm 창을 감지하고 처리합니다.</li>
                     <li><code>page.request.get()</code>: API를 직접 호출합니다 (UI 거치지 않음).</li>
                     <li><code>response.status()</code>: HTTP 상태 코드를 확인합니다.</li>
                   </ul>
-                  <pre style={styles.code}>{`// 상품 404 에러 테스트 - UI 방식
-// 목적: 존재하지 않는 상품 클릭 시 404 에러 alert이 표시되는지 확인
-test('상품 16번 (가습기) 조회 시 404 에러', async ({ page }) => {
-  await page.goto('/');
-  
-  // 상품 16번 (존재하지 않음) 클릭
-  const product16 = page.locator('[data-product-id="16"]');
-  await product16.click();
-  
-  // alert 창 감지 및 검증
-  page.on('dialog', async dialog => {
-    expect(dialog.message()).toContain('404');
-    await dialog.accept(); // 확인 버튼 클릭
-  });
-});
-
-// 상품 404 에러 테스트 - API 직접 호출 방식
+                  <pre style={styles.code}>{`// 상품 404 에러 테스트 - API 직접 호출 방식
 // 목적: API 레벨에서 404 에러와 에러 코드가 정확한지 확인
 test('존재하지 않는 상품 404 - API 직접 호출', async ({ page }) => {
   await page.goto('/');
-  
-  // API 직접 호출
+
+  // API 직접 호출 (16번은 홈 카드로 노출되지 않으므로 DOM 클릭 불가)
   const response = await page.request.get('/api/products/16');
-  
+
   // HTTP 상태 코드 검증
   expect(response.status()).toBe(404);
-  
+
   // 응답 본문 검증
   const body = await response.json();
   expect(body.message).toBe('상품 없음');
@@ -3127,7 +3146,7 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
                     <li>
                       <strong>상품 상세 페이지 진입</strong>
                       <ul style={styles.list}>
-                        <li>UI: 상품 카드 클릭 (data-testid="product-card-1")</li>
+                        <li>UI: 상품명으로 카드 스코핑 후 상세 진입 (product-card를 filter(hasText '프리미엄 무선 블루투스 이어폰 노이즈 캔슬링') → view-detail-btn 클릭)</li>
                         <li>API: GET /api/products/1 → 200 응답</li>
                         <li>UI: 상품 정보 표시 확인</li>
                         <li>API: GET /api/inventory?productId=1 → 재고 정보 확인</li>
@@ -3180,10 +3199,12 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   // 로그인 성공은 모달 닫힘으로 검증 (리다이렉트 없음)
   await expect(page.getByTestId('login-modal')).toBeHidden();
   
-  // 3. 상품 상세 진입
+  // 3. 상품 상세 진입 (홈 카드는 testid가 모두 동일 → 상품명으로 스코핑)
+  const card = page.getByTestId('product-card')
+    .filter({ hasText: '프리미엄 무선 블루투스 이어폰 노이즈 캔슬링' });
   const [productResponse] = await Promise.all([
     page.waitForResponse(res => res.url().includes('/api/products/1')),
-    page.click('[data-testid="product-card-1"]')
+    card.getByTestId('view-detail-btn').click()
   ]);
   
   expect(productResponse.status()).toBe(200);
@@ -3281,8 +3302,10 @@ test('리뷰 작성 - 입력 검증', async ({ page }) => {
   await page.getByTestId('login-submit-button').click();
   await expect(page.getByTestId('login-modal')).toBeHidden();
 
-  // 상품 상세 진입
-  await page.click('[data-testid="product-card-1"]');
+  // 상품 상세 진입 (홈 카드는 testid가 모두 동일 → 상품명으로 스코핑)
+  await page.getByTestId('product-card')
+    .filter({ hasText: '프리미엄 무선 블루투스 이어폰 노이즈 캔슬링' })
+    .getByTestId('view-detail-btn').click();
   await page.waitForSelector('#reviews-section');
   
   // 리뷰 작성
