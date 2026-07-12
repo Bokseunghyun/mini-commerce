@@ -782,12 +782,9 @@ export default function HomePage({
                 return (
                 <article
                   key={product.id}
-                  id={`product-${product.id}`}
                   className="product-card product-item"
                   style={styles.productCard}
-                  data-testid={`product-card-${product.id}`}
-                  data-product-id={product.id}
-                  data-product-name={product.name}
+                  data-testid="product-card"
                   data-product-category={product.category}
                   data-product-index={index}
                   role="listitem"
@@ -795,7 +792,7 @@ export default function HomePage({
                   <div
                     className="product-image product-thumbnail"
                     style={{ ...styles.productImage, cursor: "pointer" }}
-                    data-testid={`product-image-${product.id}`}
+                    data-testid="product-image"
                     onClick={() => onView?.(product.id)}
                     role="button"
                     tabIndex={0}
@@ -823,7 +820,7 @@ export default function HomePage({
                       <span
                         className="discount-badge badge"
                         style={styles.discountBadge}
-                        data-testid={`discount-badge-${product.id}`}
+                        data-testid="discount-badge"
                         aria-label={`${product.discountRate}% 할인`}
                       >
                         {product.discountRate}%
@@ -833,7 +830,7 @@ export default function HomePage({
                       <span
                         className="soldout-badge badge"
                         style={styles.soldoutBadge}
-                        data-testid={`soldout-badge-${product.id}`}
+                        data-testid="soldout-badge"
                         aria-label={`${product.name} 품절`}
                       >
                         품절
@@ -841,8 +838,6 @@ export default function HomePage({
                     )}
                     <button
                       type="button"
-                      id={`wishlist-toggle-${product.id}`}
-                      name={`wishlist-${product.id}`}
                       className={`wishlist-toggle heart-button ${isWished ? "wished" : ""}`}
                       style={{
                         ...styles.wishlistToggle,
@@ -858,7 +853,7 @@ export default function HomePage({
                           ? `${product.name} 위시리스트에서 제거`
                           : `${product.name} 위시리스트에 추가`
                       }
-                      data-testid={`wishlist-toggle-${product.id}`}
+                      data-testid="wishlist-toggle"
                     >
                       {isWished ? "♥" : "♡"}
                     </button>
@@ -867,7 +862,7 @@ export default function HomePage({
                     <h3
                       className="product-name product-title"
                       style={styles.productName}
-                      data-testid={`product-name-${product.id}`}
+                      data-testid="product-name"
                       title={product.name}
                     >
                       {product.name}
@@ -877,7 +872,7 @@ export default function HomePage({
                         <span
                           className="original-price price-before"
                           style={styles.originalPrice}
-                          data-testid={`original-price-${product.id}`}
+                          data-testid="original-price"
                           aria-label={`정가 ${product.originalPrice.toLocaleString()}원`}
                         >
                           {product.originalPrice.toLocaleString()}원
@@ -886,7 +881,7 @@ export default function HomePage({
                       <span
                         className="sale-price price-current"
                         style={styles.salePrice}
-                        data-testid={`price-${product.id}`}
+                        data-testid="price"
                         aria-label={`판매가 ${(product.price || product.discountedPrice || 0).toLocaleString()}원`}
                       >
                         {(product.price || product.discountedPrice || 0).toLocaleString()}
@@ -898,13 +893,11 @@ export default function HomePage({
                           카드에서 바로 담기(옵션 미선택 담기)를 없애 데이터 정합성을 맞춘다. */}
                       <button
                         type="button"
-                        id={`product-${product.id}-view`}
-                        name={`view-${product.id}`}
                         className="btn btn-primary view-btn product-view-button"
                         aria-label={`${product.name} 상품 상세`}
                         onClick={() => onView?.(product.id)}
                         style={styles.viewBtn}
-                        data-testid={`view-detail-btn-${product.id}`}
+                        data-testid="view-detail-btn"
                         data-action="view"
                       >
                         상품 상세
